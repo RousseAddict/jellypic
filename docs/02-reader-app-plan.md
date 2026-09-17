@@ -1,8 +1,10 @@
 # JellyPic Reader — iOS App Plan
 
-> Status: plan / proposal. No code written yet.
-> Date: 2026-08-15
-> Companion to `01-storage-and-upload-research.md`. This doc covers **read only**: connect → pick library → browse. Upload is out of scope here.
+> Status: plan. §5 and §8 revised 2026-09-17 for the ratified iOS 12 / UIKit floor and the real target hardware.
+> Date: 2026-08-15, partially revised 2026-09-17
+> Companion to `01-storage-and-upload-research.md`. This doc covers **read only**: connect → pick library → browse. The writer is out of scope entirely.
+>
+> **Stale sections, not yet revised:** §4.4, §4.5 and §4.6 still describe SwiftUI and iOS 15/18 components (`LazyVGrid`, `MagnifyGesture`, `.navigationTransition(.zoom)`, `ShareLink`, `allowsExpensiveNetworkAccess`). None of those exist at a 12.0 floor. Read them as intent, not as specification; §5 and §8 below are authoritative.
 
 ---
 
@@ -177,19 +179,27 @@ Relaunch skips straight to Timeline while revalidating the token in the backgrou
 
 This is the core of the app's feel, so it's worth being precise. Each tier is a native component.
 
+**Budgets are sized for the target device, not for a modern phone.** The primary device is an **iPhone 5s: A7, 1 GB of RAM, 320×568 pt (640×1136 @2x), iOS 12.5.7**. An 80 MB bitmap cache on a 1 GB device is not a comfort setting, it is a jetsam. An earlier draft of this table carried numbers for a modern phone; these are the corrected ones.
+
 | Tier | Component | Holds | Size | Cleared by |
 |---|---|---|---|---|
-| 1. Bytes on disk | `URLCache` (own instance, not `.shared`) | JPEG bytes as served | 64 MB mem / 2 GB disk | Reset Cache |
-| 2. Decoded bitmaps | `NSCache<NSString, UIImage>` | ready-to-draw images | cost-limited ~80 MB | Reset Cache + auto on memory pressure |
-| 3. Metadata index | SwiftData | item rows (id, dates, size, tag) | small | Reset Cache |
+| 1. Bytes on disk | `URLCache` (own instance, not `.shared`) | JPEG bytes as served | 8 MB mem / **~300 MB disk** | Reset Cache |
+| 2. Decoded bitmaps | `NSCache<NSString, UIImage>` | ready-to-draw images | cost-limited **~20 MB** | Reset Cache + auto on memory pressure |
+| 3. Metadata index | **Core Data** | item rows (id, dates, `monthKey`, tag) | ~20k rows, small | Reset Cache |
+
+Disk, not just memory, is the constraint on tier 1: a 5s is a 16 or 32 GB device and 2 GB of thumbnails is a meaningful fraction of it.
 
 **Why `URLCache` rather than a hand-rolled file cache:** it's disk-backed, survives relaunch, and implements HTTP caching semantics including ETag revalidation for free. Combined with §2.3's immutable tagged URLs, thumbnails become a pure cache hit after first fetch. A custom cache would be more code and worse.
 
-**Why a separate `NSCache` on top:** `URLCache` returns *bytes*; decoding a JPEG on every cell reuse is what makes a grid stutter. `NSCache` holds the decoded result and — critically — evicts itself automatically under memory pressure, which a `Dictionary` will not.
+**Why a separate `NSCache` on top:** `URLCache` returns *bytes*; decoding a JPEG on every cell reuse is what makes a grid stutter. `NSCache` holds the decoded result and — critically — evicts itself automatically under memory pressure, which a `Dictionary` will not. On a 1 GB device that automatic eviction is the whole point.
 
-**Downsampling:** `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize`, off the main thread, then `UIImage.byPreparingForDisplay()`. Never hand a full-size `UIImage` to a 120pt cell — a 4000×3000 decode is ~48 MB of RAM per image and it's the #1 cause of photo-grid jank.
+**Downsampling — and an iOS 12 correction.** `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize`, off the main thread. An earlier draft then called `UIImage.byPreparingForDisplay()`; **that API is iOS 15+ and does not exist here.** The iOS-12-safe equivalent is to pass `kCGImageSourceShouldCacheImmediately: true` alongside the thumbnail options, which forces the decode at creation time on the background thread rather than lazily on first draw on the main thread. Same benefit, available since iOS 7.
 
-**Size discipline:** request three variants — grid (`fillWidth` = cell pt × screen scale), preview (~1600px), original (on demand only). Cap concurrent image requests at ~6: every miss makes the *server* resize an image, and a Raspberry Pi handed 60 parallel resizes will fall over. This is a server-protection limit as much as a client one.
+Never hand a full-size `UIImage` to a small cell — a 4000×3000 decode is ~48 MB of RAM per image, and on a 1 GB device that is one image away from termination. It is the #1 cause of photo-grid jank everywhere and an outright crash here.
+
+**Thumbnail size falls out of the screen.** At 320 pt wide and 3 columns a cell is ~105 pt, so `fillWidth = 210` at @2x. These are very small images: good for the grid, good for memory, and good for the server, which resizes on every cache miss.
+
+**Size discipline:** request three variants — grid (`fillWidth` = cell pt × screen scale), preview (~1600px), original (on demand only). Cap concurrent image requests at ~6: every miss makes the *server* resize an image, and a weak self-hosted box handed 60 parallel resizes will fall over. This is a server-protection limit as much as a client one.
 
 ---
 
@@ -259,16 +269,45 @@ JellyPicApp/   SwiftUI views, @Observable view models
 
 ---
 
-## 8. Milestones
+## 8. Livrable 1
 
-- **M1** — Connect, validate, auth, Keychain, library picker.
-- **M2** — Full sync into SwiftData, `LazyVGrid` timeline with month headers.
-- **M3** — Three-tier cache, image loader, prefetch; Settings with cache size + reset + logout.
-- **M4** — Viewer: zoom transition, paging, `UIScrollView` pinch-zoom.
-- **M5** — Video playback, Live Text, info panel + map, share.
-- **M6** — Perf pass against a 50k fixture; decide `LazyVGrid` vs `UICollectionView`.
+Revised 2026-09-17. The previous M1–M6 list was written against an iOS 18 / SwiftUI / SwiftData plan and is obsolete: `LazyVGrid` and the zoom transition don't exist at a 12.0 floor, which also settles the old M6 question (`UICollectionView`, by construction, not by measurement).
 
-M1–M3 is the honest MVP: it connects, it shows your photos, it's fast on second launch, and you can log out.
+### 8.1 Two facts that shape everything
+
+**The library holds >20 000 items.** Paging the API in memory was a tempting simplification and it is not available: 20k DTOs on a 1 GB device is a termination, not a slowdown. The Core Data index is therefore *foundational*, not an optimisation to defer.
+
+**The iPhone 5s is the only installable device** — it is the only one that accepts ad-hoc signed IPAs. The iOS 15/18 devices stay out of reach until the CI `sign: true` path runs with a real Apple certificate. So every perf question is an A7 question, and the dev loop is slow enough that discovering a perf wall late is expensive.
+
+Which means **the risk in livrable 1 is hardware, not features**. Every item on the list below is known, solvable work. The only two things that can actually kill it are: does a 20k-item grid scroll acceptably on an A7, and does the first sync complete at all on that hardware. The ordering exists to answer those early.
+
+### 8.2 Scope
+
+**In**
+
+- **L1.1** — Jellyfin client + auth. `/System/Info/Public` validation, `AuthenticateByName`, token + `deviceId` in Keychain, library picker. No UI to speak of; verifiable against the real server before any pixel exists.
+- **L1.2** — Core Data index + paged first sync with real progress (`TotalRecordCount` gives a true denominator).
+- **L1.3** — `UICollectionView` timeline, month sections, + the image loader. **Perf gate: measure on the 5s here, against the real 20k, before going further.**
+- **L1.4** — Viewer: horizontal paging + `UIScrollView` pinch-zoom.
+- **L1.5** — Settings: logout, reset cache, manual resync.
+
+**Out**
+
+Video, Live Text, EXIF info panel, map, share, pinch-to-change-density (3 fixed columns), LAN discovery, Quick Connect, multi-library.
+
+**And also out: incremental sync.** §6 proposes re-paging every ID and diffing on pull-to-refresh. At 20k items that's ~20 requests plus a 20k-row diff, on an A7, for a library that barely changes. Livrable 1 does a full sync once and exposes a manual *Resync* button. The automatic diff comes back once we've measured what it actually costs.
+
+### 8.3 Implementation notes that are easy to get wrong
+
+**`NSFetchedResultsController` needs a persisted section key.** `sectionNameKeyPath` must name a stored attribute that is consistent with the sort order — it cannot be derived on the fly from `PremiereDate`. Store a `monthKey` string (`"2026-09"`) on each row at insert time. That single column buys the month headers and the scrubber, and keeps the FRC from faulting rows just to group them.
+
+**Set `fetchBatchSize`.** Without it the FRC faults all 20k rows into memory and the index tier defeats its own purpose.
+
+**Sort on `PremiereDate`** (§6.1), with `monthKey` derived from the same value so grouping and ordering can never disagree.
+
+### 8.4 UI is a separate conversation
+
+L1.1 and L1.2 are entirely non-visual. The first genuine UI decisions arrive at L1.3 — thumbnail aspect (square crop vs. preserved ratio), and whether month headers are sticky, which is a real tradeoff on a 4-inch screen where a pinned header eats a visible share of the usable height. Those get agreed before any cell is written.
 
 ---
 

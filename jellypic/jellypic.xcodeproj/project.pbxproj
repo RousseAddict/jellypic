@@ -11,6 +11,15 @@
 		1A00000000000000000000B6 /* RootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000B1 /* RootViewController.swift */; };
 		1A00000000000000000000B7 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000B2 /* LaunchScreen.storyboard */; };
 		1A00000000000000000000B8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000B3 /* Assets.xcassets */; };
+		1A00000000000000000000D0 /* JellyfinError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C0 /* JellyfinError.swift */; };
+		1A00000000000000000000D1 /* JellyfinModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C1 /* JellyfinModels.swift */; };
+		1A00000000000000000000D2 /* JellyfinDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C2 /* JellyfinDate.swift */; };
+		1A00000000000000000000D3 /* ServerURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C3 /* ServerURL.swift */; };
+		1A00000000000000000000D4 /* JellyfinAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C4 /* JellyfinAPI.swift */; };
+		1A00000000000000000000D5 /* JellyfinClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C5 /* JellyfinClient.swift */; };
+		1A00000000000000000000D6 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C6 /* Keychain.swift */; };
+		1A00000000000000000000D7 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C7 /* AuthStore.swift */; };
+		1A00000000000000000000D8 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C8 /* AppServices.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +29,15 @@
 		1A00000000000000000000B2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		1A00000000000000000000B3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A00000000000000000000B4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1A00000000000000000000C0 /* JellyfinError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinError.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C1 /* JellyfinModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinModels.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C2 /* JellyfinDate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinDate.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C3 /* ServerURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerURL.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C4 /* JellyfinAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinAPI.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C5 /* JellyfinClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinClient.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C6 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C7 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
+		1A00000000000000000000C8 /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,12 +71,37 @@
 			isa = PBXGroup;
 			children = (
 				1A00000000000000000000B0 /* AppDelegate.swift */,
+				1A00000000000000000000C8 /* AppServices.swift */,
 				1A00000000000000000000B1 /* RootViewController.swift */,
+				1A00000000000000000000CA /* Network */,
+				1A00000000000000000000CB /* Auth */,
 				1A00000000000000000000B2 /* LaunchScreen.storyboard */,
 				1A00000000000000000000B3 /* Assets.xcassets */,
 				1A00000000000000000000B4 /* Info.plist */,
 			);
 			path = jellypic;
+			sourceTree = "<group>";
+		};
+		1A00000000000000000000CA /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000C4 /* JellyfinAPI.swift */,
+				1A00000000000000000000C5 /* JellyfinClient.swift */,
+				1A00000000000000000000C0 /* JellyfinError.swift */,
+				1A00000000000000000000C1 /* JellyfinModels.swift */,
+				1A00000000000000000000C2 /* JellyfinDate.swift */,
+				1A00000000000000000000C3 /* ServerURL.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		1A00000000000000000000CB /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000C7 /* AuthStore.swift */,
+				1A00000000000000000000C6 /* Keychain.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -132,6 +175,15 @@
 			files = (
 				1A00000000000000000000B6 /* RootViewController.swift in Sources */,
 				1A00000000000000000000B5 /* AppDelegate.swift in Sources */,
+				1A00000000000000000000D8 /* AppServices.swift in Sources */,
+				1A00000000000000000000D4 /* JellyfinAPI.swift in Sources */,
+				1A00000000000000000000D5 /* JellyfinClient.swift in Sources */,
+				1A00000000000000000000D0 /* JellyfinError.swift in Sources */,
+				1A00000000000000000000D1 /* JellyfinModels.swift in Sources */,
+				1A00000000000000000000D2 /* JellyfinDate.swift in Sources */,
+				1A00000000000000000000D3 /* ServerURL.swift in Sources */,
+				1A00000000000000000000D6 /* Keychain.swift in Sources */,
+				1A00000000000000000000D7 /* AuthStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
