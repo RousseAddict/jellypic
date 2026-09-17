@@ -36,6 +36,7 @@ final class AppServices {
             guard let self = self else { return }
             self.authStore.clear()
             self.client.credentials = nil
+            Preferences.clearLibrary()
             completion()
         }
     }

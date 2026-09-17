@@ -20,6 +20,19 @@
 		1A00000000000000000000D6 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C6 /* Keychain.swift */; };
 		1A00000000000000000000D7 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C7 /* AuthStore.swift */; };
 		1A00000000000000000000D8 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C8 /* AppServices.swift */; };
+		1A00000000000000000000F0 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E0 /* Preferences.swift */; };
+		1A00000000000000000000F1 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E1 /* Theme.swift */; };
+		1A00000000000000000000F2 /* Squircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E2 /* Squircle.swift */; };
+		1A00000000000000000000F3 /* Icons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E3 /* Icons.swift */; };
+		1A00000000000000000000F4 /* ActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E4 /* ActionButton.swift */; };
+		1A00000000000000000000F5 /* TextInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E5 /* TextInputView.swift */; };
+		1A00000000000000000000F6 /* OptionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E6 /* OptionRowView.swift */; };
+		1A00000000000000000000F7 /* ServerStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E7 /* ServerStepView.swift */; };
+		1A00000000000000000000F8 /* CredentialsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E8 /* CredentialsStepView.swift */; };
+		1A00000000000000000000F9 /* LibraryStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E9 /* LibraryStepView.swift */; };
+		1A00000000000000000000FA /* ConnectViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EA /* ConnectViewController.swift */; };
+		1A00000000000000000000FB /* HomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EB /* HomeViewController.swift */; };
+		1A00000000000000000000FC /* StepIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EC /* StepIndicatorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +51,19 @@
 		1A00000000000000000000C6 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		1A00000000000000000000C7 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
 		1A00000000000000000000C8 /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E0 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E1 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E2 /* Squircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Squircle.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E3 /* Icons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Icons.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E4 /* ActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionButton.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E5 /* TextInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInputView.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E6 /* OptionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionRowView.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E7 /* ServerStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStepView.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E8 /* CredentialsStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsStepView.swift; sourceTree = "<group>"; };
+		1A00000000000000000000E9 /* LibraryStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStepView.swift; sourceTree = "<group>"; };
+		1A00000000000000000000EA /* ConnectViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViewController.swift; sourceTree = "<group>"; };
+		1A00000000000000000000EB /* HomeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewController.swift; sourceTree = "<group>"; };
+		1A00000000000000000000EC /* StepIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepIndicatorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +101,9 @@
 				1A00000000000000000000B1 /* RootViewController.swift */,
 				1A00000000000000000000CA /* Network */,
 				1A00000000000000000000CB /* Auth */,
+				1A00000000000000000000CC /* Design */,
+				1A00000000000000000000CD /* Connect */,
+				1A00000000000000000000CE /* Home */,
 				1A00000000000000000000B2 /* LaunchScreen.storyboard */,
 				1A00000000000000000000B3 /* Assets.xcassets */,
 				1A00000000000000000000B4 /* Info.plist */,
@@ -100,8 +129,42 @@
 			children = (
 				1A00000000000000000000C7 /* AuthStore.swift */,
 				1A00000000000000000000C6 /* Keychain.swift */,
+				1A00000000000000000000E0 /* Preferences.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		1A00000000000000000000CC /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000E1 /* Theme.swift */,
+				1A00000000000000000000E2 /* Squircle.swift */,
+				1A00000000000000000000E3 /* Icons.swift */,
+				1A00000000000000000000E4 /* ActionButton.swift */,
+				1A00000000000000000000E5 /* TextInputView.swift */,
+				1A00000000000000000000E6 /* OptionRowView.swift */,
+				1A00000000000000000000EC /* StepIndicatorView.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		1A00000000000000000000CD /* Connect */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000EA /* ConnectViewController.swift */,
+				1A00000000000000000000E7 /* ServerStepView.swift */,
+				1A00000000000000000000E8 /* CredentialsStepView.swift */,
+				1A00000000000000000000E9 /* LibraryStepView.swift */,
+			);
+			path = Connect;
+			sourceTree = "<group>";
+		};
+		1A00000000000000000000CE /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000EB /* HomeViewController.swift */,
+			);
+			path = Home;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -184,6 +247,19 @@
 				1A00000000000000000000D3 /* ServerURL.swift in Sources */,
 				1A00000000000000000000D6 /* Keychain.swift in Sources */,
 				1A00000000000000000000D7 /* AuthStore.swift in Sources */,
+				1A00000000000000000000F0 /* Preferences.swift in Sources */,
+				1A00000000000000000000F1 /* Theme.swift in Sources */,
+				1A00000000000000000000F2 /* Squircle.swift in Sources */,
+				1A00000000000000000000F3 /* Icons.swift in Sources */,
+				1A00000000000000000000F4 /* ActionButton.swift in Sources */,
+				1A00000000000000000000F5 /* TextInputView.swift in Sources */,
+				1A00000000000000000000F6 /* OptionRowView.swift in Sources */,
+				1A00000000000000000000F7 /* ServerStepView.swift in Sources */,
+				1A00000000000000000000F8 /* CredentialsStepView.swift in Sources */,
+				1A00000000000000000000F9 /* LibraryStepView.swift in Sources */,
+				1A00000000000000000000FA /* ConnectViewController.swift in Sources */,
+				1A00000000000000000000FB /* HomeViewController.swift in Sources */,
+				1A00000000000000000000FC /* StepIndicatorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
