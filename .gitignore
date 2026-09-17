@@ -1,0 +1,25 @@
+.DS_Store
+
+# Build credentials — BUILD_PASS, and optionally BUILD_HOST. Never commit.
+.env.local
+
+# Claude Code local settings: it records approved command strings verbatim, which
+# in this project include the SERV2 password and host. Never commit.
+.claude/settings.local.json
+
+# Xcode
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# Never commit the shared scheme's user variant; the shared one under
+# xcshareddata/ IS tracked — xcodebuild -scheme depends on it.
+*.xcscheme.plist
+
+# Local CI simulation output
+artifacts/

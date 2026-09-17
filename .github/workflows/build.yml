@@ -1,0 +1,201 @@
+name: Build
+
+# One pipeline, three entry points:
+#   - push to main            -> ad-hoc signed, automatic
+#   - manual on any branch    -> ad-hoc signed (this is how you build a PR:
+#                                dispatch on that PR's head branch)
+#   - manual on main + sign   -> same build, re-signed with the real certificate
+#
+# The build is identical in all three cases. Signing is a single trailing step,
+# so the certificate is exposed to exactly one step and the signed artifact comes
+# from the very binary that was built and verified above it.
+#
+# No third-party actions: importing a signing certificate through unaudited
+# third-party code is not acceptable. Only actions/checkout and
+# actions/upload-artifact (first-party GitHub) are used; the keychain work is
+# plain `security` calls.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: 'Re-sign with the Apple certificate (main only)'
+        type: boolean
+        required: false
+        default: false
+      deployment_target:
+        description: 'Minimum iOS version'
+        type: string
+        required: false
+        default: '12.0'
+      configuration:
+        description: 'Debug or Release'
+        type: choice
+        required: false
+        default: Release
+        options: [Release, Debug]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      XCODE_VERSION: '26.6'
+      DEPLOYMENT_TARGET: ${{ inputs.deployment_target || '12.0' }}
+      CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject signing outside main
+        if: inputs.sign && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Signed builds are restricted to main (got ${{ github.ref }})."
+          exit 1
+
+      - name: Select Xcode
+        run: |
+          APP="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::$APP not found. Available:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "$APP"
+          xcodebuild -version
+          echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
+      # Reuses the same build.sh as local development. BUILD_HOST= switches it
+      # from "ssh to SERV2" to "build right here", and REMOTE_BASE=workspace
+      # makes its layout match the repo (PROJECT_DIR = <base>/jellypic).
+      # build.sh already ad-hoc signs (codesign --sign -).
+      - name: Build
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          BUILD_HOST= \
+          REMOTE_BASE="$GITHUB_WORKSPACE" \
+          DEVELOPER_DIR="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer" \
+          DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
+          CONFIGURATION="$CONFIGURATION" \
+          OUTPUT_IPA="$GITHUB_WORKSPACE/artifacts/jellypic.ipa" \
+          ./build.sh
+
+      # The floor is the entire point of this project; assert it rather than
+      # trusting that the build setting survived Xcode 26.
+      - name: Verify deployment target and architecture
+        run: |
+          APP="$GITHUB_WORKSPACE/DerivedData/Build/Products/${CONFIGURATION}-iphoneos/jellypic.app"
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+          lipo -info "$APP/jellypic"
+          MINOS=$(otool -l "$APP/jellypic" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2; exit}')
+          SDKV=$(otool -l "$APP/jellypic" | awk '/LC_BUILD_VERSION/{f=1} f&&/sdk /{print $2; exit}')
+          echo "minos=$MINOS  sdk=$SDKV"
+          if [ "$MINOS" != "$DEPLOYMENT_TARGET" ]; then
+            echo "::error::minos is $MINOS, expected $DEPLOYMENT_TARGET"
+            exit 1
+          fi
+
+      # ── Everything below this line is the only part that touches the cert ──
+
+      - name: Sign with Apple certificate
+        if: inputs.sign
+        env:
+          CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/signing"
+          mkdir -p "$WORK"
+          KEYCHAIN="$WORK/build.keychain-db"
+          # Ephemeral keychain password: never needs to be a secret, the keychain
+          # dies with the runner.
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+
+          echo "$CERT_P12_BASE64" | base64 --decode > "$WORK/cert.p12"
+          echo "$PROFILE_BASE64"  | base64 --decode > "$WORK/profile.mobileprovision"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$WORK/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -f pkcs12
+          # Without this, codesign blocks on a UI prompt for keychain access.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+
+          # Match only lines carrying a 40-hex SHA-1. Taking field 2 of line 1
+          # blindly would yield the word "valid" from "0 valid identities found"
+          # and fail much later with an unreadable codesign error.
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" \
+            | awk '/[0-9A-F]{40}/ {print $2; exit}')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No codesigning identity found in the imported .p12"
+            security find-identity -v -p codesigning "$KEYCHAIN" || true
+            exit 1
+          fi
+          echo "Signing identity: $IDENTITY"
+
+          # Entitlements and the app id both come from the profile itself, so no
+          # extra secrets and no chance of them drifting apart.
+          security cms -D -i "$WORK/profile.mobileprovision" > "$WORK/profile.plist"
+          /usr/libexec/PlistBuddy -x -c 'Print :Entitlements' "$WORK/profile.plist" \
+            > "$WORK/entitlements.plist"
+          APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' \
+            "$WORK/profile.plist")
+          PROFILE_BUNDLE_ID="${APP_ID#*.}"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' \
+            "$APP_PATH/Info.plist")
+
+          # The classic re-signing failure. Catch it here with a readable message
+          # instead of a codesign error 30 lines down.
+          if [ "$PROFILE_BUNDLE_ID" != "$BUNDLE_ID" ] && [ "$PROFILE_BUNDLE_ID" != "*" ]; then
+            echo "::error::Bundle id mismatch: app is '$BUNDLE_ID', profile allows '$PROFILE_BUNDLE_ID'"
+            exit 1
+          fi
+
+          cp "$WORK/profile.mobileprovision" "$APP_PATH/embedded.mobileprovision"
+
+          # Nested code first, enclosing bundle last. Frameworks/ only exists
+          # while the floor is below iOS 12.2 (embedded Swift runtime).
+          if [ -d "$APP_PATH/Frameworks" ]; then
+            for f in "$APP_PATH/Frameworks"/*.dylib; do
+              [ -f "$f" ] && codesign --force --sign "$IDENTITY" --timestamp=none "$f"
+            done
+          fi
+          codesign --force --sign "$IDENTITY" \
+            --entitlements "$WORK/entitlements.plist" --timestamp=none "$APP_PATH"
+
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+          rm -rf "$GITHUB_WORKSPACE/artifacts" && mkdir -p "$GITHUB_WORKSPACE/artifacts/Payload"
+          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/artifacts/Payload/"
+          (cd "$GITHUB_WORKSPACE/artifacts" && zip -qr jellypic.ipa Payload && rm -rf Payload)
+
+      - name: Destroy keychain
+        if: always() && inputs.sign
+        run: |
+          security list-keychain -d user -s login.keychain-db || true
+          security delete-keychain "$RUNNER_TEMP/signing/build.keychain-db" || true
+          rm -rf "$RUNNER_TEMP/signing"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jellypic-${{ inputs.sign && 'signed' || 'adhoc' }}-ios${{ inputs.deployment_target || '12.0' }}-${{ github.run_number }}
+          path: artifacts/jellypic.ipa
+          retention-days: 30
+          if-no-files-found: error
