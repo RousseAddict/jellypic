@@ -54,6 +54,34 @@ struct JellyfinLibrary: Decodable {
     }
 }
 
+struct PhotoDTO: Decodable {
+    let id: String
+    let name: String?
+    let premiereDate: Date?
+    let dateCreated: Date?
+    let width: Int?
+    let height: Int?
+    let imageTags: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "Id"
+        case name = "Name"
+        case premiereDate = "PremiereDate"
+        case dateCreated = "DateCreated"
+        case width = "Width"
+        case height = "Height"
+        case imageTags = "ImageTags"
+    }
+
+    var captureDate: Date? {
+        return premiereDate ?? dateCreated
+    }
+
+    var primaryImageTag: String? {
+        return imageTags?["Primary"]
+    }
+}
+
 struct QueryResult<Element: Decodable>: Decodable {
     let items: [Element]
     let totalRecordCount: Int

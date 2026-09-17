@@ -1,4 +1,5 @@
 import UIKit
+import Security
 
 final class AppServices {
 
@@ -6,6 +7,8 @@ final class AppServices {
 
     let authStore: AuthStore
     let client: JellyfinAPI
+    let store: PhotoStore
+    let sync: SyncEngine
 
     private init() {
         let authStore = AuthStore()
@@ -18,24 +21,31 @@ final class AppServices {
         let client = JellyfinClient(identity: identity)
         client.credentials = authStore.credentials
 
+        let store = PhotoStore()
+
         self.authStore = authStore
         self.client = client
+        self.store = store
+        self.sync = SyncEngine(client: client, store: store)
     }
 
-    func signIn(with result: AuthenticationResult, baseURL: URL) {
+    func signIn(with result: AuthenticationResult, baseURL: URL) -> OSStatus {
         let credentials = JellyfinCredentials(baseURL: baseURL,
                                               accessToken: result.accessToken,
                                               userId: result.user.id,
                                               serverId: result.serverId)
-        authStore.save(credentials)
+        let status = authStore.save(credentials)
         client.credentials = credentials
+        return status
     }
 
     func signOut(completion: @escaping () -> Void) {
+        sync.cancel()
         client.logout { [weak self] _ in
             guard let self = self else { return }
             self.authStore.clear()
             self.client.credentials = nil
+            self.store.reset()
             Preferences.clearLibrary()
             completion()
         }

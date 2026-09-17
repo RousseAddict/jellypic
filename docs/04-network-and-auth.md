@@ -93,6 +93,15 @@ All in the Keychain with `kSecAttrAccessibleAfterFirstUnlock`.
 
 **`deviceId` surviving `clear()` is the point of the whole design.** Keychain items outlive app deletion on iOS, so a reinstall, a logout, or a restore all keep the same identity and the server's device list shows one jellypic rather than one per install. This is also why it is not `identifierForVendor`, which changes when the last app from a vendor is removed. Doc 01 §7 sets the same rule for the writer.
 
+**Keychain writes are checked, not hoped for.** `Keychain.set` returns the raw
+`OSStatus`, `AuthStore.save` returns the first failure, and
+`ConnectViewController` refuses to advance to the library step when the token
+could not be persisted — it shows the code instead. Discarding those statuses
+was how a missing entitlements blob (doc 03 §5.1) turned into a silent bounce
+back to the first connect step: the sign-in and the library list both worked
+because the token was in memory, and only the router noticed that
+`authStore.credentials` read back `nil`.
+
 `accessToken` is only half-revoked by `clear()`. `AppServices.signOut` calls `POST /Sessions/Logout` **first** and wipes local state in the completion regardless of the outcome — order matters, because wiping first would strand a live token that can no longer be revoked. The token surviving a failed network call is the lesser evil; it at least remains revocable from the Jellyfin admin UI.
 
 ---

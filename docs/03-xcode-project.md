@@ -72,6 +72,39 @@ and needs no patching — unlike the iOS 6 apps, which swap in a Swift 5.1.5 run
 by hand. It inflates the IPA and is why `build.sh` signs the nested dylibs before
 the enclosing bundle. Raising the floor to 12.2 would make `Frameworks/` disappear.
 
+## 5.1 Entitlements are not optional, even ad-hoc
+
+`jellypic/jellypic.entitlements` is passed to `codesign` in `build.sh`. It carries
+exactly two keys:
+
+```
+application-identifier   com.rousseaddict.jellypic
+keychain-access-groups   [ com.rousseaddict.jellypic ]
+```
+
+Xcode never sees it — the build runs with `CODE_SIGNING_ALLOWED=NO` and the
+bundle is signed by hand afterwards — so it is not a `CODE_SIGN_ENTITLEMENTS`
+build setting and does not appear in the pbxproj.
+
+Why it matters: `securityd` derives an app's keychain access group from
+`application-identifier`. A binary signed with no entitlements blob at all has
+no group, and **every `SecItemAdd` fails with `-34018`
+(`errSecMissingEntitlement`)**. Because `AuthStore` writes the access token and
+the device UUID to the Keychain, the symptom is not a crash: the sign-in
+succeeds, the token lives in memory for the rest of the session, and the app
+bounces back to the first connect step on the next routing decision because
+`authStore.credentials` reads back `nil`. That is the failure mode this file
+exists to prevent.
+
+Normally the identifier is `TEAMID.bundle-id` and comes from the provisioning
+profile. There is no team here — the IPA is ad-hoc signed and installed on a
+jailbroken 5s — so the bundle id alone is used. When the CI `sign: true` path
+runs with a real certificate, the profile's entitlements take over and this file
+should be bypassed (the signing step picks it up only if it exists).
+
+The nested Swift dylibs are signed **without** entitlements. They are libraries;
+only the main executable gets a blob.
+
 ## 6. `RootViewController` is a placeholder
 
 It exists so the pipeline has something to compile, and prints the OS actually

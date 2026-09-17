@@ -37,7 +37,6 @@ final class HomeViewController: UIViewController {
         detailLabel.font = Typography.caption
         detailLabel.adjustsFontForContentSizeCategory = true
         detailLabel.numberOfLines = 0
-        detailLabel.text = services.authStore.credentials?.baseURL.absoluteString
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(detailLabel)
 
@@ -66,6 +65,39 @@ final class HomeViewController: UIViewController {
         ])
 
         applyPalette()
+        renderDetail()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        startSync()
+    }
+
+    private func startSync() {
+        guard let libraryId = Preferences.libraryId, !services.sync.isRunning else { return }
+        services.sync.onProgress = { [weak self] progress in
+            self?.renderDetail(progress: progress)
+        }
+        services.sync.onFinish = { [weak self] error in
+            self?.renderDetail(error: error)
+        }
+        services.sync.start(libraryId: libraryId)
+        renderDetail()
+    }
+
+    private func renderDetail(progress: SyncEngine.Progress? = nil, error: JellyfinError? = nil) {
+        var lines: [String] = []
+        if let address = services.authStore.credentials?.baseURL.absoluteString {
+            lines.append(address)
+        }
+        if let error = error {
+            lines.append(error.localizedDescription)
+        } else if let progress = progress {
+            lines.append("Indexing \(progress.indexed) / \(progress.total)")
+        } else {
+            lines.append("\(services.store.count()) photos indexed")
+        }
+        detailLabel.text = lines.joined(separator: "\n")
     }
 
     @objc private func signOut() {

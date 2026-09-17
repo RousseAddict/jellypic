@@ -25,13 +25,13 @@ struct Keychain {
     }
 
     @discardableResult
-    func set(_ value: String, for key: String) -> Bool {
-        guard let data = value.data(using: .utf8) else { return false }
+    func set(_ value: String, for key: String) -> OSStatus {
+        guard let data = value.data(using: .utf8) else { return errSecParam }
         return set(data, for: key)
     }
 
     @discardableResult
-    func set(_ value: Data, for key: String) -> Bool {
+    func set(_ value: Data, for key: String) -> OSStatus {
         let query = baseQuery(for: key)
         let attributes: [String: Any] = [
             kSecValueData as String: value,
@@ -39,16 +39,13 @@ struct Keychain {
         ]
 
         let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecSuccess {
-            return true
-        }
         guard status == errSecItemNotFound else {
-            return false
+            return status
         }
 
         var insert = query
         insert.merge(attributes) { existing, _ in existing }
-        return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
+        return SecItemAdd(insert as CFDictionary, nil)
     }
 
     @discardableResult

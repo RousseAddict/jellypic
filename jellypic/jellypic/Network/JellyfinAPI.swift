@@ -28,5 +28,11 @@ protocol JellyfinAPI: AnyObject {
 
     func libraries(completion: @escaping (Result<[JellyfinLibrary], JellyfinError>) -> Void)
 
+    func photos(libraryId: String,
+                startIndex: Int,
+                limit: Int,
+                includeTotalCount: Bool,
+                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void)
+
     func logout(completion: @escaping (Result<Void, JellyfinError>) -> Void)
 }

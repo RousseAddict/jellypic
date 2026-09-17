@@ -1,4 +1,5 @@
 import UIKit
+import Security
 
 final class ConnectViewController: UIViewController {
 
@@ -396,7 +397,12 @@ final class ConnectViewController: UIViewController {
 
             switch result {
             case .success(let authentication):
-                self.services.signIn(with: authentication, baseURL: baseURL)
+                let status = self.services.signIn(with: authentication, baseURL: baseURL)
+                guard status == errSecSuccess else {
+                    self.setLoading(false)
+                    self.showError(JellyfinError.credentialStorage(status).localizedDescription)
+                    return
+                }
                 self.loadLibraries()
             case .failure(let error):
                 self.setLoading(false)

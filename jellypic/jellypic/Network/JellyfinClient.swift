@@ -95,6 +95,41 @@ final class JellyfinClient: JellyfinAPI {
         }
     }
 
+    func photos(libraryId: String,
+                startIndex: Int,
+                limit: Int,
+                includeTotalCount: Bool,
+                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void) {
+        guard let credentials = credentials else {
+            completion(.failure(.notAuthenticated))
+            return
+        }
+        let query = [
+            URLQueryItem(name: "userId", value: credentials.userId),
+            URLQueryItem(name: "parentId", value: libraryId),
+            URLQueryItem(name: "recursive", value: "true"),
+            URLQueryItem(name: "includeItemTypes", value: "Photo"),
+            URLQueryItem(name: "sortBy", value: "PremiereDate,SortName"),
+            URLQueryItem(name: "sortOrder", value: "Ascending"),
+            URLQueryItem(name: "fields", value: "DateCreated,Width,Height"),
+            URLQueryItem(name: "enableImages", value: "true"),
+            URLQueryItem(name: "enableImageTypes", value: "Primary"),
+            URLQueryItem(name: "imageTypeLimit", value: "1"),
+            URLQueryItem(name: "enableUserData", value: "false"),
+            URLQueryItem(name: "enableTotalRecordCount", value: includeTotalCount ? "true" : "false"),
+            URLQueryItem(name: "startIndex", value: String(startIndex)),
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+        guard let request = makeRequest(baseURL: credentials.baseURL,
+                                        path: "Items",
+                                        query: query,
+                                        token: credentials.accessToken) else {
+            completion(.failure(.invalidServerURL))
+            return
+        }
+        perform(request, as: QueryResult<PhotoDTO>.self, completion: completion)
+    }
+
     func logout(completion: @escaping (Result<Void, JellyfinError>) -> Void) {
         guard let credentials = credentials else {
             completion(.failure(.notAuthenticated))

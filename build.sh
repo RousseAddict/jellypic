@@ -129,13 +129,24 @@ xcodebuild \
 # ── 3. Sign ─────────────────────────────────────────────────────────────────
 # Frameworks/ only exists when the floor is below iOS 12.2 (Xcode then embeds
 # the Swift runtime). Nested code must be signed before the enclosing bundle.
+#
+# The app bundle carries an entitlements blob when jellypic.entitlements is
+# present. Without "application-identifier" securityd has no keychain access
+# group to hand the app, and every SecItemAdd fails with -34018; the dylibs get
+# no entitlements, they are libraries. See docs/03-xcode-project.md.
 echo "[3/4] Signing (identity: $SIGN_IDENTITY)..."
 if [ -d "$FWDIR" ]; then
   for f in "$FWDIR"/*.dylib; do
     [ -f "$f" ] && codesign --force --sign "$SIGN_IDENTITY" "$f"
   done
 fi
-codesign --force --sign "$SIGN_IDENTITY" "$APP"
+ENT="$PROJECT_DIR/$PROJECT_NAME.entitlements"
+if [ -f "$ENT" ]; then
+  echo "      entitlements: $ENT"
+  codesign --force --sign "$SIGN_IDENTITY" --entitlements "$ENT" "$APP"
+else
+  codesign --force --sign "$SIGN_IDENTITY" "$APP"
+fi
 
 # ── 4. Package IPA ──────────────────────────────────────────────────────────
 echo "[4/4] Packaging IPA..."

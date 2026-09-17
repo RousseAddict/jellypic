@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 enum JellyfinError: Error {
     case invalidServerURL
@@ -11,6 +12,8 @@ enum JellyfinError: Error {
     case emptyResponse
     case decoding(Error)
     case notAuthenticated
+    case persistence(Error)
+    case credentialStorage(OSStatus)
 }
 
 extension JellyfinError: LocalizedError {
@@ -36,6 +39,10 @@ extension JellyfinError: LocalizedError {
             return "The server answered in a format jellypic does not understand."
         case .notAuthenticated:
             return "Not signed in."
+        case .persistence:
+            return "jellypic could not write to its local index."
+        case .credentialStorage(let status):
+            return "Signed in, but the Keychain refused to store the session (error \(status))."
         }
     }
 }

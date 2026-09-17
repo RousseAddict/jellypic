@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 final class AuthStore {
 
@@ -37,15 +38,22 @@ final class AuthStore {
                                    serverId: keychain.string(for: Key.serverId))
     }
 
-    func save(_ credentials: JellyfinCredentials) {
-        keychain.set(credentials.baseURL.absoluteString, for: Key.serverURL)
-        keychain.set(credentials.accessToken, for: Key.accessToken)
-        keychain.set(credentials.userId, for: Key.userId)
+    @discardableResult
+    func save(_ credentials: JellyfinCredentials) -> OSStatus {
+        let writes = [
+            keychain.set(credentials.baseURL.absoluteString, for: Key.serverURL),
+            keychain.set(credentials.accessToken, for: Key.accessToken),
+            keychain.set(credentials.userId, for: Key.userId)
+        ]
+        if let failure = writes.first(where: { $0 != errSecSuccess }) {
+            return failure
+        }
         if let serverId = credentials.serverId {
             keychain.set(serverId, for: Key.serverId)
         } else {
             keychain.remove(Key.serverId)
         }
+        return errSecSuccess
     }
 
     func clear() {
