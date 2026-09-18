@@ -1,23 +1,33 @@
 import UIKit
 
-final class MoreGlyphView: UIView {
+class GlyphView: UIView {
 
     override class var layerClass: AnyClass {
         return CAShapeLayer.self
+    }
+
+    var color: UIColor = .black {
+        didSet { applyColor() }
+    }
+
+    var glyphSize: CGSize {
+        return CGSize(width: 18, height: 18)
+    }
+
+    var strokeWidth: CGFloat {
+        return 0
     }
 
     private var shapeLayer: CAShapeLayer {
         return layer as! CAShapeLayer
     }
 
-    var color: UIColor = .black {
-        didSet { shapeLayer.fillColor = color.cgColor }
-    }
-
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
-        shapeLayer.fillColor = color.cgColor
+        shapeLayer.lineCap = .round
+        shapeLayer.lineWidth = strokeWidth
+        applyColor()
     }
 
     required init?(coder: NSCoder) {
@@ -25,34 +35,77 @@ final class MoreGlyphView: UIView {
     }
 
     override var intrinsicContentSize: CGSize {
-        return CGSize(width: 18, height: 4)
+        return glyphSize
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let diameter = min(bounds.height, bounds.width / 4)
-        guard diameter > 0 else { return }
+        shapeLayer.path = path(in: bounds).cgPath
+    }
 
-        let spacing = (bounds.width - diameter * 3) / 2
+    func path(in rect: CGRect) -> UIBezierPath {
+        return UIBezierPath()
+    }
+
+    private func applyColor() {
+        let stroked = strokeWidth > 0
+        shapeLayer.fillColor = stroked ? UIColor.clear.cgColor : color.cgColor
+        shapeLayer.strokeColor = stroked ? color.cgColor : UIColor.clear.cgColor
+    }
+}
+
+final class MoreGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 18, height: 4)
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let diameter = min(rect.height, rect.width / 4)
+        guard diameter > 0 else { return UIBezierPath() }
+
+        let spacing = (rect.width - diameter * 3) / 2
         let path = UIBezierPath()
         for index in 0..<3 {
             let origin = CGPoint(x: CGFloat(index) * (diameter + spacing),
-                                 y: (bounds.height - diameter) / 2)
+                                 y: (rect.height - diameter) / 2)
             path.append(UIBezierPath(ovalIn: CGRect(origin: origin,
                                                     size: CGSize(width: diameter, height: diameter))))
         }
-        shapeLayer.path = path.cgPath
+        return path
+    }
+}
+
+final class CloseGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 15, height: 15)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 2
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.minX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
+        path.move(to: CGPoint(x: box.maxX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
+        return path
     }
 }
 
 final class FloatingButton: UIControl, Themed {
 
     private let surface = SquircleView()
-    private let glyph = MoreGlyphView()
+    private let glyph: GlyphView
     private var palette = Theme.palette
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
+    init(glyph: GlyphView = MoreGlyphView()) {
+        self.glyph = glyph
+        super.init(frame: .zero)
 
         surface.isUserInteractionEnabled = false
         surface.translatesAutoresizingMaskIntoConstraints = false
@@ -70,8 +123,8 @@ final class FloatingButton: UIControl, Themed {
 
             glyph.centerXAnchor.constraint(equalTo: centerXAnchor),
             glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
-            glyph.widthAnchor.constraint(equalToConstant: 18),
-            glyph.heightAnchor.constraint(equalToConstant: 4)
+            glyph.widthAnchor.constraint(equalToConstant: glyph.glyphSize.width),
+            glyph.heightAnchor.constraint(equalToConstant: glyph.glyphSize.height)
         ])
 
         applyTheme(palette)

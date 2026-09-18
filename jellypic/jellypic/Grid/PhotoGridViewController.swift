@@ -21,6 +21,7 @@ final class PhotoGridViewController: UIViewController {
     private var pendingReload = false
     private var thumbnailPixels = 0
     private var horizontalInset: CGFloat = 0
+    private var transitionIndexPath: IndexPath?
 
     var onSignedOut: (() -> Void)?
 
@@ -269,6 +270,28 @@ extension PhotoGridViewController: UICollectionViewDataSource {
 
 extension PhotoGridViewController: UICollectionViewDelegate {
 
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        collectionView.deselectItem(at: indexPath, animated: false)
+        transitionIndexPath = indexPath
+
+        let viewer = PhotoViewerViewController(services: services,
+                                               results: results,
+                                               startAt: indexPath,
+                                               thumbnailPixels: thumbnailPixels)
+        viewer.transitionSource = self
+        viewer.onWillDismiss = { [weak self] path in
+            self?.prepareForReturn(to: path)
+        }
+        present(viewer, animated: true, completion: nil)
+    }
+
+    private func prepareForReturn(to indexPath: IndexPath) {
+        transitionIndexPath = indexPath
+        guard collectionView.cellForItem(at: indexPath) == nil else { return }
+        collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: false)
+        collectionView.layoutIfNeeded()
+    }
+
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate {
             applyReloadIfIdle()
@@ -277,6 +300,27 @@ extension PhotoGridViewController: UICollectionViewDelegate {
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         applyReloadIfIdle()
+    }
+}
+
+extension PhotoGridViewController: ZoomTransitionEndpoint {
+
+    private var transitionCell: PhotoCell? {
+        guard let indexPath = transitionIndexPath else { return nil }
+        return collectionView.cellForItem(at: indexPath) as? PhotoCell
+    }
+
+    func zoomTransitionImage() -> UIImage? {
+        return transitionCell?.image
+    }
+
+    func zoomTransitionRect(in container: UIView) -> CGRect? {
+        guard let cell = transitionCell, cell.image != nil else { return nil }
+        return cell.convert(cell.bounds, to: container)
+    }
+
+    func zoomTransitionSetHidden(_ hidden: Bool) {
+        transitionCell?.isHidden = hidden
     }
 }
 

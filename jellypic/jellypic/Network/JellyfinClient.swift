@@ -152,6 +152,96 @@ final class JellyfinClient: JellyfinAPI {
         return request
     }
 
+    func fullImageRequest(itemId: String, tag: String?, maxPixels: Int) -> URLRequest? {
+        guard let credentials = credentials else { return nil }
+
+        var query = [
+            URLQueryItem(name: "maxWidth", value: String(maxPixels)),
+            URLQueryItem(name: "maxHeight", value: String(maxPixels)),
+            URLQueryItem(name: "quality", value: "90"),
+            // LEGACY(ios12): WebP is undecodable here, so the output format is pinned rather than negotiated. Freed at iOS 14.
+            URLQueryItem(name: "format", value: "Jpg")
+        ]
+        if let tag = tag {
+            query.append(URLQueryItem(name: "tag", value: tag))
+        }
+
+        guard var request = makeRequest(baseURL: credentials.baseURL,
+                                        path: "Items/\(itemId)/Images/Primary",
+                                        query: query,
+                                        token: credentials.accessToken) else { return nil }
+        request.cachePolicy = .returnCacheDataElseLoad
+        return request
+    }
+
+    func photoDetails(itemId: String,
+                      completion: @escaping (Result<PhotoDetailsDTO, JellyfinError>) -> Void) {
+        guard let credentials = credentials else {
+            completion(.failure(.notAuthenticated))
+            return
+        }
+        guard let request = makeRequest(baseURL: credentials.baseURL,
+                                        path: "Items/\(itemId)",
+                                        query: [URLQueryItem(name: "userId", value: credentials.userId)],
+                                        token: credentials.accessToken) else {
+            completion(.failure(.invalidServerURL))
+            return
+        }
+        perform(request, as: PhotoDetailsDTO.self, completion: completion)
+    }
+
+    func originalFileSize(itemId: String, completion: @escaping (Int64?) -> Void) {
+        guard var request = originalFileRequest(itemId: itemId) else {
+            completion(nil)
+            return
+        }
+        request.httpMethod = "HEAD"
+        session.dataTask(with: request) { _, response, _ in
+            let length = (response as? HTTPURLResponse)?.expectedContentLength ?? -1
+            DispatchQueue.main.async {
+                completion(length > 0 ? length : nil)
+            }
+        }.resume()
+    }
+
+    func downloadOriginal(itemId: String,
+                          fileName: String,
+                          completion: @escaping (Result<URL, JellyfinError>) -> Void) -> URLSessionTask? {
+        guard let request = originalFileRequest(itemId: itemId) else {
+            finish(.failure(.notAuthenticated), completion)
+            return nil
+        }
+        let task = session.downloadTask(with: request) { [weak self] location, response, error in
+            guard let self = self else { return }
+            if let failure = self.failure(response: response, error: error) {
+                self.finish(.failure(failure), completion)
+                return
+            }
+            guard let location = location else {
+                self.finish(.failure(.emptyResponse), completion)
+                return
+            }
+            let destination = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent(fileName)
+            do {
+                try? FileManager.default.removeItem(at: destination)
+                try FileManager.default.moveItem(at: location, to: destination)
+                self.finish(.success(destination), completion)
+            } catch {
+                self.finish(.failure(.transport(error)), completion)
+            }
+        }
+        task.resume()
+        return task
+    }
+
+    private func originalFileRequest(itemId: String) -> URLRequest? {
+        guard let credentials = credentials else { return nil }
+        return makeRequest(baseURL: credentials.baseURL,
+                           path: "Items/\(itemId)/File",
+                           token: credentials.accessToken)
+    }
+
     func logout(completion: @escaping (Result<Void, JellyfinError>) -> Void) {
         guard let credentials = credentials else {
             completion(.failure(.notAuthenticated))

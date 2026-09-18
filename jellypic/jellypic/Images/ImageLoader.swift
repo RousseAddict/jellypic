@@ -16,6 +16,7 @@ final class ImageLoader {
     private let client: JellyfinAPI
     private let session: URLSession
     private let memory = NSCache<NSString, UIImage>()
+    private let fullSize = NSCache<NSString, UIImage>()
     private let decodeQueue = DispatchQueue(label: "jellypic.image.decode", qos: .userInitiated)
 
     init(client: JellyfinAPI,
@@ -23,6 +24,7 @@ final class ImageLoader {
         self.client = client
         self.session = URLSession(configuration: configuration)
         memory.totalCostLimit = 24 * 1024 * 1024
+        fullSize.countLimit = 3
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(dropMemoryCache),
@@ -69,13 +71,50 @@ final class ImageLoader {
         return task
     }
 
+    func loadFull(itemId: String,
+                  tag: String?,
+                  maxPixels: Int,
+                  completion: @escaping (UIImage?) -> Void) -> URLSessionTask? {
+        let cacheKey = key(itemId: itemId, tag: tag, pixels: maxPixels)
+        if let hit = fullSize.object(forKey: cacheKey as NSString) {
+            completion(hit)
+            return nil
+        }
+        guard let request = client.fullImageRequest(itemId: itemId, tag: tag, maxPixels: maxPixels) else {
+            completion(nil)
+            return nil
+        }
+
+        let task = session.dataTask(with: request) { [weak self] data, _, _ in
+            guard let self = self, let data = data else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            self.decodeQueue.async {
+                let image = ImageLoader.decode(data, pixels: maxPixels)
+                if let image = image {
+                    self.fullSize.setObject(image, forKey: cacheKey as NSString)
+                }
+                DispatchQueue.main.async { completion(image) }
+            }
+        }
+        task.resume()
+        return task
+    }
+
+    func releaseFullSize() {
+        fullSize.removeAllObjects()
+    }
+
     func clearCaches() {
         memory.removeAllObjects()
+        fullSize.removeAllObjects()
         session.configuration.urlCache?.removeAllCachedResponses()
     }
 
     @objc private func dropMemoryCache() {
         memory.removeAllObjects()
+        fullSize.removeAllObjects()
     }
 
     private func key(itemId: String, tag: String?, pixels: Int) -> String {

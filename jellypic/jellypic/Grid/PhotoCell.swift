@@ -8,6 +8,10 @@ final class PhotoCell: UICollectionViewCell {
     private var task: URLSessionTask?
     private var token: String = ""
 
+    var image: UIImage? {
+        return imageView.image
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
 

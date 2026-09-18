@@ -42,6 +42,10 @@
 		1A00000000000000000000124 /* PhotoGridViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000114 /* PhotoGridViewController.swift */; };
 		1A00000000000000000000125 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000115 /* ImageLoader.swift */; };
 		1A00000000000000000000126 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000116 /* SettingsViewController.swift */; };
+		1A00000000000000000000127 /* ZoomablePhotoCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000117 /* ZoomablePhotoCell.swift */; };
+		1A00000000000000000000128 /* ZoomTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000118 /* ZoomTransition.swift */; };
+		1A00000000000000000000129 /* PhotoViewerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000119 /* PhotoViewerViewController.swift */; };
+		1A0000000000000000000012A /* PhotoDetailsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011A /* PhotoDetailsViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -82,6 +86,10 @@
 		1A00000000000000000000114 /* PhotoGridViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoGridViewController.swift; sourceTree = "<group>"; };
 		1A00000000000000000000115 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		1A00000000000000000000116 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		1A00000000000000000000117 /* ZoomablePhotoCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomablePhotoCell.swift; sourceTree = "<group>"; };
+		1A00000000000000000000118 /* ZoomTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomTransition.swift; sourceTree = "<group>"; };
+		1A00000000000000000000119 /* PhotoViewerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoViewerViewController.swift; sourceTree = "<group>"; };
+		1A0000000000000000000011A /* PhotoDetailsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailsViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +133,7 @@
 				1A000000000000000000000D0 /* Grid */,
 				1A000000000000000000000D1 /* Images */,
 				1A000000000000000000000D2 /* Settings */,
+				1A000000000000000000000D3 /* Viewer */,
 				1A00000000000000000000B2 /* LaunchScreen.storyboard */,
 				1A00000000000000000000B3 /* Assets.xcassets */,
 				1A00000000000000000000B4 /* Info.plist */,
@@ -180,6 +189,17 @@
 				1A00000000000000000000116 /* SettingsViewController.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		1A000000000000000000000D3 /* Viewer */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000119 /* PhotoViewerViewController.swift */,
+				1A0000000000000000000011A /* PhotoDetailsViewController.swift */,
+				1A00000000000000000000117 /* ZoomablePhotoCell.swift */,
+				1A00000000000000000000118 /* ZoomTransition.swift */,
+			);
+			path = Viewer;
 			sourceTree = "<group>";
 		};
 		1A00000000000000000000CF /* Index */ = {
@@ -320,6 +340,10 @@
 				1A00000000000000000000124 /* PhotoGridViewController.swift in Sources */,
 				1A00000000000000000000125 /* ImageLoader.swift in Sources */,
 				1A00000000000000000000126 /* SettingsViewController.swift in Sources */,
+				1A00000000000000000000127 /* ZoomablePhotoCell.swift in Sources */,
+				1A00000000000000000000128 /* ZoomTransition.swift in Sources */,
+				1A00000000000000000000129 /* PhotoViewerViewController.swift in Sources */,
+				1A0000000000000000000012A /* PhotoDetailsViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
