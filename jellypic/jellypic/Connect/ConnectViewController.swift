@@ -251,11 +251,11 @@ final class ConnectViewController: UIViewController {
 
         if animated {
             crossfade(titleLabel) { self.titleLabel.text = title }
-            crossfade(subtitleLabel) { self.subtitleLabel.text = subtitle }
+            crossfade(subtitleLabel) { self.applySubtitle(subtitle) }
             crossfade(actionButton) { self.actionButton.title = action }
         } else {
             titleLabel.text = title
-            subtitleLabel.text = subtitle
+            applySubtitle(subtitle)
             actionButton.title = action
         }
 
@@ -263,6 +263,24 @@ final class ConnectViewController: UIViewController {
                              reachable: reachedStep.rawValue,
                              animated: animated)
         refreshActionState()
+    }
+
+    private func applySubtitle(_ text: String) {
+        let palette = Theme.palette
+        guard step == .credentials,
+              let url = baseURL,
+              ServerURL.isPlaintextToPublicHost(url) else {
+            subtitleLabel.textColor = palette.textSecondary
+            subtitleLabel.text = text
+            return
+        }
+
+        let warning = "This server is not on your local network and the connection is plain HTTP. Your password will travel unencrypted."
+        let subtitle = NSMutableAttributedString(string: text + "\n",
+                                                 attributes: [.foregroundColor: palette.textSecondary])
+        subtitle.append(NSAttributedString(string: warning,
+                                           attributes: [.foregroundColor: palette.danger]))
+        subtitleLabel.attributedText = subtitle
     }
 
     private func crossfade(_ target: UIView, changes: @escaping () -> Void) {
@@ -438,6 +456,7 @@ final class ConnectViewController: UIViewController {
 
     @objc private func themeDidChange() {
         applyPalette()
+        renderStep(animated: false)
     }
 
     private func applyPalette() {

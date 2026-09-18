@@ -19,6 +19,8 @@ final class ImageLoader {
     private let fullSize = NSCache<NSString, UIImage>()
     private let decodeQueue = DispatchQueue(label: "jellypic.image.decode", qos: .userInitiated)
 
+    var isSuspended = false
+
     init(client: JellyfinAPI,
          configuration: URLSessionConfiguration = ImageLoader.defaultConfiguration()) {
         self.client = client
@@ -47,6 +49,10 @@ final class ImageLoader {
         let cacheKey = key(itemId: itemId, tag: tag, pixels: pixels)
         if let hit = memory.object(forKey: cacheKey as NSString) {
             completion(hit)
+            return nil
+        }
+        guard !isSuspended else {
+            completion(nil)
             return nil
         }
         guard let request = client.imageRequest(itemId: itemId, tag: tag, fillPixels: pixels) else {
@@ -104,6 +110,10 @@ final class ImageLoader {
 
     func releaseFullSize() {
         fullSize.removeAllObjects()
+    }
+
+    func diskUsage() -> Int64 {
+        return Int64(session.configuration.urlCache?.currentDiskUsage ?? 0)
     }
 
     func clearCaches() {

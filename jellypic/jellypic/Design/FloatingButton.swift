@@ -76,6 +76,28 @@ final class MoreGlyphView: GlyphView {
     }
 }
 
+final class HandleGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 4, height: 18)
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let diameter = min(rect.width, rect.height / 4)
+        guard diameter > 0 else { return UIBezierPath() }
+
+        let spacing = (rect.height - diameter * 3) / 2
+        let path = UIBezierPath()
+        for index in 0..<3 {
+            let origin = CGPoint(x: (rect.width - diameter) / 2,
+                                 y: CGFloat(index) * (diameter + spacing))
+            path.append(UIBezierPath(ovalIn: CGRect(origin: origin,
+                                                    size: CGSize(width: diameter, height: diameter))))
+        }
+        return path
+    }
+}
+
 final class CloseGlyphView: GlyphView {
 
     override var glyphSize: CGSize {

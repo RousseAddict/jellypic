@@ -11,8 +11,14 @@ final class PhotoDetailsViewController: UIViewController {
     private let titleLabel = UILabel()
     private let scrollView = UIScrollView()
     private let rows = UIStackView()
+    private let footer = UIStackView()
+    private let progressBox = UIStackView()
+    private let progressLabel = UILabel()
+    private let progressTrack = SquircleView()
+    private let progressFill = SquircleView()
     private let shareButton = ActionButton()
 
+    private var progressWidth: NSLayoutConstraint!
     private var details: PhotoDetailsDTO?
     private var originalBytes: Int64?
     private var downloadTask: URLSessionTask?
@@ -88,10 +94,33 @@ final class PhotoDetailsViewController: UIViewController {
         rows.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(rows)
 
+        progressLabel.font = Typography.caption
+        progressLabel.adjustsFontForContentSizeCategory = true
+
+        progressTrack.cornerRadius = 2
+        progressTrack.translatesAutoresizingMaskIntoConstraints = false
+
+        progressFill.cornerRadius = 2
+        progressFill.translatesAutoresizingMaskIntoConstraints = false
+        progressTrack.addSubview(progressFill)
+
+        progressWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
+
+        progressBox.axis = .vertical
+        progressBox.spacing = 8
+        progressBox.isHidden = true
+        progressBox.addArrangedSubview(progressLabel)
+        progressBox.addArrangedSubview(progressTrack)
+
         shareButton.title = "Share"
-        shareButton.addTarget(self, action: #selector(share), for: .touchUpInside)
-        shareButton.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(shareButton)
+        shareButton.addTarget(self, action: #selector(primaryAction), for: .touchUpInside)
+
+        footer.axis = .vertical
+        footer.spacing = 16
+        footer.addArrangedSubview(progressBox)
+        footer.addArrangedSubview(shareButton)
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(footer)
 
         let maximumHeight = scrollView.heightAnchor.constraint(lessThanOrEqualTo: view.heightAnchor,
                                                                multiplier: 0.5)
@@ -126,11 +155,17 @@ final class PhotoDetailsViewController: UIViewController {
             rows.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
             rows.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
 
-            shareButton.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 24),
-            shareButton.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            shareButton.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-            shareButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
-                                                constant: -24)
+            progressTrack.heightAnchor.constraint(equalToConstant: 4),
+            progressFill.topAnchor.constraint(equalTo: progressTrack.topAnchor),
+            progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
+            progressFill.leadingAnchor.constraint(equalTo: progressTrack.leadingAnchor),
+            progressWidth,
+
+            footer.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 24),
+            footer.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            footer.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            footer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                                           constant: -24)
         ])
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(dismissCard))
@@ -209,7 +244,15 @@ final class PhotoDetailsViewController: UIViewController {
         rows.addArrangedSubview(row)
     }
 
-    @objc private func share() {
+    @objc private func primaryAction() {
+        if downloadTask == nil {
+            share()
+        } else {
+            cancelDownload()
+        }
+    }
+
+    private func share() {
         let sheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
 
         if let image = displayImage {
@@ -234,20 +277,58 @@ final class PhotoDetailsViewController: UIViewController {
     }
 
     private func shareOriginal() {
-        shareButton.isLoading = true
         let fileName = details?.fileName ?? "\(itemId).jpg"
-        downloadTask = services.client.downloadOriginal(itemId: itemId,
-                                                        fileName: fileName) { [weak self] result in
-            guard let self = self else { return }
-            self.shareButton.isLoading = false
-            self.downloadTask = nil
-            switch result {
-            case .success(let url):
-                self.presentActivity(with: [url], from: url)
-            case .failure(let error):
-                self.presentFailure(error)
-            }
+        setDownloading(true)
+        showProgress(received: 0, expected: originalBytes ?? 0)
+
+        downloadTask = services.client.downloadOriginal(
+            itemId: itemId,
+            fileName: fileName,
+            progress: { [weak self] received, expected in
+                self?.showProgress(received: received, expected: expected)
+            },
+            completion: { [weak self] result in
+                guard let self = self else { return }
+                self.setDownloading(false)
+                switch result {
+                case .success(let url):
+                    self.presentActivity(with: [url], from: url)
+                case .failure(let error):
+                    self.presentFailure(error)
+                }
+            })
+    }
+
+    private func cancelDownload() {
+        downloadTask?.cancel()
+        setDownloading(false)
+    }
+
+    private func setDownloading(_ downloading: Bool) {
+        if !downloading {
+            downloadTask = nil
         }
+        shareButton.title = downloading ? "Cancel" : "Share"
+        guard progressBox.isHidden == downloading else { return }
+        UIView.animate(withDuration: 0.24,
+                       delay: 0,
+                       options: [.beginFromCurrentState],
+                       animations: {
+                        self.progressBox.isHidden = !downloading
+                        self.view.layoutIfNeeded()
+                       },
+                       completion: nil)
+    }
+
+    private func showProgress(received: Int64, expected: Int64) {
+        guard expected > 0 else {
+            progressLabel.text = PhotoDetailsFormatter.bytes(received)
+            return
+        }
+        progressLabel.text = "\(PhotoDetailsFormatter.bytes(received) ?? "0 bytes") of \(PhotoDetailsFormatter.bytes(expected) ?? "?")"
+        progressTrack.layoutIfNeeded()
+        let fraction = min(max(Double(received) / Double(expected), 0), 1)
+        progressWidth.constant = progressTrack.bounds.width * CGFloat(fraction)
     }
 
     private func presentActivity(with items: [Any], from fileURL: URL?) {
@@ -293,6 +374,9 @@ final class PhotoDetailsViewController: UIViewController {
         card.fillColor = palette.surface
         card.applyShadow(palette)
         titleLabel.textColor = palette.textPrimary
+        progressLabel.textColor = palette.textSecondary
+        progressTrack.fillColor = palette.field
+        progressFill.fillColor = palette.accent
         view.applyThemeRecursively(palette)
     }
 }

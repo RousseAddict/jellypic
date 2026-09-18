@@ -46,6 +46,8 @@
 		1A00000000000000000000128 /* ZoomTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000118 /* ZoomTransition.swift */; };
 		1A00000000000000000000129 /* PhotoViewerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000119 /* PhotoViewerViewController.swift */; };
 		1A0000000000000000000012A /* PhotoDetailsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011A /* PhotoDetailsViewController.swift */; };
+		1A0000000000000000000012B /* MonthScrubberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011B /* MonthScrubberView.swift */; };
+		1A0000000000000000000012C /* FileDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011C /* FileDownloader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -90,6 +92,8 @@
 		1A00000000000000000000118 /* ZoomTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomTransition.swift; sourceTree = "<group>"; };
 		1A00000000000000000000119 /* PhotoViewerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoViewerViewController.swift; sourceTree = "<group>"; };
 		1A0000000000000000000011A /* PhotoDetailsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDetailsViewController.swift; sourceTree = "<group>"; };
+		1A0000000000000000000011B /* MonthScrubberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthScrubberView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000011C /* FileDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDownloader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -150,6 +154,7 @@
 				1A00000000000000000000C1 /* JellyfinModels.swift */,
 				1A00000000000000000000C2 /* JellyfinDate.swift */,
 				1A00000000000000000000C3 /* ServerURL.swift */,
+				1A0000000000000000000011C /* FileDownloader.swift */,
 			);
 			path = Network;
 			sourceTree = "<group>";
@@ -171,6 +176,7 @@
 				1A00000000000000000000111 /* PhotoCell.swift */,
 				1A00000000000000000000112 /* MonthHeaderView.swift */,
 				1A00000000000000000000113 /* SyncBannerView.swift */,
+				1A0000000000000000000011B /* MonthScrubberView.swift */,
 			);
 			path = Grid;
 			sourceTree = "<group>";
@@ -344,6 +350,8 @@
 				1A00000000000000000000128 /* ZoomTransition.swift in Sources */,
 				1A00000000000000000000129 /* PhotoViewerViewController.swift in Sources */,
 				1A0000000000000000000012A /* PhotoDetailsViewController.swift in Sources */,
+				1A0000000000000000000012B /* MonthScrubberView.swift in Sources */,
+				1A0000000000000000000012C /* FileDownloader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

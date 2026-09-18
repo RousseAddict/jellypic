@@ -8,6 +8,7 @@ final class PhotoGridViewController: UIViewController {
     private static let pixelStep = 64
     private static let spacing: CGFloat = 1
     private static let chromeInset: CGFloat = 56
+    private static let scrubberInset: CGFloat = 72
 
     private let services: AppServices
 
@@ -16,6 +17,7 @@ final class PhotoGridViewController: UIViewController {
     private let moreButton = FloatingButton()
     private let banner = SyncBannerView()
     private let emptyLabel = UILabel()
+    private let scrubber = MonthScrubberView()
 
     private var results: NSFetchedResultsController<PhotoItem>!
     private var pendingReload = false
@@ -42,6 +44,7 @@ final class PhotoGridViewController: UIViewController {
         super.viewDidLoad()
         buildHierarchy()
         buildResults()
+        wireScrubber()
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
@@ -70,6 +73,7 @@ final class PhotoGridViewController: UIViewController {
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.alwaysBounceVertical = true
+        collectionView.showsVerticalScrollIndicator = false
         collectionView.dataSource = self
         collectionView.delegate = self
         collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.reuseIdentifier)
@@ -80,7 +84,6 @@ final class PhotoGridViewController: UIViewController {
                                                    left: 0,
                                                    bottom: 0,
                                                    right: 0)
-        collectionView.scrollIndicatorInsets = collectionView.contentInset
         view.addSubview(collectionView)
 
         emptyLabel.font = Typography.body
@@ -95,11 +98,21 @@ final class PhotoGridViewController: UIViewController {
         banner.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(banner)
 
+        scrubber.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scrubber)
+
         moreButton.addTarget(self, action: #selector(showSettings), for: .touchUpInside)
         moreButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(moreButton)
 
         NSLayoutConstraint.activate([
+            scrubber.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
+                                          constant: PhotoGridViewController.scrubberInset),
+            scrubber.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                                             constant: -16),
+            scrubber.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            scrubber.widthAnchor.constraint(equalToConstant: MonthScrubberView.width),
+
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
@@ -132,6 +145,54 @@ final class PhotoGridViewController: UIViewController {
                                              cacheName: nil)
         results.delegate = self
         try? results.performFetch()
+    }
+
+    private func wireScrubber() {
+        scrubber.onScrub = { [weak self] progress in
+            self?.scrubTo(progress)
+        }
+        scrubber.onScrubbingChanged = { [weak self] isScrubbing in
+            guard let self = self else { return }
+            self.services.images.isSuspended = isScrubbing
+            if !isScrubbing {
+                self.reloadVisibleThumbnails()
+            }
+        }
+    }
+
+    private func scrubTo(_ progress: CGFloat) {
+        guard let travel = scrollableHeight() else { return }
+        let y = -collectionView.contentInset.top + travel * progress
+        collectionView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
+        scrubber.setTitle(topVisibleMonthTitle())
+    }
+
+    private func scrollableHeight() -> CGFloat? {
+        let travel = collectionView.contentSize.height
+            - collectionView.bounds.height
+            + collectionView.contentInset.top
+            + collectionView.contentInset.bottom
+        return travel > 0 ? travel : nil
+    }
+
+    private func scrubberProgress() -> CGFloat {
+        guard let travel = scrollableHeight() else { return 0 }
+        let offset = collectionView.contentOffset.y + collectionView.contentInset.top
+        return min(max(offset / travel, 0), 1)
+    }
+
+    private func topVisibleMonthTitle() -> String? {
+        guard let section = collectionView.indexPathsForVisibleItems.map({ $0.section }).min(),
+              let name = results.sections?[section].name else { return nil }
+        return MonthKey.shortTitle(for: name)
+    }
+
+    private func reloadVisibleThumbnails() {
+        let visible = collectionView.indexPathsForVisibleItems
+        guard !visible.isEmpty else { return }
+        UIView.performWithoutAnimation {
+            collectionView.reloadItems(at: visible)
+        }
     }
 
     private func updateItemSize() {
@@ -214,7 +275,16 @@ final class PhotoGridViewController: UIViewController {
     @objc private func showSettings() {
         let settings = SettingsViewController(services: services)
         settings.onSignedOut = { [weak self] in self?.onSignedOut?() }
+        settings.onResyncRequested = { [weak self] in self?.restartSync() }
         settings.present(over: self)
+    }
+
+    private func restartSync() {
+        guard let libraryId = Preferences.libraryId else { return }
+        services.sync.refresh(libraryId: libraryId)
+        if services.sync.isRunning {
+            showBanner("Indexing…")
+        }
     }
 
     @objc private func themeDidChange() {
@@ -292,14 +362,22 @@ extension PhotoGridViewController: UICollectionViewDelegate {
         collectionView.layoutIfNeeded()
     }
 
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard scrollView === collectionView else { return }
+        scrubber.update(progress: scrubberProgress())
+        scrubber.reveal()
+    }
+
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate {
             applyReloadIfIdle()
+            scrubber.scheduleFade()
         }
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         applyReloadIfIdle()
+        scrubber.scheduleFade()
     }
 }
 

@@ -167,18 +167,39 @@ launch lands on the connect flow rather than on a home pointing at nothing.
 
 ## 6.1 App Transport Security
 
-`Info.plist` carries **both** `NSAllowsArbitraryLoads` and
-`NSAllowsLocalNetworking`, set to true.
+`Info.plist` carries `NSAllowsArbitraryLoads` and **nothing else** under
+`NSAppTransportSecurity`.
 
-`NSAllowsLocalNetworking` alone was not enough. It only covers unqualified
-hostnames, `.local` and link-local addresses — a Jellyfin reached through a
-DDNS name, a public IP, a VPN or Tailscale was still refused by ATS. Since the
-whole point is that the user types an address we cannot predict, the blanket
-exception is the honest answer.
+`NSAllowsLocalNetworking` alone — what doc 04 §4 shipped — was not enough. It
+only covers unqualified hostnames, `.local` and link-local addresses, so a
+Jellyfin reached through a DDNS name, a public IP, a VPN or Tailscale was
+refused by ATS. Since the whole point is that the user types an address we
+cannot predict, the blanket exception is the honest answer.
 
-Both keys are kept on purpose: `NSAllowsLocalNetworking` takes precedence over
-`NSAllowsArbitraryLoads`, so if a future iOS ever stops honouring the blanket
-exception, LAN access keeps working instead of the app dying outright.
+**Keeping both keys was a bug, and it is the one that made
+`http://home.domain.com:8096` fail.** From Apple's reference for
+`NSAllowsArbitraryLoads`:
+
+> In iOS 10 and later and macOS 10.12 and later, the value of the
+> `NSAllowsArbitraryLoads` key is ignored — and the default value of `NO` used
+> instead — if any of the following keys are present:
+> `NSAllowsArbitraryLoadsInWebContent`, `NSAllowsArbitraryLoadsForMedia`,
+> `NSAllowsLocalNetworking`.
+
+The precedence runs the opposite way to what the first version of this section
+claimed. Setting `NSAllowsLocalNetworking` did not *back up* the blanket
+exception, it **disabled** it, leaving only the local-networking exemptions in
+force. That is exactly the symptom: a LAN IP worked (ATS does not apply to
+IP-address literals at all), HTTPS worked (no exception needed), and plain HTTP
+to a fully-qualified domain was refused — with no ATS-specific error, just a
+connection failure that reads as "server unreachable".
+
+Dropping the key restores the blanket exception. Nothing is lost:
+`NSAllowsArbitraryLoads` is a strict superset of `NSAllowsLocalNetworking`.
+
+`NSLocalNetworkUsageDescription` stays. It is not an ATS key — it is the purpose
+string for the iOS 14+ local-network *privacy* prompt, a separate mechanism, and
+removing it would turn a permission dialog into a hard failure on newer phones.
 
 On App Store review: `NSAllowsArbitraryLoads` triggers a request for written
 justification, not an automatic rejection. "Client for a self-hosted server
@@ -188,13 +209,36 @@ enforcement in 2016, postponed it indefinitely, and has never turned it on.
 
 The real cost is not review, it is the wire: over plain HTTP the password goes
 to `/Users/AuthenticateByName` in clear. On a LAN that is irrelevant; exposed
-to the internet it is not. Open item: warn in the UI when the resolved URL is
-`http://` **and** the host is outside RFC1918.
+to the internet it is not — hence the warning below.
+
+## 6.2 The plaintext warning
+
+`ServerURL.isPlaintextToPublicHost(_:)` answers true when the scheme is `http`
+and the host is not obviously private. Private means: `localhost`, any
+unqualified name, a `.local` / `.lan` / `.home.arpa` / `.internal` suffix,
+RFC1918 (`10/8`, `172.16/12`, `192.168/16`), loopback `127/8`, link-local
+`169.254/16`, IPv6 `::1`, ULA `fc00::/7` and IPv6 link-local `fe80::/10`.
+
+A DDNS hostname resolves as public because it does not match any of those, which
+is the desired answer — the traffic really is leaving the house.
+
+The warning lives on the **credentials** step, not under the server field, in
+danger red appended to the subtitle. Two reasons: the flow advances the moment
+the probe succeeds, so a warning on the server step would only flash; and the
+credentials step is where the password is about to be typed and sent, which is
+the thing actually at risk.
+
+It is a warning, not a gate. Nothing is disabled and there is no alert to
+dismiss — self-hosting over plain HTTP through a tunnel or a VPN is a legitimate
+setup, and the app has no way to tell that from a truly exposed server.
+
+Because the subtitle is an `NSAttributedString` with two colours,
+`themeDidChange()` calls `applyPalette()` and then re-runs `renderStep` — the
+attributed string holds its colours, so a plain `textColor` assignment would
+leave the old palette's red behind.
 
 ## 7. Not done yet
 
-- Dark mode has tokens and a working `Theme.mode`, but no UI to switch it. That
-  belongs to the settings screen (L1.5).
 - No "remember several servers" — one server, one account, one library.
 - Error text is English-only and not localised.
 - The connect flow has no automated test; it is exercised by hand on the 5s.

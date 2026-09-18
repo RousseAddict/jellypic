@@ -167,8 +167,7 @@ final class PhotoViewerViewController: UIViewController {
     }
 
     private func updateCurrentIndexPath() {
-        let point = CGPoint(x: collectionView.contentOffset.x + collectionView.bounds.midX,
-                            y: collectionView.bounds.midY)
+        let point = CGPoint(x: collectionView.bounds.midX, y: collectionView.bounds.midY)
         guard let path = collectionView.indexPathForItem(at: point), path != currentIndexPath else {
             return
         }

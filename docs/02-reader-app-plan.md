@@ -291,6 +291,10 @@ Which means **the risk in livrable 1 is hardware, not features**. Every item on 
 - **L1.4** — Viewer: horizontal paging + `UIScrollView` pinch-zoom.
 - **L1.5** — Settings: logout, reset cache, manual resync.
 
+All five are built as of 2026-09-17. What shipped is written up in docs 05
+(connect flow), 06 (sync and index), 07 (grid and images), 08 (viewer) and
+09 (settings and maintenance); each has its own "Not done yet" section.
+
 **Out**
 
 Video, Live Text, EXIF info panel, map, share, pinch-to-change-density (3 fixed columns), LAN discovery, Quick Connect, multi-library.

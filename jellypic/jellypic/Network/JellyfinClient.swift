@@ -16,6 +16,7 @@ final class JellyfinClient: JellyfinAPI {
     private let identity: DeviceIdentity
     private let session: URLSession
     private let decoder: JSONDecoder
+    private let downloader = FileDownloader()
 
     init(identity: DeviceIdentity,
          configuration: URLSessionConfiguration = JellyfinClient.defaultConfiguration()) {
@@ -195,44 +196,27 @@ final class JellyfinClient: JellyfinAPI {
             completion(nil)
             return
         }
-        request.httpMethod = "HEAD"
+        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
         session.dataTask(with: request) { _, response, _ in
-            let length = (response as? HTTPURLResponse)?.expectedContentLength ?? -1
+            let size = JellyfinClient.totalBytes(from: response as? HTTPURLResponse)
             DispatchQueue.main.async {
-                completion(length > 0 ? length : nil)
+                completion(size)
             }
         }.resume()
     }
 
     func downloadOriginal(itemId: String,
                           fileName: String,
+                          progress: @escaping (Int64, Int64) -> Void,
                           completion: @escaping (Result<URL, JellyfinError>) -> Void) -> URLSessionTask? {
         guard let request = originalFileRequest(itemId: itemId) else {
             finish(.failure(.notAuthenticated), completion)
             return nil
         }
-        let task = session.downloadTask(with: request) { [weak self] location, response, error in
-            guard let self = self else { return }
-            if let failure = self.failure(response: response, error: error) {
-                self.finish(.failure(failure), completion)
-                return
-            }
-            guard let location = location else {
-                self.finish(.failure(.emptyResponse), completion)
-                return
-            }
-            let destination = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent(fileName)
-            do {
-                try? FileManager.default.removeItem(at: destination)
-                try FileManager.default.moveItem(at: location, to: destination)
-                self.finish(.success(destination), completion)
-            } catch {
-                self.finish(.failure(.transport(error)), completion)
-            }
-        }
-        task.resume()
-        return task
+        return downloader.download(request,
+                                   fileName: fileName,
+                                   progress: progress,
+                                   completion: completion)
     }
 
     private func originalFileRequest(itemId: String) -> URLRequest? {
@@ -240,6 +224,27 @@ final class JellyfinClient: JellyfinAPI {
         return makeRequest(baseURL: credentials.baseURL,
                            path: "Items/\(itemId)/File",
                            token: credentials.accessToken)
+    }
+
+    private static func totalBytes(from response: HTTPURLResponse?) -> Int64? {
+        guard let response = response else { return nil }
+        if let range = header("Content-Range", in: response),
+           let total = range.components(separatedBy: "/").last,
+           let bytes = Int64(total.trimmingCharacters(in: .whitespaces)), bytes > 0 {
+            return bytes
+        }
+        guard response.statusCode == 200, response.expectedContentLength > 0 else { return nil }
+        return response.expectedContentLength
+    }
+
+    // LEGACY(ios12): HTTPURLResponse.value(forHTTPHeaderField:) is iOS 13+. Freed at iOS 13.
+    private static func header(_ name: String, in response: HTTPURLResponse) -> String? {
+        for (key, value) in response.allHeaderFields {
+            if let key = key as? String, key.caseInsensitiveCompare(name) == .orderedSame {
+                return value as? String
+            }
+        }
+        return nil
     }
 
     func logout(completion: @escaping (Result<Void, JellyfinError>) -> Void) {

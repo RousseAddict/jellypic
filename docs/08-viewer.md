@@ -158,6 +158,30 @@ paging. `shouldRecognizeSimultaneouslyWith` returns true so the scroll view's ow
 recogniser does not block it, and horizontal scrolling is switched off for the
 duration of the drag.
 
+### The bug where it died after one swipe
+
+Reported on device: dragging down worked on the photo you opened, and stopped
+working the moment you swiped to another one. The gesture was innocent. The
+delegate resolves "the current cell" through `currentIndexPath`, and
+`updateCurrentIndexPath` was asking the layout about the wrong point:
+
+```swift
+let point = CGPoint(x: collectionView.contentOffset.x + collectionView.bounds.midX, …)
+```
+
+On a `UIScrollView`, `bounds.origin` **is** `contentOffset` — that is how
+scrolling is implemented — so `bounds.midX` already means "the middle of what you
+are looking at, in content coordinates". Adding `contentOffset.x` to it counts the
+scroll position twice. On the first photo the offset is 0, the error is 0, and
+everything looks correct; one page later the query lands a page and a half too far
+right. `indexPathForItem(at:)` then returns a cell that is not on screen, so
+`cellForItem` returns `nil`, so `gestureRecognizerShouldBegin` bails on its
+`guard let cell = currentCell` and the drag never starts again.
+
+The same stale index path fed the date pill and the details card, so both were
+showing the wrong photo after a swipe — one arithmetic error with three symptoms,
+two of which nobody had noticed. Fixed by asking for `bounds.midX` alone.
+
 ## 7. Chrome
 
 Ratified in chat: nothing over the photo by default, a tap reveals the chrome,
@@ -237,10 +261,35 @@ just the file name and the date.
 ### File size needs a second request
 
 **`BaseItemDto` has no `Size` field** and photos carry no `MediaSources`, so the
-byte count is simply not in the item JSON. It comes from a `HEAD` on
-`/Items/{id}/File` read off `Content-Length`, fired in parallel with the metadata
-fetch; the card re-renders when it lands. Without it the share picker would be
-asking the user to choose the original sight unseen.
+byte count is simply not in the item JSON. A second request has to ask for it,
+fired in parallel with the metadata fetch; the card re-renders when it lands.
+Without it the share picker would be asking the user to choose the original sight
+unseen.
+
+The obvious request is a `HEAD` on `/Items/{id}/File` read off `Content-Length`.
+That is what shipped first, and **it silently returned nothing** — the Size row
+stayed blank, and nobody noticed until the user asked for a feature that was
+already written. The route is declared `[HttpGet("Items/{itemId}/File")]` in
+`LibraryController.cs` and nothing else, and ASP.NET Core endpoint routing has no
+HEAD→GET fallback: `HttpMethodDictionaryPolicyJumpTable.GetDestination` is a plain
+dictionary lookup on `Request.Method`. A `HEAD` to a GET-only route is a 405, a
+405 carries no `Content-Length` for the file, the parse yields `nil`, and the row
+is omitted. Nothing is ever surfaced as an error, which is why it read as "the
+row does not exist" rather than "the request failed".
+
+The fix is a **ranged GET**. Jellyfin serves the file with
+`PhysicalFile(item.Path, mime, true)` — that third argument is
+`enableRangeProcessing` — so `Range: bytes=0-0` comes back 206 with
+`Content-Range: bytes 0-0/<total>`. One byte over the wire for the real number,
+on a verb the route actually answers. `totalBytes(from:)` parses the tail of
+`Content-Range` and falls back to `expectedContentLength` if a server ignores the
+range and answers 200 with the whole file.
+
+Reading that header is a two-line detour at the iOS 12 floor:
+`HTTPURLResponse.value(forHTTPHeaderField:)` is iOS 13+, so `header(_:in:)` walks
+`allHeaderFields` with a `caseInsensitiveCompare`. Header names are
+case-insensitive and `allHeaderFields` does not normalise them, so the comparison
+has to be too.
 
 ### Choosing what gets shared
 
@@ -263,6 +312,33 @@ explicit choice up front.
 Both the picker and the activity sheet set `popoverPresentationController.sourceView`:
 `TARGETED_DEVICE_FAMILY` is `1,2`, and an unanchored action sheet is a crash on iPad.
 
+### Progress and cancellation on the original
+
+A 10 MB original over a home uplink is long enough that a spinner alone reads as a
+hang. The card shows a byte counter and a filled track above the button, and the
+button itself becomes **Cancel** for the duration — one control, two states, rather
+than a second button that is dead most of the time.
+
+The download moved out of the shared `JellyfinClient` session into
+`FileDownloader`, a `URLSession` with a `URLSessionDownloadDelegate` and
+`delegateQueue: .main`. The alternative — KVO on `URLSessionTask.progress` — was
+rejected: that property is documented for the delegate-style task, and its
+behaviour alongside a completion handler at the iOS 12 floor is not something to
+bet the UI on. The delegate gives `didWriteData` directly.
+
+The denominator is free: the `HEAD` fired for the file size already returned
+`Content-Length`, so the bar starts with a real total instead of growing
+indefinitely. When the total is unknown the counter still shows bytes received and
+the bar stays empty.
+
+`didCompleteWithError` swallows `NSURLErrorCancelled` and returns silently. A
+cancel is a user action, not a failure, and surfacing an error alert after the user
+asked to stop would be noise.
+
+The progress box is an `isHidden`-toggled arranged subview of a vertical
+`UIStackView` that also holds the button, so showing and hiding it collapses the
+layout on its own — no height constraint to animate.
+
 ## 9. Not done yet
 
 - No prefetch of the neighbouring full-size images. Swiping is a thumbnail for a
@@ -272,7 +348,5 @@ Both the picker and the activity sheet set `popoverPresentationController.source
 - No delete or favourite — both out of livrable 1.
 - The details card shows coordinates as decimal degrees, with no map and no reverse
   geocoding. MapKit would be the first non-trivial framework in the app.
-- The original download has no progress indication beyond the button's spinner,
-  and no way to cancel from the UI.
 - Rotation keeps the right photo and re-fits it, but the zoom level is reset rather
   than carried across, and the chrome has not been laid out for a landscape 5s.

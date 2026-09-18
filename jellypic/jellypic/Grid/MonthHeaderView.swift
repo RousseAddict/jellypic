@@ -46,6 +46,13 @@ extension MonthKey {
         return formatter
     }()
 
+    private static let shortFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.setLocalizedDateFormatFromTemplate("MMMyyyy")
+        return formatter
+    }()
+
     private static let parser: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -58,5 +65,10 @@ extension MonthKey {
     static func title(for monthKey: String) -> String {
         guard let date = parser.date(from: monthKey) else { return "Undated" }
         return displayFormatter.string(from: date)
+    }
+
+    static func shortTitle(for monthKey: String) -> String {
+        guard let date = parser.date(from: monthKey) else { return "Undated" }
+        return shortFormatter.string(from: date)
     }
 }

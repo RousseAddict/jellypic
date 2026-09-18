@@ -104,6 +104,10 @@ enum Typography {
         return scaled(size: 13, weight: .regular, style: .footnote)
     }
 
+    static var sectionHeader: UIFont {
+        return scaled(size: 12, weight: .semibold, style: .caption1)
+    }
+
     static var button: UIFont {
         return scaled(size: 17, weight: .semibold, style: .headline)
     }

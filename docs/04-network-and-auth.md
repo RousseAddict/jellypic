@@ -108,7 +108,7 @@ because the token was in memory, and only the router noticed that
 
 ## 4. Info.plist additions
 
-- `NSAppTransportSecurity` / `NSAllowsLocalNetworking` — a LAN Jellyfin has no TLS, and ATS blocks plain `http://` by default. This exemption covers RFC1918 addresses and `.local` **only**; a plain-http *public* host is still refused, which is correct and surfaces as `JellyfinError.appTransportSecurity`.
+- ~~`NSAppTransportSecurity` / `NSAllowsLocalNetworking`~~ — **superseded, see doc 05 §6.1.** The reasoning was that a LAN-only exemption is the tight, correct one. It is too tight for a server whose address the user types, and the key silently cancels `NSAllowsArbitraryLoads` when both are present. The plist now carries `NSAllowsArbitraryLoads` alone.
 - `NSLocalNetworkUsageDescription` — required from iOS 14 to reach `192.168.x.x` at all. Irrelevant on the iOS 12 target device, but the app is meant to run on the iOS 15/18 phones too, and a missing string there is a hard failure rather than a prompt.
 
 ---

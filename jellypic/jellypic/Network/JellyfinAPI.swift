@@ -45,6 +45,7 @@ protocol JellyfinAPI: AnyObject {
 
     func downloadOriginal(itemId: String,
                           fileName: String,
+                          progress: @escaping (Int64, Int64) -> Void,
                           completion: @escaping (Result<URL, JellyfinError>) -> Void) -> URLSessionTask?
 
     func logout(completion: @escaping (Result<Void, JellyfinError>) -> Void)
