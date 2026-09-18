@@ -71,6 +71,7 @@ final class PhotoViewerViewController: UIViewController {
         guard size.width > 0, size != laidOutSize else { return }
         laidOutSize = size
 
+        let wasAdjustingLayout = isAdjustingLayout
         isAdjustingLayout = true
         layout.itemSize = size
         layout.invalidateLayout()
@@ -78,7 +79,7 @@ final class PhotoViewerViewController: UIViewController {
         collectionView.scrollToItem(at: currentIndexPath,
                                     at: .centeredHorizontally,
                                     animated: false)
-        isAdjustingLayout = false
+        isAdjustingLayout = wasAdjustingLayout
     }
 
     override func viewWillTransition(to size: CGSize,

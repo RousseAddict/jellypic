@@ -46,6 +46,16 @@ UIKit keeps nudging the offset after our own synchronous re-centre returns.
 `currentIndexPath` is the single source of truth across a rotation; the offset is
 derived from it, never the other way round.
 
+`isAdjustingLayout` is saved and restored around the layout pass, not set to
+`true` then back to `false`. `viewDidLayoutSubviews` runs *inside* the rotation,
+after `viewWillTransition` raised the flag and before the coordinator's completion
+lowers it, so an unconditional `= false` handed the rotation back its own bug: the
+window between the layout pass and the end of the animation was unguarded, and the
+first `scrollViewDidScroll` in it committed a neighbour. The date pill, the details
+card and Share then all followed the wrong photo. A flag that two callers raise for
+overlapping spans has to be restored, not cleared — the alternative is a counter,
+which is more machinery than two nesting levels deserve.
+
 ## 2. Zoom
 
 Each cell is a `UIScrollView` with the image view as its `viewForZooming`,
