@@ -15,6 +15,16 @@ protocol PhotoTimeline: AnyObject {
     func numberOfPhotos(inSection section: Int) -> Int
     func monthKey(forSection section: Int) -> String
     func photo(at indexPath: IndexPath) -> Photo
+    func indexPath(forPhotoId id: String) -> IndexPath?
+}
+
+extension PhotoTimeline {
+
+    func photoIfPresent(at indexPath: IndexPath) -> Photo? {
+        guard indexPath.section < sectionCount,
+              indexPath.item < numberOfPhotos(inSection: indexPath.section) else { return nil }
+        return photo(at: indexPath)
+    }
 }
 
 protocol PhotoStore: AnyObject {
@@ -199,6 +209,14 @@ final class CoreDataTimeline: NSObject, PhotoTimeline {
     func photo(at indexPath: IndexPath) -> Photo {
         let item = controller.object(at: indexPath)
         return Photo(id: item.id, imageTag: item.imageTag, captureDate: item.captureDate)
+    }
+
+    func indexPath(forPhotoId id: String) -> IndexPath? {
+        let request = NSFetchRequest<PhotoItem>(entityName: PhotoItem.entityName)
+        request.predicate = NSPredicate(format: "id == %@", id)
+        request.fetchLimit = 1
+        guard let item = try? controller.managedObjectContext.fetch(request).first else { return nil }
+        return controller.indexPath(forObject: item)
     }
 
     @objc private func storeDidReset() {

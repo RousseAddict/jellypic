@@ -128,8 +128,18 @@ struct PhotoDetailsDTO: Decodable {
     }
 
     var fileName: String? {
-        guard let path = path, !path.isEmpty else { return name }
-        return (path as NSString).lastPathComponent
+        guard let path = path, !path.isEmpty else { return name.flatMap(PhotoDetailsDTO.safeFileName) }
+        return PhotoDetailsDTO.safeFileName((path as NSString).lastPathComponent)
+    }
+
+    private static func safeFileName(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed != ".",
+              trimmed != "..",
+              !trimmed.contains("/"),
+              !trimmed.contains("\\") else { return nil }
+        return trimmed
     }
 
     var fNumber: Double? {

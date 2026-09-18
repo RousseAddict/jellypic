@@ -25,6 +25,7 @@ struct JellyfinSession {
 protocol JellyfinAPI: AnyObject {
 
     var credentials: JellyfinCredentials? { get set }
+    var cachedImageBaseURL: URL? { get set }
     var onTokenRejected: (() -> Void)? { get set }
 
     func publicSystemInfo(baseURL: URL,

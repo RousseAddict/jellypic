@@ -107,6 +107,31 @@ back to the first connect step: the sign-in and the library list both worked
 because the token was in memory, and only the router noticed that
 `authStore.credentials` read back `nil`.
 
+Two writes used to escape that check. **`deviceId` is written from
+`AuthStore.init`**, where there is no screen to report to and nothing has been
+attempted yet; its status is stored and folded into `save()`'s return instead, so
+it surfaces at the one moment a failure matters and a human is watching. And
+**`serverId` was written with its status dropped**, which made the *one* optional
+key the only unverified one. `save` now appends it to the same list, or removes
+the stale key when the server did not send an id — leaving a previous server's id
+behind was the alternative.
+
+`AppServices.signIn` acts on that return value rather than beside it: the
+in-memory `client.credentials` is now assigned **after** the status is checked,
+so a failed write leaves the app signed out in memory as well as on disk. It used
+to assign first and return the status afterwards, which produced the one state
+nothing handles — a session that works perfectly until the process dies. The
+partial Keychain state left behind is deliberately *not* cleared: `clear()` would
+take `serverURL` and `userId` with it, and those are exactly what §6.4 needs to
+keep the cached index browsable. A server and a user without a token is a state
+the app already knows by another name — an expired session.
+
+`username` and `serverId` are read back through `nonEmpty(_:)`. A Keychain hit
+that returns an empty string is not a value, and the one caller that cares —
+the re-auth card, §6.3 — branches on `session.username == nil` to decide whether
+to ask for a name. An empty string would have passed that test and produced a
+card that demands a password for an account it cannot name.
+
 `accessToken` is only half-revoked by `clear()`. `AppServices.signOut` calls `POST /Sessions/Logout` **first** and wipes local state in the completion regardless of the outcome — order matters, because wiping first would strand a live token that can no longer be revoked. The token surviving a failed network call is the lesser evil; it at least remains revocable from the Jellyfin admin UI.
 
 ---
@@ -154,7 +179,13 @@ connect screen.
   so a wrong password can never be mistaken for a rejected session. The hook is
   wired into `perform` only, **not** `performIgnoringBody` — that one is used
   exclusively by `logout`, and its completion is dispatched *after* the hook, so
-  a 401 there would raise "session expired" in the middle of a sign-out.
+  a 401 there would raise "session expired" in the middle of a sign-out. The two
+  methods that build their own tasks instead of going through `perform` —
+  `originalFileSize`'s ranged GET and `downloadOriginal`'s handoff to
+  `FileDownloader` — call the hook by hand. They are the whole of the share
+  flow, and a share is exactly when a user is most likely to discover the token
+  died: the details card would otherwise report a raw HTTP status and leave the
+  grid convinced it was still signed in.
 - **`AppServices.expireSession`** cancels the sync, calls `authStore.clearToken()`
   — which removes the `accessToken` key and **nothing else** — and posts
   `sessionExpiredNotification`. The distinction `AuthStore` already drew between
@@ -162,19 +193,29 @@ connect screen.
   is what makes this expressible: the app stays signed in, it just cannot talk.
   `RootViewController.isSignedIn` therefore tests `hasSession`, not `credentials`,
   and keeps showing the grid.
-- **`AppServices.revalidateSession`** is the launch probe, fired by
-  `RootViewController` right after it installs the grid. It is `libraries()`,
+- **`AppServices.revalidateSession`** is the probe. It is `libraries()`,
   i.e. `GET /UserViews` — the cheapest authenticated call, and it answers both
   "is the token alive" and "does that library still exist". It **ignores its own
   result**: the reaction is entirely `onTokenRejected`, so an unreachable server
   is a natural no-op. That matters, because the app is usable offline — index
   plus cached thumbnails — and only a real 401 may expire anything.
 
-`ImageLoader` is **not** a detector: it only borrows `imageRequest(…)` to build a
-URL and runs it on its own `URLSession`, so a rejected thumbnail never reaches
-`perform`. That is deliberate — a scroll over 20 000 cells would otherwise be
-20 000 chances to fire the hook — and it costs nothing, because the launch probe,
-the sync, the details fetch and the download all go through `perform`.
+**The probe runs on `UIApplication.didBecomeActiveNotification`, not once at
+launch.** `RootViewController` registers the observer in `viewDidLoad`, which
+returns before `didFinishLaunchingWithOptions` does, so the first activation is
+still covered — cold launch behaves exactly as before. What changes is the phone
+that is never actually relaunched: iOS keeps a suspended app alive for days, and
+a token revoked from the admin UI on Monday would otherwise stay undetected
+until something happened to miss the cache. A `guard isSignedIn` keeps it off the
+connect flow, where there is no token to probe.
+
+`ImageLoader` **is** a detector, through `onUnauthorized`. The worry that kept it
+out — a scroll over 20 000 cells is 20 000 chances to fire the hook — is answered
+by `expireSession` being idempotent (it returns early once `isSessionExpired`),
+and by what expiry does to the requests themselves: see §6.4. In exchange, the
+case that actually happens on this app is covered. A fully indexed install makes
+no API call at all between activations; the thumbnails are the only traffic, so
+they were the only thing that could notice.
 
 ### 6.3 Why the banner, and why only a password
 
@@ -193,7 +234,14 @@ the most delicate layout in the app, and re-auth needs none of it.
 The card asks for a password alone, since the server, user id and username are
 all still in the Keychain. The username field is built but hidden, and appears
 only when `session.username` is nil — which is exactly what an install that
-predates the `username` key looks like.
+predates the `username` key looks like, and, thanks to `nonEmpty(_:)` in §3, also
+what a blank stored name looks like.
+
+It also appears **when the account check below rejects the sign-in**. That branch
+marks the username field invalid and prints "that is a different account", which
+on a card where the field is hidden is an accusation about something the user
+cannot see — the only editable control is the password. Revealing the field first
+turns the error into an instruction.
 
 **The account is checked before the save.** `signIn` wipes the index when the
 user id changes, which is right for a genuine account switch and catastrophic
@@ -206,3 +254,31 @@ thumbnails (their requests returned nil while the token was gone) and calls
 `startSync()` again — which resumes from `Preferences.syncStartIndex` if the
 sync had been cancelled mid-run, or finishes immediately if it was already
 complete.
+
+### 6.4 The cached thumbnails have to stay reachable
+
+§6.2 promises the app is "usable offline — index plus cached thumbnails". Until
+now the second half was false. `imageRequest(…)` starts with
+`guard let credentials = credentials`, and `clearToken()` makes that nil — so an
+expired session returned no request at all, every cell drew empty, and the grid
+behind the re-auth card was a wall of placeholders arguing the opposite of what
+the card claims.
+
+The fix rests on one fact: **`URLCache`'s key is the URL and the method. Request
+headers, `Authorization` included, do not enter it.** A request built without a
+token therefore reaches exactly the same 200 MB of disk entries the signed-in one
+wrote. So the two image builders were reduced to a query and a shared
+`primaryImageRequest(…)`, which takes the base URL from `credentials` **or** from
+`cachedImageBaseURL` — a field `AppServices` keeps in step with the Keychain, set
+on launch and on `signIn`, cleared on `signOut`, and deliberately *not* cleared by
+`expireSession`. The token becomes `credentials?.accessToken`, i.e. nil when
+expired.
+
+The cache policy carries the rest: `.returnCacheDataElseLoad` normally,
+**`.returnCacheDataDontLoad` when there is no token.** A tokenless request never
+touches the network, so it can neither hand the server an unauthenticated GET nor
+produce a 401 — which is also why `ImageLoader.reportIfUnauthorized` needs no
+`Token="` discriminator, unlike its `JellyfinClient` counterpart. It is the same
+property that caps the "20 000 chances" of §6.2: once expired, the thumbnails
+stop reaching the network entirely, so at most one scroll's worth of in-flight
+requests can report the 401 that caused the expiry.

@@ -56,6 +56,49 @@ card and Share then all followed the wrong photo. A flag that two callers raise 
 overlapping spans has to be restored, not cleared — the alternative is a counter,
 which is more machinery than two nesting levels deserve.
 
+### Surviving the timeline changing underneath
+
+The viewer reads the grid's fetched-results controller live, and that controller
+keeps moving: a sync page lands every few seconds, and a sign-out or a schema
+wipe empties it outright. `UICollectionView` was never told. It had been asked
+for its item count once, at present time, and kept answering questions about
+index paths that no longer meant anything — `photo(at:)` goes straight to
+`controller.object(at:)`, which traps on an out-of-range path rather than
+returning nil. Opening the last photo of an "Undated" section and letting a sync
+page insert a month above it was a crash, not a glitch.
+
+Two halves to the fix.
+
+**The reads are made total.** `PhotoTimeline` gains a default-implemented
+`photoIfPresent(at:)` that bounds-checks the section and the item before calling
+`photo(at:)`, and the viewer uses it everywhere — the date pill, the details
+card. A protocol extension rather than a change to `photo(at:)` itself: the grid
+asks for index paths `UICollectionView` just handed it, and making the common
+path optional would push a `guard` into every cell.
+
+**The position is re-resolved by id, not by index.** The viewer keeps
+`currentPhotoId` alongside `currentIndexPath`, updated wherever the pill is. On a
+change it looks the id back up through `indexPath(forPhotoId:)` — a `fetchLimit`
+1 predicate fetch plus `NSFetchedResultsController.indexPath(forObject:)`, which
+is what makes this affordable at 20 000 rows against a linear scan of
+`fetchedObjects` — then reloads and re-centres on the answer. The photo on screen
+stays the photo on screen even though its index moved. If the id is gone from the
+index entirely, the viewer dismisses: that is the sign-out case, and the
+alternative is a full-screen view of something that no longer exists.
+
+The reload is **deferred while the finger is down**, the same bargain the grid
+makes (doc 07 §5): `timelineDidChange` sets `pendingTimelineChange`, and the work
+happens either immediately or from `scrollViewDidEndDragging` /
+`scrollViewDidEndDecelerating`. A `reloadData` mid-swipe kills the swipe. It runs
+inside `isAdjustingLayout` for the same reason the rotation does — the
+`scrollToItem` that follows would otherwise let `scrollViewDidScroll` commit a
+neighbour.
+
+The grid holds the viewer `weak` and pokes it from both `onChange` and `onReset`.
+The viewer does not subscribe to the timeline itself: those two closures already
+belong to the grid, and a second subscriber would have to be handed ownership of
+callbacks it does not own.
+
 ## 2. Zoom
 
 Each cell is a `UIScrollView` with the image view as its `viewForZooming`,
@@ -359,6 +402,22 @@ Ratified in chat: rather than picking one, the Share button asks.
 `item.CanDownload(user)`, and writes a server activity-log entry per download.
 `/File` is `[Authorize]` only and returns the same bytes.
 
+**"Its real name" is server-supplied, so it is sanitised twice.** `Path` comes
+back from Jellyfin verbatim, and `appendingPathComponent` resolves `..` — a
+`Path` ending in `../../Library/Preferences/x.plist` would have written outside
+the temporary directory. `lastPathComponent` alone is not enough either: it is
+total, so it answers `""` for an empty string and `".."` for `".."`, and both
+make `appendingPathComponent` return the directory itself, which then fails to
+write with an error about a name nobody typed.
+
+So `PhotoDetailsDTO.fileName` rejects rather than repairs — empty, `.`, `..`, or
+anything still containing a separator returns nil, and the share sheet falls back
+to the `Name` field or, failing that, offers only the optimised photo. A name
+that cannot be trusted is not a name. `FileDownloader.temporaryDestination`
+repeats the check on the way in regardless: it is the function that actually
+builds the path, and it is one `lastPathComponent` plus a three-way comparison,
+which is cheaper than a rule that the only caller must remember.
+
 `UIActivityViewController` cannot swap its payload once open, so "share the
 derivative now and upgrade in the background" is not a real option — hence the
 explicit choice up front.
@@ -389,8 +448,8 @@ rejected: that property is documented for the delegate-style task, and its
 behaviour alongside a completion handler at the iOS 12 floor is not something to
 bet the UI on. The delegate gives `didWriteData` directly.
 
-The denominator is free: the `HEAD` fired for the file size already returned
-`Content-Length`, so the bar starts with a real total instead of growing
+The denominator is free: the ranged GET fired for the file size already returned
+the total, so the bar starts with a real one instead of growing
 indefinitely. When the total is unknown the counter still shows bytes received and
 the bar stays empty.
 

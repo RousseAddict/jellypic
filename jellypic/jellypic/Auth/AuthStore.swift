@@ -14,17 +14,20 @@ final class AuthStore {
 
     private let keychain: Keychain
 
+    let deviceId: String
+    private let deviceIdStatus: OSStatus
+
     init(keychain: Keychain = Keychain()) {
         self.keychain = keychain
-    }
 
-    var deviceId: String {
         if let existing = keychain.string(for: Key.deviceId), !existing.isEmpty {
-            return existing
+            self.deviceId = existing
+            self.deviceIdStatus = errSecSuccess
+        } else {
+            let generated = UUID().uuidString
+            self.deviceId = generated
+            self.deviceIdStatus = keychain.set(generated, for: Key.deviceId)
         }
-        let generated = UUID().uuidString
-        keychain.set(generated, for: Key.deviceId)
-        return generated
     }
 
     var session: JellyfinSession? {
@@ -34,8 +37,8 @@ final class AuthStore {
 
         return JellyfinSession(baseURL: baseURL,
                                userId: userId,
-                               username: keychain.string(for: Key.username),
-                               serverId: keychain.string(for: Key.serverId))
+                               username: nonEmpty(Key.username),
+                               serverId: nonEmpty(Key.serverId))
     }
 
     var credentials: JellyfinCredentials? {
@@ -47,26 +50,24 @@ final class AuthStore {
         return JellyfinCredentials(baseURL: baseURL,
                                    accessToken: accessToken,
                                    userId: userId,
-                                   serverId: keychain.string(for: Key.serverId))
+                                   serverId: nonEmpty(Key.serverId))
     }
 
     @discardableResult
     func save(_ credentials: JellyfinCredentials, username: String) -> OSStatus {
-        let writes = [
+        var writes = [
+            deviceIdStatus,
             keychain.set(credentials.baseURL.absoluteString, for: Key.serverURL),
             keychain.set(credentials.accessToken, for: Key.accessToken),
             keychain.set(credentials.userId, for: Key.userId),
             keychain.set(username, for: Key.username)
         ]
-        if let failure = writes.first(where: { $0 != errSecSuccess }) {
-            return failure
-        }
         if let serverId = credentials.serverId {
-            keychain.set(serverId, for: Key.serverId)
+            writes.append(keychain.set(serverId, for: Key.serverId))
         } else {
             keychain.remove(Key.serverId)
         }
-        return errSecSuccess
+        return writes.first(where: { $0 != errSecSuccess }) ?? errSecSuccess
     }
 
     func clearToken() {
@@ -79,5 +80,10 @@ final class AuthStore {
         keychain.remove(Key.userId)
         keychain.remove(Key.serverId)
         keychain.remove(Key.username)
+    }
+
+    private func nonEmpty(_ key: String) -> String? {
+        guard let value = keychain.string(for: key), !value.isEmpty else { return nil }
+        return value
     }
 }

@@ -14,10 +14,24 @@ final class RootViewController: UIViewController {
         fatalError("init(coder:) is not used")
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.palette.background
         showCurrentDestination(animated: false)
+
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(revalidateSession),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
+    }
+
+    @objc private func revalidateSession() {
+        guard isSignedIn else { return }
+        services.revalidateSession()
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -35,7 +49,6 @@ final class RootViewController: UIViewController {
                 self?.showCurrentDestination(animated: true)
             }
             transition(to: grid, animated: animated)
-            services.revalidateSession()
         } else {
             let connect = ConnectViewController(services: services)
             connect.onFinished = { [weak self] in

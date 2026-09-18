@@ -29,6 +29,15 @@ final class FileDownloader: NSObject {
         task.resume()
         return task
     }
+
+    private static func temporaryDestination(for fileName: String) -> URL {
+        let component = (fileName as NSString).lastPathComponent
+        let safe = component.isEmpty || component == "." || component == ".."
+            ? "download"
+            : component
+        return URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(safe)
+    }
 }
 
 extension FileDownloader: URLSessionDownloadDelegate {
@@ -55,8 +64,7 @@ extension FileDownloader: URLSessionDownloadDelegate {
             return
         }
 
-        let destination = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent(handlers.fileName)
+        let destination = FileDownloader.temporaryDestination(for: handlers.fileName)
         do {
             try? FileManager.default.removeItem(at: destination)
             try FileManager.default.moveItem(at: location, to: destination)

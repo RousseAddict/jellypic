@@ -36,6 +36,7 @@ final class ConnectViewController: UIViewController {
     private var baseURL: URL?
     private var serverName: String?
     private var keyboardHeight: CGFloat = 0
+    private var isMoving = false
 
     var onFinished: (() -> Void)?
 
@@ -183,7 +184,8 @@ final class ConnectViewController: UIViewController {
     }
 
     private func move(to step: Step) {
-        guard step != self.step else { return }
+        guard step != self.step, !isMoving else { return }
+        isMoving = true
 
         let outgoing = currentStepView()
         self.step = step
@@ -205,6 +207,7 @@ final class ConnectViewController: UIViewController {
                         self.view.layoutIfNeeded()
                        },
                        completion: { _ in
+                        self.isMoving = false
                         outgoing.removeFromSuperview()
                         self.focusCurrentStep()
                        })
@@ -322,6 +325,7 @@ final class ConnectViewController: UIViewController {
 
     private func jump(to index: Int) {
         guard !actionButton.isLoading,
+              !isMoving,
               index <= reachedStep.rawValue,
               let target = Step(rawValue: index) else { return }
         move(to: target)
@@ -337,7 +341,7 @@ final class ConnectViewController: UIViewController {
     }
 
     @objc private func primaryAction() {
-        guard !actionButton.isLoading else { return }
+        guard !actionButton.isLoading, !isMoving else { return }
 
         switch step {
         case .server:

@@ -139,6 +139,7 @@ final class ReauthViewController: CardSheetViewController {
 
     private func completeSignIn(with authentication: AuthenticationResult, baseURL: URL) {
         guard authentication.user.id == session.userId else {
+            usernameInput.isHidden = false
             usernameInput.isInvalid = true
             showError("That is a different account. Sign in with the one that indexed this library, or sign out to start over.")
             return

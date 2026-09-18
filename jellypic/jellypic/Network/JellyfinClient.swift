@@ -12,6 +12,7 @@ final class JellyfinClient: JellyfinAPI {
     }
 
     var credentials: JellyfinCredentials?
+    var cachedImageBaseURL: URL?
     var onTokenRejected: (() -> Void)?
 
     private let identity: DeviceIdentity
@@ -133,8 +134,6 @@ final class JellyfinClient: JellyfinAPI {
     }
 
     func imageRequest(itemId: String, tag: String?, fillPixels: Int) -> URLRequest? {
-        guard let credentials = credentials else { return nil }
-
         var query = [
             URLQueryItem(name: "fillWidth", value: String(fillPixels)),
             URLQueryItem(name: "fillHeight", value: String(fillPixels)),
@@ -145,18 +144,10 @@ final class JellyfinClient: JellyfinAPI {
         if let tag = tag {
             query.append(URLQueryItem(name: "tag", value: tag))
         }
-
-        guard var request = makeRequest(baseURL: credentials.baseURL,
-                                        path: "Items/\(itemId)/Images/Primary",
-                                        query: query,
-                                        token: credentials.accessToken) else { return nil }
-        request.cachePolicy = .returnCacheDataElseLoad
-        return request
+        return primaryImageRequest(itemId: itemId, query: query)
     }
 
     func fullImageRequest(itemId: String, tag: String?, maxPixels: Int) -> URLRequest? {
-        guard let credentials = credentials else { return nil }
-
         var query = [
             URLQueryItem(name: "maxWidth", value: String(maxPixels)),
             URLQueryItem(name: "maxHeight", value: String(maxPixels)),
@@ -167,12 +158,16 @@ final class JellyfinClient: JellyfinAPI {
         if let tag = tag {
             query.append(URLQueryItem(name: "tag", value: tag))
         }
+        return primaryImageRequest(itemId: itemId, query: query)
+    }
 
-        guard var request = makeRequest(baseURL: credentials.baseURL,
+    private func primaryImageRequest(itemId: String, query: [URLQueryItem]) -> URLRequest? {
+        guard let baseURL = credentials?.baseURL ?? cachedImageBaseURL,
+              var request = makeRequest(baseURL: baseURL,
                                         path: "Items/\(itemId)/Images/Primary",
                                         query: query,
-                                        token: credentials.accessToken) else { return nil }
-        request.cachePolicy = .returnCacheDataElseLoad
+                                        token: credentials?.accessToken) else { return nil }
+        request.cachePolicy = credentials == nil ? .returnCacheDataDontLoad : .returnCacheDataElseLoad
         return request
     }
 
@@ -198,7 +193,10 @@ final class JellyfinClient: JellyfinAPI {
             return
         }
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        session.dataTask(with: request) { _, response, _ in
+        session.dataTask(with: request) { [weak self] _, response, error in
+            if let failure = self?.failure(response: response, error: error) {
+                self?.reportIfTokenRejected(failure, on: request)
+            }
             let size = JellyfinClient.totalBytes(from: response as? HTTPURLResponse)
             DispatchQueue.main.async {
                 completion(size)
@@ -216,8 +214,12 @@ final class JellyfinClient: JellyfinAPI {
         }
         return downloader.download(request,
                                    fileName: fileName,
-                                   progress: progress,
-                                   completion: completion)
+                                   progress: progress) { [weak self] result in
+            if case .failure(let error) = result {
+                self?.reportIfTokenRejected(error, on: request)
+            }
+            completion(result)
+        }
     }
 
     private func originalFileRequest(itemId: String) -> URLRequest? {

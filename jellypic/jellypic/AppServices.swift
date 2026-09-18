@@ -22,6 +22,7 @@ final class AppServices {
 
         let client = JellyfinClient(identity: identity)
         client.credentials = authStore.credentials
+        client.cachedImageBaseURL = authStore.session?.baseURL
 
         let store = CoreDataPhotoStore()
 
@@ -32,6 +33,7 @@ final class AppServices {
         self.images = ImageLoader(client: client)
 
         client.onTokenRejected = { [weak self] in self?.expireSession() }
+        images.onUnauthorized = { [weak self] in self?.expireSession() }
     }
 
     var hasSession: Bool {
@@ -56,7 +58,10 @@ final class AppServices {
         }
 
         let status = authStore.save(credentials, username: result.user.name)
+        guard status == errSecSuccess else { return status }
+
         client.credentials = credentials
+        client.cachedImageBaseURL = baseURL
         return status
     }
 
@@ -79,6 +84,7 @@ final class AppServices {
             guard let self = self else { return }
             self.authStore.clear()
             self.client.credentials = nil
+            self.client.cachedImageBaseURL = nil
             self.store.reset()
             self.images.clearCaches()
             Preferences.clearLibrary()

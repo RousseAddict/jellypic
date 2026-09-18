@@ -314,6 +314,24 @@ the onboarding pattern:
   `viewDidLayoutSubviews` with a 0.5 pt epsilon guard, so a layout pass that
   changes nothing does not schedule another one.
 
+**`move(to:)` holds a lock for the length of its animation.** Three entry points
+can now reach it — the action button, a dot, a swipe — and the morph is a 0.32 s
+constraint animation that swaps which view drives the card's height. Starting a
+second one mid-flight leaves the outgoing view's bottom constraint active
+alongside the incoming one, and the card settles at whichever height the
+conflicting pair resolves to. A swipe is a *discrete* gesture, so nothing throttles
+it: two flicks in the same third of a second is an ordinary human input, not an
+edge case.
+
+The flag is `isMoving`, cleared as the first statement of the completion, and
+`jump(to:)` tests it too. `primaryAction()` tests it as well, next to the
+`isLoading` guard it already had — not because the button can be double-tapped,
+but so that **no network call can start during a morph**. That is what makes the
+lock safe to be a plain drop: a programmatic `move(to:)` only ever follows a
+response, a response only ever follows a request, and a request cannot begin
+while the lock is held. Every `move` the lock can refuse is one a finger asked
+for, and the finger can ask again.
+
 ## 6. Routing
 
 `RootViewController` is a router with a single rule:

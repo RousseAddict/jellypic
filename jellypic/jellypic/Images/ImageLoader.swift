@@ -20,6 +20,7 @@ final class ImageLoader {
     private let decodeQueue = DispatchQueue(label: "jellypic.image.decode", qos: .userInitiated)
 
     var isSuspended = false
+    var onUnauthorized: (() -> Void)?
 
     init(client: JellyfinAPI,
          configuration: URLSessionConfiguration = ImageLoader.defaultConfiguration()) {
@@ -60,8 +61,13 @@ final class ImageLoader {
             return nil
         }
 
-        let task = session.dataTask(with: request) { [weak self] data, _, _ in
-            guard let self = self, let data = data else {
+        let task = session.dataTask(with: request) { [weak self] data, response, _ in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            self.reportIfUnauthorized(response)
+            guard let data = data else {
                 DispatchQueue.main.async { completion(nil) }
                 return
             }
@@ -91,8 +97,13 @@ final class ImageLoader {
             return nil
         }
 
-        let task = session.dataTask(with: request) { [weak self] data, _, _ in
-            guard let self = self, let data = data else {
+        let task = session.dataTask(with: request) { [weak self] data, response, _ in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            self.reportIfUnauthorized(response)
+            guard let data = data else {
                 DispatchQueue.main.async { completion(nil) }
                 return
             }
@@ -120,6 +131,12 @@ final class ImageLoader {
         memory.removeAllObjects()
         fullSize.removeAllObjects()
         session.configuration.urlCache?.removeAllCachedResponses()
+    }
+
+    private func reportIfUnauthorized(_ response: URLResponse?) {
+        guard let http = response as? HTTPURLResponse,
+              http.statusCode == 401 || http.statusCode == 403 else { return }
+        DispatchQueue.main.async { self.onUnauthorized?() }
     }
 
     @objc private func dropMemoryCache() {

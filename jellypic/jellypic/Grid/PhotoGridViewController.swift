@@ -28,6 +28,7 @@ final class PhotoGridViewController: UIViewController {
     private var horizontalInset: CGFloat = 0
     private var transitionIndexPath: IndexPath?
     private weak var hiddenCell: PhotoCell?
+    private weak var viewer: PhotoViewerViewController?
     private var isBannerVisible = false
     private var isSessionExpired = false
 
@@ -176,12 +177,14 @@ final class PhotoGridViewController: UIViewController {
             guard let self = self else { return }
             self.pendingReload = true
             self.applyReloadIfIdle()
+            self.viewer?.timelineDidChange()
         }
         timeline.onReset = { [weak self] in
             guard let self = self else { return }
             self.pendingReload = false
             self.collectionView.reloadData()
             self.refreshEmptyState()
+            self.viewer?.timelineDidChange()
         }
     }
 
@@ -443,6 +446,7 @@ extension PhotoGridViewController: UICollectionViewDelegate {
         viewer.onWillDismiss = { [weak self] path in
             self?.prepareForReturn(to: path)
         }
+        self.viewer = viewer
         present(viewer, animated: true, completion: nil)
     }
 

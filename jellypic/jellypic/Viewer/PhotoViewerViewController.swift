@@ -21,6 +21,8 @@ final class PhotoViewerViewController: UIViewController {
     private var laidOutSize = CGSize.zero
     private var isAdjustingLayout = false
     private var detailsCard: PhotoDetailsViewController?
+    private var currentPhotoId: String
+    private var pendingTimelineChange = false
 
     private(set) var currentIndexPath: IndexPath
 
@@ -35,6 +37,7 @@ final class PhotoViewerViewController: UIViewController {
         self.timeline = timeline
         self.thumbnailPixels = thumbnailPixels
         self.currentIndexPath = indexPath
+        self.currentPhotoId = timeline.photoIfPresent(at: indexPath)?.id ?? ""
 
         let screen = UIScreen.main.bounds
         let longest = max(screen.width, screen.height) * UIScreen.main.scale
@@ -180,8 +183,35 @@ final class PhotoViewerViewController: UIViewController {
     }
 
     private func updateDateLabel() {
-        guard currentIndexPath.section < timeline.sectionCount else { return }
-        dateLabel.text = PhotoDateFormatter.string(from: timeline.photo(at: currentIndexPath).captureDate)
+        guard let photo = timeline.photoIfPresent(at: currentIndexPath) else { return }
+        currentPhotoId = photo.id
+        dateLabel.text = PhotoDateFormatter.string(from: photo.captureDate)
+    }
+
+    func timelineDidChange() {
+        pendingTimelineChange = true
+        applyTimelineChangeIfIdle()
+    }
+
+    private func applyTimelineChangeIfIdle() {
+        guard pendingTimelineChange,
+              isViewLoaded,
+              !collectionView.isDragging,
+              !collectionView.isDecelerating else { return }
+        pendingTimelineChange = false
+
+        guard let path = timeline.indexPath(forPhotoId: currentPhotoId) else {
+            dismiss(animated: true, completion: nil)
+            return
+        }
+
+        isAdjustingLayout = true
+        currentIndexPath = path
+        collectionView.reloadData()
+        collectionView.layoutIfNeeded()
+        collectionView.scrollToItem(at: path, at: .centeredHorizontally, animated: false)
+        isAdjustingLayout = false
+        updateDateLabel()
     }
 
     private func setChrome(visible: Bool, animated: Bool) {
@@ -206,9 +236,9 @@ final class PhotoViewerViewController: UIViewController {
 
     @objc private func showDetails() {
         guard detailsCard == nil,
-              currentIndexPath.section < timeline.sectionCount else { return }
+              let photo = timeline.photoIfPresent(at: currentIndexPath) else { return }
         let card = PhotoDetailsViewController(services: services,
-                                              itemId: timeline.photo(at: currentIndexPath).id,
+                                              itemId: photo.id,
                                               displayImage: currentCell?.imageView.image)
         card.onDismissed = { [weak self] in self?.detailsCard = nil }
         detailsCard = card
@@ -288,6 +318,16 @@ extension PhotoViewerViewController: UICollectionViewDelegate {
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard !isAdjustingLayout, laidOutSize.width > 0, scrollView === collectionView else { return }
         updateCurrentIndexPath()
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate {
+            applyTimelineChangeIfIdle()
+        }
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        applyTimelineChangeIfIdle()
     }
 }
 
