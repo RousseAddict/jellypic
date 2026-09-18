@@ -1,5 +1,6 @@
 import UIKit
 
+// LEGACY(ios12): every GlyphView subclass below is a hand-drawn CAShapeLayer because SF Symbols are iOS 13+. Freed at iOS 13.
 class GlyphView: UIView {
 
     override class var layerClass: AnyClass {

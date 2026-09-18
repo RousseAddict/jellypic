@@ -147,6 +147,17 @@ device calendar would re-introduce exactly the wall-clock shift that choosing
 `PremiereDate` was meant to avoid: a photo taken at 00:30 would land in the
 previous month for a user in a negative offset.
 
+**That formatter is declared once, and both directions go through it.** `MonthKey`
+owns `make(from:)`, `title(for:)` and `shortTitle(for:)` together, in `PhotoItem.swift`,
+next to the attribute it encodes. The display strings used to live in an extension
+declared from a *view* (`MonthHeaderView`), with its own private parser that was a
+character-for-character clone — same `en_US_POSIX`, same UTC, same `"yyyy-MM"`.
+Two copies of the invariant means one of them can drift, and a drifted parser does
+not crash: photos simply appear under a different month than the one they are
+indexed in, while the index itself stays correct and the fault looks like bad data.
+The localised `MMMMyyyy` / `MMMyyyy` output formatters are a separate concern and
+stay separate — they are deliberately *not* pinned to a locale, only to UTC.
+
 ## 5. Paging and resumability
 
 `Index/SyncEngine.swift` walks pages of 200 serially — never in parallel. Two

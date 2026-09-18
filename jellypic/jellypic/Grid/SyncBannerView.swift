@@ -15,6 +15,11 @@ final class SyncBannerView: UIView, Themed {
         didSet {
             guard isBusy != oldValue else { return }
             spinner.isHidden = !isBusy
+            if isBusy {
+                spinner.startAnimating()
+            } else {
+                spinner.stopAnimating()
+            }
             spinnerWidth.constant = isBusy ? 14 : 0
             spinnerGap.constant = isBusy ? 8 : 0
         }
@@ -83,7 +88,7 @@ final class SyncBannerView: UIView, Themed {
         surface.fillColor = palette.surface
         surface.applyShadow(palette)
         label.textColor = palette.textSecondary
-        // LEGACY(ios12): UIActivityIndicatorView.Style.medium is iOS 13+, so the colour is set rather than the style.
+        // LEGACY(ios12): UIActivityIndicatorView.Style.medium is iOS 13+, so the colour is set rather than the style. Freed at iOS 13.
         spinner.color = palette.textSecondary
     }
 }

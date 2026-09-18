@@ -21,6 +21,7 @@ struct JellyfinSession {
     let serverId: String?
 }
 
+// LEGACY(ios12): every method below is completion-based because Swift Concurrency back-deploys only to iOS 13 — this whole protocol is the swap surface. Freed at iOS 13.
 protocol JellyfinAPI: AnyObject {
 
     var credentials: JellyfinCredentials? { get set }

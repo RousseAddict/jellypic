@@ -1,5 +1,6 @@
 import UIKit
 
+// LEGACY(ios12): every glyph in this file is a hand-drawn CAShapeLayer because SF Symbols are iOS 13+. Freed at iOS 13.
 final class CheckmarkView: UIView {
 
     override class var layerClass: AnyClass {

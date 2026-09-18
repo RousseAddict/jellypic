@@ -237,8 +237,21 @@ rounded bottom corners stay hidden and the sheet still reads as anchored rather
 than floating. The content stops `safeArea.bottom + 24` above the keyboard for
 free, because the inner stack is pinned to the safe area, not to the card.
 
+**The lift is skipped in full-sheet mode.** `CardSheetViewController` switches to
+`fullSheetConstraints` at a compact vertical size class — landscape, which is also
+where the keyboard is tallest — and there the card is already anchored to the top
+of the screen. Translating it by the overlap pushed the title, the fields *and*
+the button off the top edge. The fallback needs no code: with the card's height
+bounded, the `fit` constraint (priority 500) yields and the inner scroll view
+scrolls. `isFullSheet` is exposed on the base class precisely so a subclass can
+ask which geometry it is in.
+
 Dismissal calls `view.endEditing(true)` first, so the keyboard leaves with the
-card rather than after it.
+card rather than after it — but that notification is posted *synchronously*, so
+without a guard it starts a 0.25 s animation returning the transform to identity
+while `dismissCard` starts its own 0.26 s animation pushing it down. Two
+animations, same property, and only the ordering saves it. An `isDismissing` flag
+makes the dismissal the sole owner of `card.transform`.
 
 ## 5. The connect flow
 

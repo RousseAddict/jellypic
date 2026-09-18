@@ -15,6 +15,7 @@ final class ReauthViewController: CardSheetViewController {
     private let signInButton = ActionButton()
 
     private var keyboardOverlap: CGFloat = 0
+    private var isDismissing = false
 
     var onSignedIn: (() -> Void)?
 
@@ -44,6 +45,7 @@ final class ReauthViewController: CardSheetViewController {
     }
 
     override func dismissCard() {
+        isDismissing = true
         view.endEditing(true)
         super.dismissCard()
     }
@@ -170,10 +172,12 @@ final class ReauthViewController: CardSheetViewController {
     }
 
     @objc private func keyboardWillChangeFrame(_ notification: Notification) {
-        guard let info = notification.userInfo,
+        guard !isDismissing,
+              let info = notification.userInfo,
               let frame = (info[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
 
-        keyboardOverlap = max(0, view.bounds.height - view.convert(frame, from: nil).origin.y)
+        let overlap = max(0, view.bounds.height - view.convert(frame, from: nil).origin.y)
+        keyboardOverlap = isFullSheet ? 0 : overlap
 
         let duration = (info[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
         let curve = (info[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt) ?? 0

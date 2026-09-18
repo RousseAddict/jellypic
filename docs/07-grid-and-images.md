@@ -367,7 +367,10 @@ Two mechanics make that work:
 - **`isBusy` collapses the spinner, it does not merely hide it.** The spinner is
   laid out by constraints, not by a stack view, so `isHidden` alone still
   reserves its 14 pt and the 8 pt gap and the text sits off-centre in a pill with
-  a hole in it. Both constants are held and driven to 0.
+  a hole in it. Both constants are held and driven to 0. It also calls
+  `stopAnimating()`: the banner sets `hidesWhenStopped = false` and manages
+  `isHidden` itself, so hiding the view leaves the layer rotating forever — an
+  invisible spin for the whole duration of an expired session, on an A7.
 - **The tap is a gesture recogniser on the banner, not a `UIControl` subclass.**
   Nothing else about the pill is button-like, and a view whose `alpha` is 0 is
   skipped by hit-testing, so the hidden banner needs no `isUserInteractionEnabled`

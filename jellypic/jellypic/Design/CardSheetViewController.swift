@@ -9,6 +9,10 @@ class CardSheetViewController: UIViewController {
 
     var onDismissed: (() -> Void)?
 
+    var isFullSheet: Bool {
+        return traitCollection.verticalSizeClass == .compact
+    }
+
     private static let overhang: CGFloat = 32
     private static let padding: CGFloat = 24
     private static let topGap: CGFloat = 64
@@ -21,7 +25,7 @@ class CardSheetViewController: UIViewController {
 
     private var bottomSheetConstraints: [NSLayoutConstraint] = []
     private var fullSheetConstraints: [NSLayoutConstraint] = []
-    private var isFullSheet: Bool?
+    private var appliedFullSheet: Bool?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -202,9 +206,9 @@ class CardSheetViewController: UIViewController {
 
     private func updateSheetMode() {
         guard isViewLoaded else { return }
-        let fullSheet = traitCollection.verticalSizeClass == .compact
-        guard fullSheet != isFullSheet else { return }
-        isFullSheet = fullSheet
+        let fullSheet = isFullSheet
+        guard fullSheet != appliedFullSheet else { return }
+        appliedFullSheet = fullSheet
 
         NSLayoutConstraint.deactivate(fullSheet ? bottomSheetConstraints : fullSheetConstraints)
         NSLayoutConstraint.activate(fullSheet ? fullSheetConstraints : bottomSheetConstraints)

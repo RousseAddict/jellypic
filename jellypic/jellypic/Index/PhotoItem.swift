@@ -74,8 +74,35 @@ enum MonthKey {
         return formatter
     }()
 
+    private static let displayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.setLocalizedDateFormatFromTemplate("MMMMyyyy")
+        return formatter
+    }()
+
+    private static let shortFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.setLocalizedDateFormatFromTemplate("MMMyyyy")
+        return formatter
+    }()
+
     static func make(from date: Date?) -> String {
         guard let date = date else { return "" }
         return formatter.string(from: date)
+    }
+
+    static func title(for monthKey: String) -> String {
+        return localized(monthKey, using: displayFormatter)
+    }
+
+    static func shortTitle(for monthKey: String) -> String {
+        return localized(monthKey, using: shortFormatter)
+    }
+
+    private static func localized(_ monthKey: String, using output: DateFormatter) -> String {
+        guard let date = formatter.date(from: monthKey) else { return "Undated" }
+        return output.string(from: date)
     }
 }

@@ -6,6 +6,7 @@ protocol ZoomTransitionEndpoint: AnyObject {
     func zoomTransitionSetHidden(_ hidden: Bool)
 }
 
+// LEGACY(ios12): this entire file hand-rolls what .navigationTransition(.zoom) provides natively. Freed at iOS 18.
 final class ZoomTransition: NSObject, UIViewControllerAnimatedTransitioning {
 
     private let isPresenting: Bool
