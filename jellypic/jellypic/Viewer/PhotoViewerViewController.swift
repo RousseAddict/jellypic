@@ -1,12 +1,11 @@
 import UIKit
-import CoreData
 
 final class PhotoViewerViewController: UIViewController {
 
     private static let maximumFullPixels = 2048
 
     private let services: AppServices
-    private let results: NSFetchedResultsController<PhotoItem>
+    private let timeline: PhotoTimeline
     private let thumbnailPixels: Int
     private let fullPixels: Int
 
@@ -29,11 +28,11 @@ final class PhotoViewerViewController: UIViewController {
     var onWillDismiss: ((IndexPath) -> Void)?
 
     init(services: AppServices,
-         results: NSFetchedResultsController<PhotoItem>,
+         timeline: PhotoTimeline,
          startAt indexPath: IndexPath,
          thumbnailPixels: Int) {
         self.services = services
-        self.results = results
+        self.timeline = timeline
         self.thumbnailPixels = thumbnailPixels
         self.currentIndexPath = indexPath
 
@@ -176,9 +175,8 @@ final class PhotoViewerViewController: UIViewController {
     }
 
     private func updateDateLabel() {
-        guard currentIndexPath.section < (results.sections?.count ?? 0) else { return }
-        let item = results.object(at: currentIndexPath)
-        dateLabel.text = PhotoDateFormatter.string(from: item.captureDate)
+        guard currentIndexPath.section < timeline.sectionCount else { return }
+        dateLabel.text = PhotoDateFormatter.string(from: timeline.photo(at: currentIndexPath).captureDate)
     }
 
     private func setChrome(visible: Bool, animated: Bool) {
@@ -203,10 +201,9 @@ final class PhotoViewerViewController: UIViewController {
 
     @objc private func showDetails() {
         guard detailsCard == nil,
-              currentIndexPath.section < (results.sections?.count ?? 0) else { return }
-        let item = results.object(at: currentIndexPath)
+              currentIndexPath.section < timeline.sectionCount else { return }
         let card = PhotoDetailsViewController(services: services,
-                                              itemId: item.id,
+                                              itemId: timeline.photo(at: currentIndexPath).id,
                                               displayImage: currentCell?.imageView.image)
         card.onDismissed = { [weak self] in self?.detailsCard = nil }
         detailsCard = card
@@ -258,21 +255,21 @@ final class PhotoViewerViewController: UIViewController {
 extension PhotoViewerViewController: UICollectionViewDataSource {
 
     func numberOfSections(in collectionView: UICollectionView) -> Int {
-        return results.sections?.count ?? 0
+        return timeline.sectionCount
     }
 
     func collectionView(_ collectionView: UICollectionView,
                         numberOfItemsInSection section: Int) -> Int {
-        return results.sections?[section].numberOfObjects ?? 0
+        return timeline.numberOfPhotos(inSection: section)
     }
 
     func collectionView(_ collectionView: UICollectionView,
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: ZoomablePhotoCell.reuseIdentifier,
                                                       for: indexPath) as! ZoomablePhotoCell
-        let item = results.object(at: indexPath)
-        cell.configure(itemId: item.id,
-                       tag: item.imageTag,
+        let photo = timeline.photo(at: indexPath)
+        cell.configure(itemId: photo.id,
+                       tag: photo.imageTag,
                        thumbnailPixels: thumbnailPixels,
                        fullPixels: fullPixels,
                        loader: services.images)

@@ -1,5 +1,4 @@
 import UIKit
-import CoreData
 
 final class PhotoGridViewController: UIViewController {
 
@@ -19,7 +18,7 @@ final class PhotoGridViewController: UIViewController {
     private let emptyLabel = UILabel()
     private let scrubber = MonthScrubberView()
 
-    private var results: NSFetchedResultsController<PhotoItem>!
+    private var timeline: PhotoTimeline!
     private var pendingReload = false
     private var thumbnailPixels = 0
     private var horizontalInset: CGFloat = 0
@@ -43,16 +42,12 @@ final class PhotoGridViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         buildHierarchy()
-        buildResults()
+        buildTimeline()
         wireScrubber()
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
                                                name: Theme.didChangeNotification,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(indexDidReset),
-                                               name: PhotoStore.didResetNotification,
                                                object: nil)
 
         applyPalette()
@@ -133,10 +128,19 @@ final class PhotoGridViewController: UIViewController {
         ])
     }
 
-    private func buildResults() {
-        results = services.store.makeTimelineResults()
-        results.delegate = self
-        try? results.performFetch()
+    private func buildTimeline() {
+        timeline = services.store.makeTimeline()
+        timeline.onChange = { [weak self] in
+            guard let self = self else { return }
+            self.pendingReload = true
+            self.applyReloadIfIdle()
+        }
+        timeline.onReset = { [weak self] in
+            guard let self = self else { return }
+            self.pendingReload = false
+            self.collectionView.reloadData()
+            self.refreshEmptyState()
+        }
     }
 
     private func wireScrubber() {
@@ -174,9 +178,10 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func topVisibleMonthTitle() -> String? {
-        guard let section = collectionView.indexPathsForVisibleItems.map({ $0.section }).min(),
-              let name = results.sections?[section].name else { return nil }
-        return MonthKey.shortTitle(for: name)
+        guard let section = collectionView.indexPathsForVisibleItems.map({ $0.section }).min() else {
+            return nil
+        }
+        return MonthKey.shortTitle(for: timeline.monthKey(forSection: section))
     }
 
     private func reloadVisibleThumbnails() {
@@ -251,15 +256,7 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func refreshEmptyState() {
-        let isEmpty = (results.fetchedObjects?.isEmpty ?? true)
-        emptyLabel.isHidden = !isEmpty || services.sync.isRunning
-    }
-
-    @objc private func indexDidReset() {
-        try? results.performFetch()
-        pendingReload = false
-        collectionView.reloadData()
-        refreshEmptyState()
+        emptyLabel.isHidden = !timeline.isEmpty || services.sync.isRunning
     }
 
     private func applyReloadIfIdle() {
@@ -303,21 +300,21 @@ final class PhotoGridViewController: UIViewController {
 extension PhotoGridViewController: UICollectionViewDataSource {
 
     func numberOfSections(in collectionView: UICollectionView) -> Int {
-        return results.sections?.count ?? 0
+        return timeline.sectionCount
     }
 
     func collectionView(_ collectionView: UICollectionView,
                         numberOfItemsInSection section: Int) -> Int {
-        return results.sections?[section].numberOfObjects ?? 0
+        return timeline.numberOfPhotos(inSection: section)
     }
 
     func collectionView(_ collectionView: UICollectionView,
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier,
                                                       for: indexPath) as! PhotoCell
-        let item = results.object(at: indexPath)
-        cell.configure(itemId: item.id,
-                       tag: item.imageTag,
+        let photo = timeline.photo(at: indexPath)
+        cell.configure(itemId: photo.id,
+                       tag: photo.imageTag,
                        pixels: thumbnailPixels,
                        placeholder: Theme.palette.field,
                        loader: services.images)
@@ -330,7 +327,7 @@ extension PhotoGridViewController: UICollectionViewDataSource {
         let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind,
                                                                      withReuseIdentifier: MonthHeaderView.reuseIdentifier,
                                                                      for: indexPath) as! MonthHeaderView
-        header.configure(monthKey: results.sections?[indexPath.section].name ?? "",
+        header.configure(monthKey: timeline.monthKey(forSection: indexPath.section),
                          palette: Theme.palette,
                          leadingInset: horizontalInset)
         return header
@@ -344,7 +341,7 @@ extension PhotoGridViewController: UICollectionViewDelegate {
         transitionIndexPath = indexPath
 
         let viewer = PhotoViewerViewController(services: services,
-                                               results: results,
+                                               timeline: timeline,
                                                startAt: indexPath,
                                                thumbnailPixels: thumbnailPixels)
         viewer.transitionSource = self
@@ -398,13 +395,5 @@ extension PhotoGridViewController: ZoomTransitionEndpoint {
 
     func zoomTransitionSetHidden(_ hidden: Bool) {
         transitionCell?.isHidden = hidden
-    }
-}
-
-extension PhotoGridViewController: NSFetchedResultsControllerDelegate {
-
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        pendingReload = true
-        applyReloadIfIdle()
     }
 }

@@ -38,23 +38,65 @@ model that was never code-generated.
 
 ## 2.1 The store owns the fetch
 
-`PhotoStore.makeTimelineResults()` builds the fetched results controller — the
-request, the three sort descriptors, the `sectionNameKeyPath`, the batch size —
-and `viewContext` is private. The grid used to assemble all of that itself,
-with attribute names written as string literals that duplicated
-`PhotoItem`'s declarations; renaming an attribute compiled cleanly and crashed
-at runtime. The names are now `#keyPath(PhotoItem.monthKey)` and friends, so
-the same rename fails to build.
+`makeTimeline()` builds the fetched results controller — the request, the three
+sort descriptors, the `sectionNameKeyPath`, the batch size — and `viewContext`
+is private. The grid used to assemble all of that itself, with attribute names
+written as string literals that duplicated `PhotoItem`'s declarations; renaming
+an attribute compiled cleanly and crashed at runtime. The names are now
+`#keyPath(PhotoItem.monthKey)` and friends, so the same rename fails to build.
 
 This is also the invariant behind §5.2: the sort order and the composite index
 have to agree, and they cannot agree reliably when they are declared in two
 files that never see each other.
 
-The controller itself still crosses into `PhotoGridViewController` and on into
-the viewer, which is why `CLAUDE.md`'s "Core Data behind a `PhotoStore`
-protocol" is still only half true. Hiding `NSFetchedResultsController` means
-replacing it with something that can express sections, batched faulting and
-incremental delegate callbacks — that is the real work, and it is not done.
+## 2.2 The seam: `PhotoStore`, `PhotoTimeline`, `Photo`
+
+`CLAUDE.md` promised "Core Data behind a `PhotoStore` protocol" from the start
+and for a while that was simply false — `PhotoStore` was a concrete class, and
+the `NSFetchedResultsController` itself crossed into the grid and on into the
+viewer. Both view controllers imported `CoreData`.
+
+There are now two protocols and a value type, all in `Index/PhotoStore.swift`
+next to the only implementation. Keeping the contract and its implementation in
+one file is deliberate: the day SwiftData arrives, the file to open is exactly
+the one that already holds both halves. A separate header-like file would look
+tidier and would buy nothing, at the cost of six `project.pbxproj` edits.
+
+**`PhotoTimeline` is the interesting half.** Replacing a fetched results
+controller means reproducing what it actually does for the grid — sections,
+batched faulting, and a change callback — without leaking how. The protocol is
+therefore narrow on purpose: `sectionCount`, `numberOfPhotos(inSection:)`,
+`monthKey(forSection:)`, `photo(at:)`, `isEmpty`, and two closures. That is
+the entire surface both view controllers were using; nothing was designed for
+a hypothetical future reader.
+
+`photo(at:)` returns a `Photo` struct, not the `PhotoItem` managed object. The
+struct carries three fields — `id`, `imageTag`, `captureDate` — because those
+are the only three the UI ever reads. `name`, `width` and `height` stay in the
+store: the details card refetches metadata from the server, so mirroring them
+into the value type would be inventing a requirement. The cost is one small
+allocation per cell dequeue, which is noise next to the fault it replaces; the
+gain is that a `PhotoItem` can no longer outlive its context inside a cell.
+
+The two closures replace two mechanisms the grid used to own. `onChange` was
+`NSFetchedResultsControllerDelegate` conformance; `onReset` was a
+`NotificationCenter` observer on `PhotoStore.didResetNotification`. The
+notification still exists — `reset()` has two callers that hold no reference to
+the grid, see §5.1 — but it is now private to the store's file, and
+`CoreDataTimeline` is the only observer. It refetches before firing `onReset`,
+so the grid's handler is three lines of UIKit with no persistence knowledge.
+
+`upsert(_:completion:)` is the other half of the leak, and it is easy to miss.
+The store used to expose `performBackground { context in }` plus
+`upsert(_:in:)`, which meant `SyncEngine` — pure Foundation, no business being
+anywhere near persistence — was handling an `NSManagedObjectContext` and
+hopping back to the main queue by hand. The store now owns its queue and
+delivers on the main queue, like `JellyfinAPI` already did, and `SyncEngine`
+lost nine lines.
+
+`grep -rn "import CoreData" jellypic/` returns two files, `Index/PhotoItem.swift`
+and `Index/PhotoStore.swift`. That grep is the invariant; if it ever returns a
+third, the seam has leaked.
 
 ## 3. The query
 
@@ -163,11 +205,13 @@ results controller is listening for.
 That is enough for correctness but not for the redraw: L1.3 deliberately
 defers `reloadData` until scrolling stops, and a deferred reload after the
 controller has emptied itself is the same crash with a different trigger. So
-`reset()` also posts `PhotoStore.didResetNotification` and the grid refetches
-and reloads **immediately**, bypassing the coalescing. A notification rather
-than a direct call because neither caller — `AppServices.signOut` and
-`SyncEngine.start` on a library change — holds a reference to the grid, and
-the app already uses this pattern for `Theme.didChangeNotification`.
+`reset()` also posts a notification, `CoreDataTimeline` refetches on it and
+fires `onReset`, and the grid reloads **immediately**, bypassing the
+coalescing. A notification rather than a direct call because neither caller —
+`AppServices.signOut` and `SyncEngine.start` on a library change — holds a
+reference to the grid, and the app already uses this pattern for
+`Theme.didChangeNotification`. The name is file-private (§2.2): the grid no
+longer observes it, and nothing outside the store should.
 
 ## 5.2 Indexes, and why the model carries a version
 

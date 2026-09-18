@@ -78,15 +78,13 @@ final class SyncEngine {
     }
 
     private func persist(_ page: QueryResult<PhotoDTO>, from startIndex: Int) {
-        store.performBackground { [weak self] context in
+        store.upsert(page.items) { [weak self] error in
             guard let self = self else { return }
-            do {
-                try self.store.upsert(page.items, in: context)
-            } catch {
-                DispatchQueue.main.async { self.stop(with: .persistence(error)) }
+            if let error = error {
+                self.stop(with: .persistence(error))
                 return
             }
-            DispatchQueue.main.async { self.advance(after: page, from: startIndex) }
+            self.advance(after: page, from: startIndex)
         }
     }
 

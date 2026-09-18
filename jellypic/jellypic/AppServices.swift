@@ -22,7 +22,7 @@ final class AppServices {
         let client = JellyfinClient(identity: identity)
         client.credentials = authStore.credentials
 
-        let store = PhotoStore()
+        let store = CoreDataPhotoStore()
 
         self.authStore = authStore
         self.client = client

@@ -104,7 +104,7 @@ What the floor actually costs, and where it must stay contained:
 |---|---|---|
 | No `async/await` (Swift Concurrency back-deploys only to 13) | iOS 13 | Every request is declared on the `JellyfinAPI` protocol, so there is exactly one implementation to swap. **The closures are not contained beyond that: the protocol itself is the closure API and call sites see it** — 8 of them, in `ConnectViewController`, `PhotoDetailsViewController`, `AppServices`, `SyncEngine`, `ImageLoader`. Hiding them would mean hand-rolling a `Task` equivalent, which is not worth it at zero dependencies. **This is the main irritant; the migration rewrites those call sites, it does not delete one file.** |
 | No SwiftUI | iOS 13 | UIKit only. Not pure debt: see below. |
-| No SwiftData | iOS 17 | Core Data behind a `PhotoStore` protocol. |
+| No SwiftData | iOS 17 | `PhotoStore` + `PhotoTimeline` protocols, implemented by `CoreDataPhotoStore` / `CoreDataTimeline` in one file. The UI reads a `Photo` value type, never an `NSManagedObject`, and `import CoreData` appears in exactly two files, both under `Index/` — `grep -rn "import CoreData" jellypic/` is the check. |
 | No `.navigationTransition(.zoom)` | iOS 18 | Hand-rolled `UIViewControllerAnimatedTransitioning`, one file. |
 
 **Not** legacy debt, do not "fix" these on migration:

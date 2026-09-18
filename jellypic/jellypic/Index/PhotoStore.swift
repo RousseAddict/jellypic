@@ -1,20 +1,40 @@
 import CoreData
 
-// LEGACY(ios12): Core Data stands in for SwiftData. Freed at iOS 17.
-final class PhotoStore {
+struct Photo {
+    let id: String
+    let imageTag: String?
+    let captureDate: Date?
+}
 
-    static let didResetNotification = Notification.Name("PhotoStoreDidReset")
+protocol PhotoTimeline: AnyObject {
+    var sectionCount: Int { get }
+    var isEmpty: Bool { get }
+    var onChange: (() -> Void)? { get set }
+    var onReset: (() -> Void)? { get set }
+
+    func numberOfPhotos(inSection section: Int) -> Int
+    func monthKey(forSection section: Int) -> String
+    func photo(at indexPath: IndexPath) -> Photo
+}
+
+protocol PhotoStore: AnyObject {
+    func makeTimeline() -> PhotoTimeline
+    func upsert(_ photos: [PhotoDTO], completion: @escaping (Error?) -> Void)
+    func count() -> Int
+    func reset()
+}
+
+private let photoStoreDidReset = Notification.Name("PhotoStoreDidReset")
+
+// LEGACY(ios12): Core Data stands in for SwiftData. Freed at iOS 17.
+final class CoreDataPhotoStore: PhotoStore {
 
     private let container: NSPersistentContainer
     private let backgroundContext: NSManagedObjectContext
 
-    private var viewContext: NSManagedObjectContext {
-        return container.viewContext
-    }
-
     init(name: String = "JellyPicIndex") {
         let container = NSPersistentContainer(name: name, managedObjectModel: PhotoModel.make())
-        PhotoStore.load(container)
+        CoreDataPhotoStore.load(container)
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
 
@@ -26,7 +46,7 @@ final class PhotoStore {
         self.backgroundContext = background
     }
 
-    func makeTimelineResults() -> NSFetchedResultsController<PhotoItem> {
+    func makeTimeline() -> PhotoTimeline {
         let request = NSFetchRequest<PhotoItem>(entityName: PhotoItem.entityName)
         request.sortDescriptors = [
             NSSortDescriptor(key: #keyPath(PhotoItem.monthKey), ascending: false),
@@ -36,19 +56,48 @@ final class PhotoStore {
         request.fetchBatchSize = 60
         request.returnsObjectsAsFaults = false
 
-        return NSFetchedResultsController(fetchRequest: request,
-                                          managedObjectContext: viewContext,
-                                          sectionNameKeyPath: #keyPath(PhotoItem.monthKey),
-                                          cacheName: nil)
+        let controller = NSFetchedResultsController(fetchRequest: request,
+                                                    managedObjectContext: container.viewContext,
+                                                    sectionNameKeyPath: #keyPath(PhotoItem.monthKey),
+                                                    cacheName: nil)
+        return CoreDataTimeline(controller: controller)
     }
 
-    func performBackground(_ block: @escaping (NSManagedObjectContext) -> Void) {
+    func upsert(_ photos: [PhotoDTO], completion: @escaping (Error?) -> Void) {
         backgroundContext.perform {
-            block(self.backgroundContext)
+            var failure: Error?
+            do {
+                try self.write(photos, in: self.backgroundContext)
+            } catch {
+                failure = error
+            }
+            DispatchQueue.main.async { completion(failure) }
         }
     }
 
-    func upsert(_ photos: [PhotoDTO], in context: NSManagedObjectContext) throws {
+    func count() -> Int {
+        let request = NSFetchRequest<NSFetchRequestResult>(entityName: PhotoItem.entityName)
+        return (try? container.viewContext.count(for: request)) ?? 0
+    }
+
+    func reset() {
+        var deleted: [NSManagedObjectID] = []
+
+        backgroundContext.performAndWait {
+            let request = NSFetchRequest<NSFetchRequestResult>(entityName: PhotoItem.entityName)
+            let delete = NSBatchDeleteRequest(fetchRequest: request)
+            delete.resultType = .resultTypeObjectIDs
+            let result = try? self.backgroundContext.execute(delete)
+            deleted = ((result as? NSBatchDeleteResult)?.result as? [NSManagedObjectID]) ?? []
+            self.backgroundContext.reset()
+        }
+
+        NSManagedObjectContext.mergeChanges(fromRemoteContextSave: [NSDeletedObjectsKey: deleted],
+                                            into: [container.viewContext])
+        NotificationCenter.default.post(name: photoStoreDidReset, object: self)
+    }
+
+    private func write(_ photos: [PhotoDTO], in context: NSManagedObjectContext) throws {
         guard !photos.isEmpty else { return }
 
         let request = NSFetchRequest<PhotoItem>(entityName: PhotoItem.entityName)
@@ -77,28 +126,6 @@ final class PhotoStore {
         context.reset()
     }
 
-    func count() -> Int {
-        let request = NSFetchRequest<NSFetchRequestResult>(entityName: PhotoItem.entityName)
-        return (try? container.viewContext.count(for: request)) ?? 0
-    }
-
-    func reset() {
-        var deleted: [NSManagedObjectID] = []
-
-        backgroundContext.performAndWait {
-            let request = NSFetchRequest<NSFetchRequestResult>(entityName: PhotoItem.entityName)
-            let delete = NSBatchDeleteRequest(fetchRequest: request)
-            delete.resultType = .resultTypeObjectIDs
-            let result = try? self.backgroundContext.execute(delete)
-            deleted = ((result as? NSBatchDeleteResult)?.result as? [NSManagedObjectID]) ?? []
-            self.backgroundContext.reset()
-        }
-
-        NSManagedObjectContext.mergeChanges(fromRemoteContextSave: [NSDeletedObjectsKey: deleted],
-                                            into: [container.viewContext])
-        NotificationCenter.default.post(name: PhotoStore.didResetNotification, object: self)
-    }
-
     private static func load(_ container: NSPersistentContainer) {
         let url = container.persistentStoreDescriptions.first?.url
 
@@ -125,5 +152,64 @@ final class PhotoStore {
                                                                          ofType: NSSQLiteStoreType,
                                                                          options: nil)
         Preferences.clearSync()
+    }
+}
+
+final class CoreDataTimeline: NSObject, PhotoTimeline {
+
+    private let controller: NSFetchedResultsController<PhotoItem>
+
+    var onChange: (() -> Void)?
+    var onReset: (() -> Void)?
+
+    init(controller: NSFetchedResultsController<PhotoItem>) {
+        self.controller = controller
+        super.init()
+
+        controller.delegate = self
+        try? controller.performFetch()
+
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(storeDidReset),
+                                               name: photoStoreDidReset,
+                                               object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    var sectionCount: Int {
+        return controller.sections?.count ?? 0
+    }
+
+    var isEmpty: Bool {
+        return controller.fetchedObjects?.isEmpty ?? true
+    }
+
+    func numberOfPhotos(inSection section: Int) -> Int {
+        return controller.sections?[section].numberOfObjects ?? 0
+    }
+
+    func monthKey(forSection section: Int) -> String {
+        guard section < sectionCount else { return "" }
+        return controller.sections?[section].name ?? ""
+    }
+
+    func photo(at indexPath: IndexPath) -> Photo {
+        let item = controller.object(at: indexPath)
+        return Photo(id: item.id, imageTag: item.imageTag, captureDate: item.captureDate)
+    }
+
+    @objc private func storeDidReset() {
+        try? controller.performFetch()
+        onReset?()
+    }
+}
+
+extension CoreDataTimeline: NSFetchedResultsControllerDelegate {
+
+    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        onChange?()
     }
 }
