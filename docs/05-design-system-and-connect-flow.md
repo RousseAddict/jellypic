@@ -237,8 +237,53 @@ Because the subtitle is an `NSAttributedString` with two colours,
 attributed string holds its colours, so a plain `textColor` assignment would
 leave the old palette's red behind.
 
-## 7. Not done yet
+## 7. The app icon
+
+Source of truth is `icon/jellypic-icon.svg`; `icon/render-icons.sh` rasterises it
+into the eighteen slots of `AppIcon.appiconset`. The PNGs are committed too, so a
+clone builds without `rsvg-convert` ever being installed.
+
+The artwork is six petals in the `#9C61C5 → #0E9EDA` gradient on a full-bleed
+white field. The drawing arrived as a gradient *ring* enclosing the petals, and
+three things about that could not ship.
+
+**It was 62 % transparent.** Not a stylistic choice: the frame is one path with
+`fill-rule="evenodd"`, so its interior is a hole, and the whole canvas outside it
+is empty. It only looked white because image viewers composite onto white. An iOS
+icon must be opaque — alpha is rejected outright by App Store Connect, and the
+home screen composites what is left onto black. `render-icons.sh` asserts
+`mode == 'RGB'` on every output rather than trusting the pipeline.
+
+**It drew its own rounded square.** iOS applies a continuous-curvature squircle
+mask to every icon, so artwork that rounds its own corners produces a rounded
+rectangle inside a rounded rectangle. The two do not even agree on shape: the
+drawing used circular arcs of radius 320 on a 1024 canvas, where the system mask
+is a superellipse of radius ≈ 0.2237 × side, which is 229 px — a different curve
+family, not a different number. The fix is to delete the frame and let the mask
+be the only rounding in the picture.
+
+**It left a 5.5 % margin** (content spanned 56 → 968), which makes an icon read
+smaller than every neighbour on the home screen, and the petals themselves only
+covered 46 % of the canvas — about 18 px of motif in the 40 px Settings slot.
+They are now scaled to 62 %, which is the largest that keeps the petals clear of
+the mask's corners at every size.
+
+Every size is rendered from the vector rather than downsampled from the 1024, so
+the 20 px slot is as crisp as the marketing one. Files are named by pixel size
+and several slots share one file — iPhone 20@2x and iPad 40@1x are both 40 px,
+and shipping those bytes twice would be silly. `actool` accepts the reuse.
+
+The PNGs are also tagged sRGB, which `rsvg-convert` does not do. `sips` can
+convert between profiles but cannot tag an untagged file, so that one step goes
+through Pillow.
+
+The source SVG was stripped of a 9 KB C2PA provenance manifest on the way in —
+it was five sixths of the file and says nothing about the drawing.
+
+## 8. Not done yet
 
 - No "remember several servers" — one server, one account, one library.
 - Error text is English-only and not localised.
 - The connect flow has no automated test; it is exercised by hand on the 5s.
+- The icon is light-only. iOS 18's dark and tinted variants need SDK 18, which
+  is above the current ceiling, and would be a separate `AppIcon` appearance set.
