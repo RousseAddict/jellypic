@@ -34,5 +34,7 @@ protocol JellyfinAPI: AnyObject {
                 includeTotalCount: Bool,
                 completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void)
 
+    func imageRequest(itemId: String, tag: String?, fillPixels: Int) -> URLRequest?
+
     func logout(completion: @escaping (Result<Void, JellyfinError>) -> Void)
 }

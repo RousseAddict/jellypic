@@ -110,7 +110,7 @@ final class JellyfinClient: JellyfinAPI {
             URLQueryItem(name: "recursive", value: "true"),
             URLQueryItem(name: "includeItemTypes", value: "Photo"),
             URLQueryItem(name: "sortBy", value: "PremiereDate,SortName"),
-            URLQueryItem(name: "sortOrder", value: "Ascending"),
+            URLQueryItem(name: "sortOrder", value: "Descending"),
             URLQueryItem(name: "fields", value: "DateCreated,Width,Height"),
             URLQueryItem(name: "enableImages", value: "true"),
             URLQueryItem(name: "enableImageTypes", value: "Primary"),
@@ -128,6 +128,28 @@ final class JellyfinClient: JellyfinAPI {
             return
         }
         perform(request, as: QueryResult<PhotoDTO>.self, completion: completion)
+    }
+
+    func imageRequest(itemId: String, tag: String?, fillPixels: Int) -> URLRequest? {
+        guard let credentials = credentials else { return nil }
+
+        var query = [
+            URLQueryItem(name: "fillWidth", value: String(fillPixels)),
+            URLQueryItem(name: "fillHeight", value: String(fillPixels)),
+            URLQueryItem(name: "quality", value: "80"),
+            // LEGACY(ios12): WebP is undecodable here, so the output format is pinned rather than negotiated. Freed at iOS 14.
+            URLQueryItem(name: "format", value: "Jpg")
+        ]
+        if let tag = tag {
+            query.append(URLQueryItem(name: "tag", value: tag))
+        }
+
+        guard var request = makeRequest(baseURL: credentials.baseURL,
+                                        path: "Items/\(itemId)/Images/Primary",
+                                        query: query,
+                                        token: credentials.accessToken) else { return nil }
+        request.cachePolicy = .returnCacheDataElseLoad
+        return request
     }
 
     func logout(completion: @escaping (Result<Void, JellyfinError>) -> Void) {

@@ -30,11 +30,11 @@ final class RootViewController: UIViewController {
 
     private func showCurrentDestination(animated: Bool) {
         if isSignedIn {
-            let home = HomeViewController(services: services)
-            home.onSignedOut = { [weak self] in
+            let grid = PhotoGridViewController(services: services)
+            grid.onSignedOut = { [weak self] in
                 self?.showCurrentDestination(animated: true)
             }
-            transition(to: home, animated: animated)
+            transition(to: grid, animated: animated)
         } else {
             let connect = ConnectViewController(services: services)
             connect.onFinished = { [weak self] in

@@ -9,6 +9,7 @@ final class AppServices {
     let client: JellyfinAPI
     let store: PhotoStore
     let sync: SyncEngine
+    let images: ImageLoader
 
     private init() {
         let authStore = AuthStore()
@@ -27,6 +28,7 @@ final class AppServices {
         self.client = client
         self.store = store
         self.sync = SyncEngine(client: client, store: store)
+        self.images = ImageLoader(client: client)
     }
 
     func signIn(with result: AuthenticationResult, baseURL: URL) -> OSStatus {
@@ -46,6 +48,7 @@ final class AppServices {
             self.authStore.clear()
             self.client.credentials = nil
             self.store.reset()
+            self.images.clearCaches()
             Preferences.clearLibrary()
             completion()
         }

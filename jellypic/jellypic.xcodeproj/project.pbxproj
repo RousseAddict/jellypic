@@ -31,11 +31,17 @@
 		1A00000000000000000000F8 /* CredentialsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E8 /* CredentialsStepView.swift */; };
 		1A00000000000000000000F9 /* LibraryStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E9 /* LibraryStepView.swift */; };
 		1A00000000000000000000FA /* ConnectViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EA /* ConnectViewController.swift */; };
-		1A00000000000000000000FB /* HomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EB /* HomeViewController.swift */; };
 		1A00000000000000000000FC /* StepIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EC /* StepIndicatorView.swift */; };
 		1A00000000000000000000FD /* PhotoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000ED /* PhotoItem.swift */; };
 		1A00000000000000000000FE /* PhotoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EE /* PhotoStore.swift */; };
 		1A00000000000000000000FF /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EF /* SyncEngine.swift */; };
+		1A00000000000000000000120 /* FloatingButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000110 /* FloatingButton.swift */; };
+		1A00000000000000000000121 /* PhotoCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000111 /* PhotoCell.swift */; };
+		1A00000000000000000000122 /* MonthHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000112 /* MonthHeaderView.swift */; };
+		1A00000000000000000000123 /* SyncBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000113 /* SyncBannerView.swift */; };
+		1A00000000000000000000124 /* PhotoGridViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000114 /* PhotoGridViewController.swift */; };
+		1A00000000000000000000125 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000115 /* ImageLoader.swift */; };
+		1A00000000000000000000126 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000116 /* SettingsViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,11 +71,17 @@
 		1A00000000000000000000E8 /* CredentialsStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsStepView.swift; sourceTree = "<group>"; };
 		1A00000000000000000000E9 /* LibraryStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStepView.swift; sourceTree = "<group>"; };
 		1A00000000000000000000EA /* ConnectViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViewController.swift; sourceTree = "<group>"; };
-		1A00000000000000000000EB /* HomeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewController.swift; sourceTree = "<group>"; };
 		1A00000000000000000000EC /* StepIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepIndicatorView.swift; sourceTree = "<group>"; };
 		1A00000000000000000000ED /* PhotoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoItem.swift; sourceTree = "<group>"; };
 		1A00000000000000000000EE /* PhotoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStore.swift; sourceTree = "<group>"; };
 		1A00000000000000000000EF /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
+		1A00000000000000000000110 /* FloatingButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingButton.swift; sourceTree = "<group>"; };
+		1A00000000000000000000111 /* PhotoCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCell.swift; sourceTree = "<group>"; };
+		1A00000000000000000000112 /* MonthHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthHeaderView.swift; sourceTree = "<group>"; };
+		1A00000000000000000000113 /* SyncBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBannerView.swift; sourceTree = "<group>"; };
+		1A00000000000000000000114 /* PhotoGridViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoGridViewController.swift; sourceTree = "<group>"; };
+		1A00000000000000000000115 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
+		1A00000000000000000000116 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,7 +122,9 @@
 				1A00000000000000000000CF /* Index */,
 				1A00000000000000000000CC /* Design */,
 				1A00000000000000000000CD /* Connect */,
-				1A00000000000000000000CE /* Home */,
+				1A000000000000000000000D0 /* Grid */,
+				1A000000000000000000000D1 /* Images */,
+				1A000000000000000000000D2 /* Settings */,
 				1A00000000000000000000B2 /* LaunchScreen.storyboard */,
 				1A00000000000000000000B3 /* Assets.xcassets */,
 				1A00000000000000000000B4 /* Info.plist */,
@@ -141,6 +155,33 @@
 			path = Auth;
 			sourceTree = "<group>";
 		};
+		1A000000000000000000000D0 /* Grid */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000114 /* PhotoGridViewController.swift */,
+				1A00000000000000000000111 /* PhotoCell.swift */,
+				1A00000000000000000000112 /* MonthHeaderView.swift */,
+				1A00000000000000000000113 /* SyncBannerView.swift */,
+			);
+			path = Grid;
+			sourceTree = "<group>";
+		};
+		1A000000000000000000000D1 /* Images */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000115 /* ImageLoader.swift */,
+			);
+			path = Images;
+			sourceTree = "<group>";
+		};
+		1A000000000000000000000D2 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000116 /* SettingsViewController.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		1A00000000000000000000CF /* Index */ = {
 			isa = PBXGroup;
 			children = (
@@ -161,6 +202,7 @@
 				1A00000000000000000000E5 /* TextInputView.swift */,
 				1A00000000000000000000E6 /* OptionRowView.swift */,
 				1A00000000000000000000EC /* StepIndicatorView.swift */,
+				1A00000000000000000000110 /* FloatingButton.swift */,
 			);
 			path = Design;
 			sourceTree = "<group>";
@@ -174,14 +216,6 @@
 				1A00000000000000000000E9 /* LibraryStepView.swift */,
 			);
 			path = Connect;
-			sourceTree = "<group>";
-		};
-		1A00000000000000000000CE /* Home */ = {
-			isa = PBXGroup;
-			children = (
-				1A00000000000000000000EB /* HomeViewController.swift */,
-			);
-			path = Home;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -275,11 +309,17 @@
 				1A00000000000000000000F8 /* CredentialsStepView.swift in Sources */,
 				1A00000000000000000000F9 /* LibraryStepView.swift in Sources */,
 				1A00000000000000000000FA /* ConnectViewController.swift in Sources */,
-				1A00000000000000000000FB /* HomeViewController.swift in Sources */,
 				1A00000000000000000000FC /* StepIndicatorView.swift in Sources */,
 				1A00000000000000000000FD /* PhotoItem.swift in Sources */,
 				1A00000000000000000000FE /* PhotoStore.swift in Sources */,
 				1A00000000000000000000FF /* SyncEngine.swift in Sources */,
+				1A00000000000000000000120 /* FloatingButton.swift in Sources */,
+				1A00000000000000000000121 /* PhotoCell.swift in Sources */,
+				1A00000000000000000000122 /* MonthHeaderView.swift in Sources */,
+				1A00000000000000000000123 /* SyncBannerView.swift in Sources */,
+				1A00000000000000000000124 /* PhotoGridViewController.swift in Sources */,
+				1A00000000000000000000125 /* ImageLoader.swift in Sources */,
+				1A00000000000000000000126 /* SettingsViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -47,7 +47,7 @@ model that was never code-generated.
 | `recursive` | `true` | a photo library is a folder tree |
 | `includeItemTypes` | `Photo` | `BaseItemKind.Photo` |
 | `sortBy` | `PremiereDate,SortName` | see below |
-| `sortOrder` | `Ascending` | |
+| `sortOrder` | `Descending` | see below |
 | `fields` | `DateCreated,Width,Height` | not returned by default |
 | `enableImageTypes` | `Primary` + `imageTypeLimit=1` | we only ever draw the primary |
 | `enableUserData` | `false` | no play state on a photo; smaller payload |
@@ -64,11 +64,18 @@ that Jellyfin stores the EXIF wall clock unconverted in `PremiereDate` and
 `.ToUniversalTime()`-shifted in `DateCreated`, so `DateCreated` moves when the
 server's `TZ` changes.
 
+**`Descending` is a UI decision, not an API one.** The grid shows newest first,
+so indexing newest first means the top of the screen fills on page 1 instead of
+after the last page. It also keeps `contentOffset` stable: new rows land at the
+*end* of the fetched results, below the visible window, so a `reloadData`
+mid-sync does not shove the content the user is looking at.
+
 ## 4. Undated photos
 
 `PhotoDTO.captureDate` is `premiereDate ?? dateCreated`. If both are absent the
-photo is still indexed, with `captureDate == nil` and `monthKey == ""`, which
-sorts to the head of the timeline as an "Undated" section. Nothing disappears
+photo is still indexed, with `captureDate == nil` and `monthKey == ""`. The grid
+sorts `monthKey` descending and `""` is lexicographically smallest, so these land
+at the **end** of the timeline in an "Undated" section. Nothing disappears
 silently — a photo missing from the grid is a bug report we cannot diagnose,
 a photo in a weird section is one the user can see and explain.
 
@@ -126,9 +133,6 @@ what is left, and at 200 rows a page the fetch is one indexed `IN` query.
 
 ## 7. Not done yet
 
-- No progress UI. The sync is currently triggered from `HomeViewController`
-  (a placeholder) and reports into its detail label. That label is a **probe**,
-  not a design — L1.3 replaces the whole screen.
 - No deletion detection: an item removed from the server stays in the index
   until a full resync. Needs a "seen this run" marker or a total-count
   comparison.
