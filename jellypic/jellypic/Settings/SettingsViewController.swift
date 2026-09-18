@@ -1,13 +1,10 @@
 import UIKit
 
-final class SettingsViewController: UIViewController {
+final class SettingsViewController: CardSheetViewController {
 
     private let services: AppServices
 
-    private let dimming = UIView()
-    private let card = SquircleView()
-    private let scrollView = UIScrollView()
-    private let content = UIStackView()
+    private let identity = UIStackView()
 
     private let libraryLabel = UILabel()
     private let serverLabel = UILabel()
@@ -33,27 +30,6 @@ final class SettingsViewController: UIViewController {
         fatalError("init(coder:) is not used")
     }
 
-    func present(over parent: UIViewController) {
-        parent.addChild(self)
-        view.frame = parent.view.bounds
-        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        parent.view.addSubview(view)
-        didMove(toParent: parent)
-
-        view.layoutIfNeeded()
-        card.transform = CGAffineTransform(translationX: 0, y: card.bounds.height)
-        UIView.animate(withDuration: 0.34,
-                       delay: 0,
-                       usingSpringWithDamping: 0.9,
-                       initialSpringVelocity: 0,
-                       options: [.beginFromCurrentState],
-                       animations: {
-                        self.dimming.alpha = 1
-                        self.card.transform = .identity
-                       },
-                       completion: nil)
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
         buildHierarchy()
@@ -62,23 +38,6 @@ final class SettingsViewController: UIViewController {
     }
 
     private func buildHierarchy() {
-        dimming.alpha = 0
-        dimming.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(dimming)
-
-        card.cornerRadius = 32
-        card.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(card)
-
-        scrollView.alwaysBounceVertical = false
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(scrollView)
-
-        content.axis = .vertical
-        content.spacing = 18
-        content.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(content)
-
         buildIdentity()
         buildThemeControl()
 
@@ -92,47 +51,12 @@ final class SettingsViewController: UIViewController {
         signOutRow.isDestructive = true
         signOutRow.addTarget(self, action: #selector(confirmSignOut), for: .touchUpInside)
 
-        content.addArrangedSubview(section("Appearance",
-                                           SettingsGroupView(rows: [themeControl], padding: 8)))
-        content.addArrangedSubview(section("Storage",
-                                           SettingsGroupView(rows: [cacheRow, resyncRow], padding: 0)))
-        content.addArrangedSubview(section("Account",
-                                           SettingsGroupView(rows: [signOutRow], padding: 0)))
-
-        let fit = scrollView.heightAnchor.constraint(equalTo: content.heightAnchor)
-        fit.priority = UILayoutPriority(999)
-
-        NSLayoutConstraint.activate([
-            dimming.topAnchor.constraint(equalTo: view.topAnchor),
-            dimming.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            dimming.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            dimming.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            card.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            card.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            card.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 32),
-            card.heightAnchor.constraint(lessThanOrEqualTo: view.heightAnchor, multiplier: 0.92),
-
-            scrollView.topAnchor.constraint(equalTo: card.topAnchor, constant: 24),
-            scrollView.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 24),
-            scrollView.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -24),
-            scrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
-                                               constant: -24),
-            fit,
-
-            content.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            content.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            content.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            content.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            content.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
-        ])
-
-        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissCard))
-        dimming.addGestureRecognizer(tap)
-
-        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(dismissCard))
-        swipe.direction = .down
-        card.addGestureRecognizer(swipe)
+        body.addArrangedSubview(section("Appearance",
+                                        SettingsGroupView(rows: [themeControl], padding: 8)))
+        body.addArrangedSubview(section("Storage",
+                                        SettingsGroupView(rows: [cacheRow, resyncRow], padding: 0)))
+        body.addArrangedSubview(section("Account",
+                                        SettingsGroupView(rows: [signOutRow], padding: 0)))
     }
 
     private func buildIdentity() {
@@ -146,12 +70,13 @@ final class SettingsViewController: UIViewController {
             label.numberOfLines = 0
         }
 
-        let identity = UIStackView(arrangedSubviews: [libraryLabel, serverLabel, indexLabel])
+        for label in [libraryLabel, serverLabel, indexLabel] {
+            identity.addArrangedSubview(label)
+        }
         identity.axis = .vertical
         identity.spacing = 3
         identity.setCustomSpacing(8, after: libraryLabel)
-        content.addArrangedSubview(identity)
-        content.setCustomSpacing(22, after: identity)
+        setHeaderView(identity)
     }
 
     private func section(_ title: String, _ group: SettingsGroupView) -> UIStackView {
@@ -236,22 +161,6 @@ final class SettingsViewController: UIViewController {
         present(alert, animated: true, completion: nil)
     }
 
-    @objc private func dismissCard() {
-        UIView.animate(withDuration: 0.26,
-                       delay: 0,
-                       options: [.beginFromCurrentState],
-                       animations: {
-                        self.dimming.alpha = 0
-                        self.card.transform = CGAffineTransform(translationX: 0,
-                                                                y: self.card.bounds.height)
-                       },
-                       completion: { _ in
-                        self.willMove(toParent: nil)
-                        self.view.removeFromSuperview()
-                        self.removeFromParent()
-                       })
-    }
-
     @objc private func confirmSignOut() {
         let indexed = services.store.count()
         let scope = indexed > 0
@@ -272,19 +181,14 @@ final class SettingsViewController: UIViewController {
         signOutRow.detail = "Signing out…"
         services.signOut { [weak self] in
             guard let self = self else { return }
-            self.willMove(toParent: nil)
-            self.view.removeFromSuperview()
-            self.removeFromParent()
+            self.detachFromParent()
             self.onSignedOut?()
         }
     }
 
     private func applyPalette() {
         let palette = Theme.palette
-        view.backgroundColor = .clear
-        dimming.backgroundColor = UIColor(white: 0, alpha: 0.4)
-        card.fillColor = palette.surface
-        card.applyShadow(palette)
+        applySheetPalette(palette)
         libraryLabel.textColor = palette.textPrimary
         serverLabel.textColor = palette.textSecondary
         indexLabel.textColor = palette.textSecondary

@@ -6,12 +6,26 @@ cache, resync, sign out.
 
 ## 1. A card, not a screen
 
-Settings is a child view controller presented over the grid with the same dimming
-and swipe-down as the viewer's details card, not a pushed `UINavigationController`
-screen. There is no navigation bar anywhere in the app; adding one for four rows
-would have been the first piece of system chrome in the design system.
+Settings is a child view controller presented over the grid, not a pushed
+`UINavigationController` screen. There is no navigation bar anywhere in the app;
+adding one for four rows would have been the first piece of system chrome in the
+design system.
 
-The card grows to its content and stays anchored to the bottom.
+It is a `CardSheetViewController` — the dimming, the slide-up, the gestures, the
+close button, the portrait/landscape sizing **and the header/scroll/footer
+skeleton** all live in the base class, shared with the viewer's details card.
+Rationale in `docs/05` §4.1. This file supplies a header view and three groups;
+it activates no constraints of its own.
+
+The card grows to its content and stays anchored to the bottom in portrait; in
+landscape it becomes a full sheet.
+
+The identity header goes in via `setHeaderView`, which puts it **outside** the
+scroll view, on the same row as the X. It has to be outside: the close button is
+fixed to the card, so anything that scrolls would pass under it. A fixed header
+means the only thing that ever travels beneath the X is empty padding, and it
+also gives the scrolling region the whole of the landscape sheet below a two-line
+header.
 
 ## 1.1 Identity header, then titled sections
 
@@ -52,24 +66,26 @@ unambiguous without being an invitation. The cost is the loading state: there is
 `isLoading` on a row, so the logout request shows as `detail = "Signing out…"` with
 the row disabled.
 
-**The card scrolls internally past 92 % of the screen height.** The content stack
-is inside a `UIScrollView` whose height matches the content at priority 999, with
-a `heightAnchor <= view.height * 0.92` cap at required priority. Under the cap the
-card sizes itself to its content and nothing scrolls; over it, the cap wins, the
-999 breaks, and the content scrolls inside a card that stops short of the top.
-`alwaysBounceVertical = false` so a card that fits does not rubber-band and does
-not fight the swipe-down dismissal.
+**The card scrolls internally when it would otherwise reach the top of the
+screen.** That rule now lives in the base class (`docs/05` §4.1) rather than here:
+the scroll view's height matches its content at priority 999, and the card's
+`top >= safeArea.top + 64` is what eventually breaks it.
 
-The cap started at 0.85 and that was wrong on the 5s: the three sections came to
-roughly 461 pt against 451 pt of visible card, so the Account group was clipped
-with about 10 pt of scroll range — technically scrollable, indistinguishable from
-broken. A card that overflows by a hair is the worst case, because there is no
-visible cue that anything is below and no room for the bounce that would reveal
-it. Two changes together: the cap to 0.92, and the content compacted (section
-spacing 22 → 18, the gap under the identity header 26 → 22, the top inset 26 → 24,
-row height 50 → 48). The card now fits outright at the 5s floor, and the scroll
-view stays as the safety net for landscape and large Dynamic Type rather than as
-the everyday mechanism. The scroll indicator was also re-enabled inside the card
+It used to be a local `heightAnchor <= view.height * 0.92`. The multiplier was
+0.85 first, and that was wrong on the 5s: the three sections came to roughly
+461 pt against 451 pt of visible card, so the Account group was clipped with about
+10 pt of scroll range — technically scrollable, indistinguishable from broken. A
+card that overflows by a hair is the worst case, because there is no visible cue
+that anything is below and no room for the bounce that would reveal it. The
+answer was both a looser cap and a compaction (section spacing 22 → 18, the gap
+under the identity header 26 → 22, the top inset 26 → 24, row height 50 → 48).
+The compaction is what survived: the card fits outright at the 5s floor, and
+scrolling is the safety net for landscape and large Dynamic Type rather than the
+everyday mechanism. The 64 pt strip that replaced the multiplier says what it is
+protecting — somewhere to tap to dismiss — where `0.92` did not.
+
+`alwaysBounceVertical = false`, so a card that fits does not rubber-band and does
+not fight the swipe-down dismissal. The scroll indicator stays on inside the card
 — unlike the grid, there is no second indicator here to collide with, and it is
 the only signal that content continues below the fold.
 

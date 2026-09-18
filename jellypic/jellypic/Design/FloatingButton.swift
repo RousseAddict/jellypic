@@ -98,6 +98,48 @@ final class HandleGlyphView: GlyphView {
     }
 }
 
+final class ShareGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 16, height: 18)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 2
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let trayTop = box.minY + box.height * 0.42
+        let head = box.height * 0.2
+
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.minX, y: trayTop))
+        path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.maxX, y: trayTop))
+
+        path.move(to: CGPoint(x: box.midX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.midX, y: box.maxY - box.height * 0.3))
+
+        path.move(to: CGPoint(x: box.midX - head, y: box.minY + head))
+        path.addLine(to: CGPoint(x: box.midX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.midX + head, y: box.minY + head))
+        return path
+    }
+}
+
+final class StopGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 13, height: 13)
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        return UIBezierPath(roundedRect: rect, cornerRadius: 2.5)
+    }
+}
+
 final class CloseGlyphView: GlyphView {
 
     override var glyphSize: CGSize {

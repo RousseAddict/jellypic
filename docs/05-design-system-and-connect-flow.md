@@ -80,9 +80,138 @@ All in `Design/`, all shape-layer backed, all `Themed`:
 | `CheckmarkView` | path drawn in code, `strokeEnd` animated on selection |
 | `SelectionIndicatorView` | ring + checkmark, 24 pt |
 | `StepIndicatorView` | onboarding dots; each dot is a 36×44 `UIControl` |
+| `FloatingButton` | 44 pt circle over content: surface, shadow, one `GlyphView` |
+| `ShareGlyphView` / `StopGlyphView` | arrow-out-of-tray, and the filled square that replaces it mid-download |
+| `CardSheetViewController` | the sheet all cards are built on — see §4.1 |
+| `CardAccessoryButton` | bare `GlyphView` in a fixed 44×44 target, secondary tint |
 
 No SF Symbols (iOS 13+), no image assets: every glyph is a `UIBezierPath`, so
 it stays crisp at any size and costs no bundle space.
+
+## 4.1 `CardSheetViewController`
+
+The settings card and the viewer's details card were written separately and
+converged on the same thing: a dimmed backdrop, a squircle pinned to the bottom
+and overhanging it by 32 pt so only the top corners show, a spring slide-up on
+`transform`, tap-outside, swipe-down, and a height cap. Roughly 160 duplicated
+lines that had already started to drift — the two cards capped their height
+differently and only one of them could actually be dismissed in landscape.
+
+### The base class owns the whole skeleton, not just the chrome
+
+The first version handed subclasses a `card` and a `UILayoutGuide` and let them
+build their own header, their own scroll view and their own footer against it.
+Both subclasses then wrote the same fifteen constraints slightly differently,
+and both got them wrong — see "the X that floated" below. **The layout itself is
+now in the base class**; a subclass supplies views, never geometry:
+
+```
+card
+└ sheet            vertical stack, pinned to the card (or the safe area)
+  ├ header         horizontal: [ headerView | accessories… closeButton ]
+  ├ scrollView     the only scrolling region
+  │ └ body         vertical stack — the subclass fills this
+  └ footer         hidden until addFooterView is called
+```
+
+The API is two calls and two stacks: `setHeaderView(_:)`, `addAccessory(_:)`,
+then `body` and `footer` to append to. No subclass activates a constraint that
+touches the card, the sheet or the close button. `footer` starts hidden and stays
+that way unless a subclass shows it — a visible-but-empty arranged subview would
+still claim the stack's 22 pt of spacing, whereas a hidden one costs nothing.
+
+This is also what makes the header extensible: `addAccessory` inserts before the
+X, so a card can grow a second control (Share, say) without either subclass
+touching the header layout.
+
+**The X that floated.** `CardCloseButton` had a 44×44 `intrinsicContentSize` and
+no width constraint, and the subclasses pinned their title with
+`title.trailing == closeButton.leading - 12`. Horizontal content hugging is 251
+on `UILabel` and 250 on a plain `UIControl`, so when the row had slack the solver
+stretched the *button*, not the label: the 44 pt target became ~170 pt wide and
+the glyph, centred in it, sat in the middle of the card with a gap after the
+title. In the settings card, where the header was a `UIStackView` (hugging 250,
+a tie), it went the other way and crushed the identity block instead.
+
+Two rules come out of that, and they are the reason the skeleton moved into the
+base class:
+
+- **an icon target declares its size with constraints, not with
+  `intrinsicContentSize`.** An intrinsic size is a preference the solver is free
+  to overrule; `widthAnchor == 44` is not. `CardAccessoryButton` carries both its
+  44×44 and its glyph's size as required constraints.
+- **the accessories stack hugs at `.required`**, so all horizontal slack in the
+  header lands on the header view, which is the only thing that should absorb it.
+
+### Bottom sheet or full sheet
+
+Two constraint sets, swapped on `traitCollection.verticalSizeClass`:
+
+| | `.regular` (portrait) | `.compact` (iPhone landscape) |
+| --- | --- | --- |
+| card top | `>= safeArea.top + 64` | `view.top - 32` |
+| sheet top | `card.top + 24` | `safeArea.top + 24` |
+| sheet sides | `card ± 24` | `safeArea ± 24` |
+
+`sheet.bottom` is `safeArea.bottom - 24` in both modes, and the scroll view is
+the only flexible element in the stack: `scrollView.height == body.height` at
+**priority 500**. Under the cap it holds, the sheet is exactly as tall as its
+content and nothing scrolls; over it, it breaks, the header and the footer keep
+their sizes, and only the middle gives. One mechanism, one owner, both cards.
+
+**500, not 999 — the number is the whole mechanism.** It was 999 first, which is
+higher than the default compression resistance of 750, so when the sheet ran out
+of room the solver did the opposite of what was wanted: it kept the scroll view
+at its full content height and crushed the things around it. In landscape that
+meant the settings card looked like it refused to scroll (it was the identity
+header being flattened, not the scroll view growing) and the details card's
+Share button simply vanished. The rule is that this constraint must sit **below**
+compression resistance and **above** content hugging: 500 is the middle of that
+band, so the scroll view is always the first thing to give and never the last.
+
+Two other priority-band facts worth keeping: the mode swap runs behind
+`guard isViewLoaded`, because `traitCollectionDidChange` fires as early as
+`addChild` — before `viewDidLoad` has built the two constraint arrays. Without
+the guard it recorded the new mode against two empty arrays, and `viewDidLoad`'s
+own call then saw "already in that mode" and activated nothing at all: a sheet
+with no top, no leading and no trailing constraint. That is why opening the card
+in landscape looked different from rotating into it.
+
+Portrait is unchanged in spirit: the card grows to its content and stops 64 pt
+below the safe area, leaving a dimmed strip to tap. That `>= 64` replaces two
+different magic multipliers — settings capped the card at 0.92 of the view, the
+details card capped its scroll view at 0.5 — neither of which said what it was
+protecting. The strip does.
+
+Landscape is a full sheet, ratified in chat. On a 320 pt-tall screen the same
+rule would leave a 64 pt card, so the card takes the screen and the X becomes
+the only exit. It is pinned 32 pt *above* the view as well as below, so the
+32 pt corners fall off both ends and the sheet reads edge-to-edge rather than as
+a card wedged into the display. In that mode the sheet follows the safe area
+instead of the card, which is what keeps content clear of the notch when the
+phone is turned lens-left.
+
+`verticalSizeClass`, not `bounds.width > bounds.height`: an iPad in landscape
+has plenty of height and correctly stays a bottom sheet.
+
+### Why the X, and where
+
+Swipe-down is on the card, so a scroll view in the middle of it eats the
+gesture — the swipe only ever worked over the title and the footer. That was
+survivable while tap-outside existed; in a full sheet it is a trap. The X is
+the guaranteed exit, and it is present in portrait too rather than being an
+orientation special case: a control that appears and disappears with rotation
+is worse than one that is always there.
+
+It is the last arranged subview of the header row, top-aligned, so it tracks the
+first line of whatever the subclass put there and can never overlap it at large
+Dynamic Type sizes. The 44 pt target against a ~34 pt title line means the glyph
+sits a few points below the title's optical centre; that is the cost of keeping
+Apple's minimum touch target, and it is cheaper than hard-coding a font metric.
+
+No `FloatingButton`: a surface and a shadow on top of a card is a card on a
+card. `CardAccessoryButton` is the bare glyph in `palette.textSecondary`, in a
+44 pt target, dimming on press.
 
 ## 5. The connect flow
 

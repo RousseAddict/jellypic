@@ -1,29 +1,22 @@
 import UIKit
 
-final class PhotoDetailsViewController: UIViewController {
+final class PhotoDetailsViewController: CardSheetViewController {
 
     private let services: AppServices
     private let itemId: String
     private let displayImage: UIImage?
 
-    private let dimming = UIView()
-    private let card = SquircleView()
     private let titleLabel = UILabel()
-    private let scrollView = UIScrollView()
-    private let rows = UIStackView()
-    private let footer = UIStackView()
-    private let progressBox = UIStackView()
     private let progressLabel = UILabel()
     private let progressTrack = SquircleView()
     private let progressFill = SquircleView()
-    private let shareButton = ActionButton()
+    private let shareButton = CardAccessoryButton(glyph: ShareGlyphView())
+    private let cancelButton = CardAccessoryButton(glyph: StopGlyphView())
 
     private var progressWidth: NSLayoutConstraint!
     private var details: PhotoDetailsDTO?
     private var originalBytes: Int64?
     private var downloadTask: URLSessionTask?
-
-    var onDismissed: (() -> Void)?
 
     init(services: AppServices, itemId: String, displayImage: UIImage?) {
         self.services = services
@@ -40,27 +33,6 @@ final class PhotoDetailsViewController: UIViewController {
         downloadTask?.cancel()
     }
 
-    func present(over parent: UIViewController) {
-        parent.addChild(self)
-        view.frame = parent.view.bounds
-        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        parent.view.addSubview(view)
-        didMove(toParent: parent)
-
-        view.layoutIfNeeded()
-        card.transform = CGAffineTransform(translationX: 0, y: card.bounds.height)
-        UIView.animate(withDuration: 0.34,
-                       delay: 0,
-                       usingSpringWithDamping: 0.9,
-                       initialSpringVelocity: 0,
-                       options: [.beginFromCurrentState],
-                       animations: {
-                        self.dimming.alpha = 1
-                        self.card.transform = .identity
-                       },
-                       completion: nil)
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
         buildHierarchy()
@@ -70,35 +42,23 @@ final class PhotoDetailsViewController: UIViewController {
     }
 
     private func buildHierarchy() {
-        dimming.alpha = 0
-        dimming.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(dimming)
-
-        card.cornerRadius = 32
-        card.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(card)
-
         titleLabel.font = Typography.title
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.text = "Details"
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(titleLabel)
+        setHeaderView(titleLabel)
 
-        scrollView.alwaysBounceVertical = false
-        scrollView.showsVerticalScrollIndicator = false
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(scrollView)
+        body.spacing = 10
 
-        rows.axis = .vertical
-        rows.spacing = 10
-        rows.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(rows)
+        shareButton.addTarget(self, action: #selector(share), for: .touchUpInside)
+        cancelButton.addTarget(self, action: #selector(cancelDownload), for: .touchUpInside)
+        cancelButton.isHidden = true
+        addAccessory(shareButton)
+        addAccessory(cancelButton)
 
         progressLabel.font = Typography.caption
         progressLabel.adjustsFontForContentSizeCategory = true
 
         progressTrack.cornerRadius = 2
-        progressTrack.translatesAutoresizingMaskIntoConstraints = false
 
         progressFill.cornerRadius = 2
         progressFill.translatesAutoresizingMaskIntoConstraints = false
@@ -106,74 +66,17 @@ final class PhotoDetailsViewController: UIViewController {
 
         progressWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
 
-        progressBox.axis = .vertical
-        progressBox.spacing = 8
-        progressBox.isHidden = true
-        progressBox.addArrangedSubview(progressLabel)
-        progressBox.addArrangedSubview(progressTrack)
-
-        shareButton.title = "Share"
-        shareButton.addTarget(self, action: #selector(primaryAction), for: .touchUpInside)
-
-        footer.axis = .vertical
-        footer.spacing = 16
-        footer.addArrangedSubview(progressBox)
-        footer.addArrangedSubview(shareButton)
-        footer.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(footer)
-
-        let maximumHeight = scrollView.heightAnchor.constraint(lessThanOrEqualTo: view.heightAnchor,
-                                                               multiplier: 0.5)
-        maximumHeight.priority = .required
-
-        let contentHeight = scrollView.heightAnchor.constraint(equalTo: rows.heightAnchor)
-        contentHeight.priority = .defaultHigh
+        footer.spacing = 8
+        footer.addArrangedSubview(progressLabel)
+        footer.addArrangedSubview(progressTrack)
 
         NSLayoutConstraint.activate([
-            dimming.topAnchor.constraint(equalTo: view.topAnchor),
-            dimming.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            dimming.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            dimming.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            card.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            card.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            card.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 32),
-
-            titleLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 24),
-            titleLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 24),
-            titleLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -24),
-
-            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
-            scrollView.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-            maximumHeight,
-            contentHeight,
-
-            rows.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            rows.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            rows.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            rows.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            rows.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
-
             progressTrack.heightAnchor.constraint(equalToConstant: 4),
             progressFill.topAnchor.constraint(equalTo: progressTrack.topAnchor),
             progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
             progressFill.leadingAnchor.constraint(equalTo: progressTrack.leadingAnchor),
-            progressWidth,
-
-            footer.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 24),
-            footer.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            footer.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-            footer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
-                                           constant: -24)
+            progressWidth
         ])
-
-        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissCard))
-        dimming.addGestureRecognizer(tap)
-
-        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(dismissCard))
-        swipe.direction = .down
-        card.addGestureRecognizer(swipe)
     }
 
     private func fetch() {
@@ -191,7 +94,7 @@ final class PhotoDetailsViewController: UIViewController {
     }
 
     private func render() {
-        for row in rows.arrangedSubviews {
+        for row in body.arrangedSubviews {
             row.removeFromSuperview()
         }
 
@@ -241,18 +144,10 @@ final class PhotoDetailsViewController: UIViewController {
         row.axis = .horizontal
         row.alignment = .firstBaseline
         row.spacing = 16
-        rows.addArrangedSubview(row)
+        body.addArrangedSubview(row)
     }
 
-    @objc private func primaryAction() {
-        if downloadTask == nil {
-            share()
-        } else {
-            cancelDownload()
-        }
-    }
-
-    private func share() {
+    @objc private func share() {
         let sheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
 
         if let image = displayImage {
@@ -299,7 +194,7 @@ final class PhotoDetailsViewController: UIViewController {
             })
     }
 
-    private func cancelDownload() {
+    @objc private func cancelDownload() {
         downloadTask?.cancel()
         setDownloading(false)
     }
@@ -308,13 +203,14 @@ final class PhotoDetailsViewController: UIViewController {
         if !downloading {
             downloadTask = nil
         }
-        shareButton.title = downloading ? "Cancel" : "Share"
-        guard progressBox.isHidden == downloading else { return }
+        shareButton.isHidden = downloading
+        cancelButton.isHidden = !downloading
+        guard footer.isHidden == downloading else { return }
         UIView.animate(withDuration: 0.24,
                        delay: 0,
                        options: [.beginFromCurrentState],
                        animations: {
-                        self.progressBox.isHidden = !downloading
+                        self.footer.isHidden = !downloading
                         self.view.layoutIfNeeded()
                        },
                        completion: nil)
@@ -350,29 +246,9 @@ final class PhotoDetailsViewController: UIViewController {
         present(alert, animated: true, completion: nil)
     }
 
-    @objc private func dismissCard() {
-        UIView.animate(withDuration: 0.26,
-                       delay: 0,
-                       options: [.beginFromCurrentState],
-                       animations: {
-                        self.dimming.alpha = 0
-                        self.card.transform = CGAffineTransform(translationX: 0,
-                                                                y: self.card.bounds.height)
-                       },
-                       completion: { _ in
-                        self.willMove(toParent: nil)
-                        self.view.removeFromSuperview()
-                        self.removeFromParent()
-                        self.onDismissed?()
-                       })
-    }
-
     private func applyPalette() {
         let palette = Theme.palette
-        view.backgroundColor = .clear
-        dimming.backgroundColor = UIColor(white: 0, alpha: 0.4)
-        card.fillColor = palette.surface
-        card.applyShadow(palette)
+        applySheetPalette(palette)
         titleLabel.textColor = palette.textPrimary
         progressLabel.textColor = palette.textSecondary
         progressTrack.fillColor = palette.field

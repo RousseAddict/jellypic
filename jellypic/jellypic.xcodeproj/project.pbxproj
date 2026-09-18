@@ -36,6 +36,7 @@
 		1A00000000000000000000FE /* PhotoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EE /* PhotoStore.swift */; };
 		1A00000000000000000000FF /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EF /* SyncEngine.swift */; };
 		1A00000000000000000000120 /* FloatingButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000110 /* FloatingButton.swift */; };
+		1A00000000000000000001A1 /* CardSheetViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000001A0 /* CardSheetViewController.swift */; };
 		1A00000000000000000000121 /* PhotoCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000111 /* PhotoCell.swift */; };
 		1A00000000000000000000122 /* MonthHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000112 /* MonthHeaderView.swift */; };
 		1A00000000000000000000123 /* SyncBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000113 /* SyncBannerView.swift */; };
@@ -82,6 +83,7 @@
 		1A00000000000000000000EE /* PhotoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStore.swift; sourceTree = "<group>"; };
 		1A00000000000000000000EF /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		1A00000000000000000000110 /* FloatingButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingButton.swift; sourceTree = "<group>"; };
+		1A00000000000000000001A0 /* CardSheetViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardSheetViewController.swift; sourceTree = "<group>"; };
 		1A00000000000000000000111 /* PhotoCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCell.swift; sourceTree = "<group>"; };
 		1A00000000000000000000112 /* MonthHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthHeaderView.swift; sourceTree = "<group>"; };
 		1A00000000000000000000113 /* SyncBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBannerView.swift; sourceTree = "<group>"; };
@@ -229,6 +231,7 @@
 				1A00000000000000000000E6 /* OptionRowView.swift */,
 				1A00000000000000000000EC /* StepIndicatorView.swift */,
 				1A00000000000000000000110 /* FloatingButton.swift */,
+				1A00000000000000000001A0 /* CardSheetViewController.swift */,
 			);
 			path = Design;
 			sourceTree = "<group>";
@@ -340,6 +343,7 @@
 				1A00000000000000000000FE /* PhotoStore.swift in Sources */,
 				1A00000000000000000000FF /* SyncEngine.swift in Sources */,
 				1A00000000000000000000120 /* FloatingButton.swift in Sources */,
+				1A00000000000000000001A1 /* CardSheetViewController.swift in Sources */,
 				1A00000000000000000000121 /* PhotoCell.swift in Sources */,
 				1A00000000000000000000122 /* MonthHeaderView.swift in Sources */,
 				1A00000000000000000000123 /* SyncBannerView.swift in Sources */,

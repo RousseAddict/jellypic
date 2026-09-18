@@ -223,11 +223,36 @@ under `.overFullScreen`).
 
 ## 8. Details and share
 
-The three-dot button opens a card built exactly like the settings card — child view
-controller, dimming, swipe-down — with the metadata as key/value rows and a
-**Share** button at the bottom. Ratified in chat over an action sheet: the details
-are the common case and deserve one tap, and the action sheet's system look does
-not belong next to the rest of the design system.
+The three-dot button opens a `CardSheetViewController` — the same base class as the
+settings card, carrying the dimming, the slide-up, the gestures, the close button
+and the portrait/landscape sizing (`docs/05` §4.1) — with the metadata as key/value
+rows and a **Share** button at the bottom. Ratified in chat over an action sheet:
+the details are the common case and deserve one tap, and the action sheet's system
+look does not belong next to the rest of the design system.
+
+Title in the base class's header (via `setHeaderView`), rows appended to `body`,
+and **Share as a 44×44 accessory next to the X** (ratified in chat). The old cap
+on the scroll view (half the view height) is gone — it was what let the card
+overflow the screen in landscape in the first place, leaving a 38 pt strip of
+backdrop as the only way out.
+
+**Share moved out of the footer.** It was a 52 pt full-width accent `ActionButton`,
+which cost about 76 pt of card with its spacing — a quarter of the sheet on a 5s
+in landscape, spent on one verb. As a header icon the footer disappears entirely
+and that space becomes metadata rows, which are the reason the card exists.
+
+The trade is legibility: an icon has to be read rather than spelled out. The
+arrow-out-of-a-tray glyph is the one iOS convention strong enough to carry that,
+which is why it is drawn as such (`ShareGlyphView`) rather than as a download
+arrow — the sheet it opens also offers Mail, AirDrop and Save Image, so "share"
+is the honest label, not "download". An icon *with* the word next to it was
+considered and dropped: it squeezes the title, and the same header shape has to
+work for the settings card, where the library name already fills the row.
+
+The download state stays one control in one slot: `shareButton` hides,
+`cancelButton` (a filled square, `StopGlyphView`) takes its place, and `footer`
+un-hides to carry the byte counter and the track. The footer is hidden the rest
+of the time, so it costs no height at all — this is the only card that uses it.
 
 While the card is up, `gestureRecognizerShouldBegin` refuses the viewer's dismiss
 pan. Without that, dragging the card downwards also drags the photo out from
@@ -322,12 +347,21 @@ explicit choice up front.
 Both the picker and the activity sheet set `popoverPresentationController.sourceView`:
 `TARGETED_DEVICE_FAMILY` is `1,2`, and an unanchored action sheet is a crash on iPad.
 
+**"Save Image" needs `NSPhotoLibraryAddUsageDescription`.** Without it the app is
+terminated the moment the activity runs — not an error, not a denied permission,
+a kill. It is the one activity in the sheet that touches a privacy-gated
+framework, which is why the other rows (Mail, AirDrop, Files) worked and this one
+did not: those are out-of-process extensions, `UIActivityTypeSaveToCameraRoll`
+calls `PHPhotoLibrary` inside our process. The *Add* key is deliberate — write-only
+access — rather than `NSPhotoLibraryUsageDescription`, which would also ask for
+read permission the app has no use for.
+
 ### Progress and cancellation on the original
 
 A 10 MB original over a home uplink is long enough that a spinner alone reads as a
-hang. The card shows a byte counter and a filled track above the button, and the
-button itself becomes **Cancel** for the duration — one control, two states, rather
-than a second button that is dead most of the time.
+hang. The card grows a footer with a byte counter and a filled track, and the
+header's share icon becomes a stop square for the duration — one slot, two states,
+rather than a second control that is dead most of the time.
 
 The download moved out of the shared `JellyfinClient` session into
 `FileDownloader`, a `URLSession` with a `URLSessionDownloadDelegate` and
