@@ -355,6 +355,29 @@ the same argument that moved the scrubber to its own inset (doc 07 §6).
 iOS 13+; setting the colour on the legacy style is the equivalent that compiles
 at this floor. Marked `// LEGACY(ios12):`.
 
+### 4.2 The third state: expired, and tappable
+
+Session expiry (doc 04 §6) reuses the same pill rather than adding chrome: same
+place, same shape, spinner off, *"Session expired — tap to sign in"*. It is the
+one banner state that is an invitation rather than a report, which is why it is
+also the one that is tappable.
+
+Two mechanics make that work:
+
+- **`isBusy` collapses the spinner, it does not merely hide it.** The spinner is
+  laid out by constraints, not by a stack view, so `isHidden` alone still
+  reserves its 14 pt and the 8 pt gap and the text sits off-centre in a pill with
+  a hole in it. Both constants are held and driven to 0.
+- **The tap is a gesture recogniser on the banner, not a `UIControl` subclass.**
+  Nothing else about the pill is button-like, and a view whose `alpha` is 0 is
+  skipped by hit-testing, so the hidden banner needs no `isUserInteractionEnabled`
+  bookkeeping.
+
+The expired state **outranks** the sync text: `showBanner` returns early while
+expired and `hideBanner` refuses to run. Otherwise the cancelled sync's own
+`onFinish` error — which arrives immediately after the 401 — would overwrite the
+one message that has an action attached to it.
+
 ## 5. Settings as a card
 
 Ratified in chat over a pushed screen or a full-screen modal: a card that slides

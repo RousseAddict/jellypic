@@ -29,6 +29,7 @@ final class PhotoGridViewController: UIViewController {
     private var transitionIndexPath: IndexPath?
     private weak var hiddenCell: PhotoCell?
     private var isBannerVisible = false
+    private var isSessionExpired = false
 
     var onSignedOut: (() -> Void)?
 
@@ -55,9 +56,17 @@ final class PhotoGridViewController: UIViewController {
                                                selector: #selector(themeDidChange),
                                                name: Theme.didChangeNotification,
                                                object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(sessionDidExpire),
+                                               name: AppServices.sessionExpiredNotification,
+                                               object: nil)
 
         applyPalette()
         refreshEmptyState()
+
+        if services.isSessionExpired {
+            sessionDidExpire()
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -117,6 +126,7 @@ final class PhotoGridViewController: UIViewController {
         view.addSubview(brand)
 
         banner.alpha = 0
+        banner.onTap = { [weak self] in self?.presentReauth() }
         banner.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(banner)
 
@@ -277,7 +287,13 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func showBanner(_ text: String) {
+        guard !isSessionExpired else { return }
+        banner.isBusy = true
         banner.text = text
+        revealBanner()
+    }
+
+    private func revealBanner() {
         guard !isBannerVisible else { return }
         isBannerVisible = true
         UIView.animate(withDuration: 0.24) {
@@ -287,7 +303,7 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func hideBanner() {
-        guard isBannerVisible else { return }
+        guard isBannerVisible, !isSessionExpired else { return }
         isBannerVisible = false
         UIView.animate(withDuration: 0.24) {
             self.banner.alpha = 0
@@ -323,6 +339,27 @@ final class PhotoGridViewController: UIViewController {
         pendingReload = false
         collectionView.reloadData()
         refreshEmptyState()
+    }
+
+    @objc private func sessionDidExpire() {
+        isSessionExpired = true
+        banner.isBusy = false
+        banner.text = "Session expired — tap to sign in"
+        revealBanner()
+    }
+
+    private func presentReauth() {
+        guard isSessionExpired, let session = services.authStore.session else { return }
+        let reauth = ReauthViewController(services: services, session: session)
+        reauth.onSignedIn = { [weak self] in self?.sessionDidResume() }
+        reauth.present(over: self)
+    }
+
+    private func sessionDidResume() {
+        isSessionExpired = false
+        hideBanner()
+        reloadVisibleThumbnails()
+        startSync()
     }
 
     @objc private func showSettings() {

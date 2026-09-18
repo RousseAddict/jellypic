@@ -4,6 +4,7 @@ import Security
 final class AppServices {
 
     static let shared = AppServices()
+    static let sessionExpiredNotification = Notification.Name("AppServicesSessionExpired")
 
     let authStore: AuthStore
     let client: JellyfinAPI
@@ -29,16 +30,47 @@ final class AppServices {
         self.store = store
         self.sync = SyncEngine(client: client, store: store)
         self.images = ImageLoader(client: client)
+
+        client.onTokenRejected = { [weak self] in self?.expireSession() }
+    }
+
+    var hasSession: Bool {
+        return authStore.session != nil
+    }
+
+    var isSessionExpired: Bool {
+        return hasSession && authStore.credentials == nil
     }
 
     func signIn(with result: AuthenticationResult, baseURL: URL) -> OSStatus {
+        let previous = authStore.session
         let credentials = JellyfinCredentials(baseURL: baseURL,
                                               accessToken: result.accessToken,
                                               userId: result.user.id,
                                               serverId: result.serverId)
-        let status = authStore.save(credentials)
+
+        if let previous = previous, previous.userId != credentials.userId {
+            store.reset()
+            images.clearCaches()
+            Preferences.clearLibrary()
+        }
+
+        let status = authStore.save(credentials, username: result.user.name)
         client.credentials = credentials
         return status
+    }
+
+    func revalidateSession() {
+        guard authStore.credentials != nil else { return }
+        client.libraries { _ in }
+    }
+
+    func expireSession() {
+        guard isSessionExpired == false, hasSession else { return }
+        sync.cancel()
+        authStore.clearToken()
+        client.credentials = nil
+        NotificationCenter.default.post(name: AppServices.sessionExpiredNotification, object: nil)
     }
 
     func signOut(completion: @escaping () -> Void) {

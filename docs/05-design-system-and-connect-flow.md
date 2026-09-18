@@ -223,6 +223,23 @@ No `FloatingButton`: a surface and a shadow on top of a card is a card on a
 card. `GlyphButton` is the bare glyph in `palette.textSecondary`, in a
 44 pt target, dimming on press.
 
+### A card with a text field lifts on its transform
+
+`ReauthViewController` (doc 04 §6) is the first sheet to hold a keyboard, and on
+a 4-inch screen the keyboard covers the card outright. It moves on
+`card.transform`, not on a constraint: the base class already animates that same
+property for present and dismiss, so a translated card composes with them
+(`.beginFromCurrentState`) instead of fighting a layout pass mid-animation.
+
+The 32 pt overhang pays for itself here. Lifting the card by the keyboard
+overlap puts its bottom edge exactly 32 pt *behind* the keyboard's top, so the
+rounded bottom corners stay hidden and the sheet still reads as anchored rather
+than floating. The content stops `safeArea.bottom + 24` above the keyboard for
+free, because the inner stack is pinned to the safe area, not to the card.
+
+Dismissal calls `view.endEditing(true)` first, so the keyboard leaves with the
+card rather than after it.
+
 ## 5. The connect flow
 
 Three steps, **one card that morphs in place** — no pushes, no modals:

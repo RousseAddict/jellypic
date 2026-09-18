@@ -29,6 +29,7 @@
 		1A00000000000000000000F6 /* OptionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E6 /* OptionRowView.swift */; };
 		1A00000000000000000000F7 /* ServerStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E7 /* ServerStepView.swift */; };
 		1A00000000000000000000F8 /* CredentialsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E8 /* CredentialsStepView.swift */; };
+		1A00000000000000000001A3 /* ReauthViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000001A2 /* ReauthViewController.swift */; };
 		1A00000000000000000000F9 /* LibraryStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000E9 /* LibraryStepView.swift */; };
 		1A00000000000000000000FA /* ConnectViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EA /* ConnectViewController.swift */; };
 		1A00000000000000000000FC /* StepIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000EC /* StepIndicatorView.swift */; };
@@ -76,6 +77,7 @@
 		1A00000000000000000000E6 /* OptionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionRowView.swift; sourceTree = "<group>"; };
 		1A00000000000000000000E7 /* ServerStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStepView.swift; sourceTree = "<group>"; };
 		1A00000000000000000000E8 /* CredentialsStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsStepView.swift; sourceTree = "<group>"; };
+		1A00000000000000000001A2 /* ReauthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReauthViewController.swift; sourceTree = "<group>"; };
 		1A00000000000000000000E9 /* LibraryStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStepView.swift; sourceTree = "<group>"; };
 		1A00000000000000000000EA /* ConnectViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectViewController.swift; sourceTree = "<group>"; };
 		1A00000000000000000000EC /* StepIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepIndicatorView.swift; sourceTree = "<group>"; };
@@ -243,6 +245,7 @@
 				1A00000000000000000000E7 /* ServerStepView.swift */,
 				1A00000000000000000000E8 /* CredentialsStepView.swift */,
 				1A00000000000000000000E9 /* LibraryStepView.swift */,
+				1A00000000000000000001A2 /* ReauthViewController.swift */,
 			);
 			path = Connect;
 			sourceTree = "<group>";
@@ -336,6 +339,7 @@
 				1A00000000000000000000F6 /* OptionRowView.swift in Sources */,
 				1A00000000000000000000F7 /* ServerStepView.swift in Sources */,
 				1A00000000000000000000F8 /* CredentialsStepView.swift in Sources */,
+				1A00000000000000000001A3 /* ReauthViewController.swift in Sources */,
 				1A00000000000000000000F9 /* LibraryStepView.swift in Sources */,
 				1A00000000000000000000FA /* ConnectViewController.swift in Sources */,
 				1A00000000000000000000FC /* StepIndicatorView.swift in Sources */,

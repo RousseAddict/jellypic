@@ -9,6 +9,7 @@ final class AuthStore {
         static let accessToken = "accessToken"
         static let userId = "userId"
         static let serverId = "serverId"
+        static let username = "username"
     }
 
     private let keychain: Keychain
@@ -26,6 +27,17 @@ final class AuthStore {
         return generated
     }
 
+    var session: JellyfinSession? {
+        guard let address = keychain.string(for: Key.serverURL),
+              let baseURL = URL(string: address),
+              let userId = keychain.string(for: Key.userId) else { return nil }
+
+        return JellyfinSession(baseURL: baseURL,
+                               userId: userId,
+                               username: keychain.string(for: Key.username),
+                               serverId: keychain.string(for: Key.serverId))
+    }
+
     var credentials: JellyfinCredentials? {
         guard let address = keychain.string(for: Key.serverURL),
               let baseURL = URL(string: address),
@@ -39,11 +51,12 @@ final class AuthStore {
     }
 
     @discardableResult
-    func save(_ credentials: JellyfinCredentials) -> OSStatus {
+    func save(_ credentials: JellyfinCredentials, username: String) -> OSStatus {
         let writes = [
             keychain.set(credentials.baseURL.absoluteString, for: Key.serverURL),
             keychain.set(credentials.accessToken, for: Key.accessToken),
-            keychain.set(credentials.userId, for: Key.userId)
+            keychain.set(credentials.userId, for: Key.userId),
+            keychain.set(username, for: Key.username)
         ]
         if let failure = writes.first(where: { $0 != errSecSuccess }) {
             return failure
@@ -56,10 +69,15 @@ final class AuthStore {
         return errSecSuccess
     }
 
+    func clearToken() {
+        keychain.remove(Key.accessToken)
+    }
+
     func clear() {
         keychain.remove(Key.serverURL)
         keychain.remove(Key.accessToken)
         keychain.remove(Key.userId)
         keychain.remove(Key.serverId)
+        keychain.remove(Key.username)
     }
 }

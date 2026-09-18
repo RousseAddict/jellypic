@@ -12,6 +12,7 @@ final class JellyfinClient: JellyfinAPI {
     }
 
     var credentials: JellyfinCredentials?
+    var onTokenRejected: (() -> Void)?
 
     private let identity: DeviceIdentity
     private let session: URLSession
@@ -305,6 +306,7 @@ final class JellyfinClient: JellyfinAPI {
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             if let failure = self.failure(response: response, error: error) {
+                self.reportIfTokenRejected(failure, on: request)
                 self.finish(.failure(failure), completion)
                 return
             }
@@ -333,6 +335,13 @@ final class JellyfinClient: JellyfinAPI {
                 self.finish(.success(()), completion)
             }
         }.resume()
+    }
+
+    private func reportIfTokenRejected(_ failure: JellyfinError, on request: URLRequest) {
+        guard case .unauthorized = failure,
+              let header = request.value(forHTTPHeaderField: "Authorization"),
+              header.contains("Token=\"") else { return }
+        DispatchQueue.main.async { self.onTokenRejected?() }
     }
 
     private func failure(response: URLResponse?, error: Error?) -> JellyfinError? {

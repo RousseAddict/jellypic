@@ -88,8 +88,13 @@ This session is for the API, where a stale `/Items` response is a bug. The image
 | `accessToken` | Jellyfin token | no |
 | `userId` | Jellyfin user id | no |
 | `serverId` | Jellyfin server id | no |
+| `username` | Jellyfin account name | no |
 
 All in the Keychain with `kSecAttrAccessibleAfterFirstUnlock`.
+
+`username` exists only so the re-auth card (§6) can ask for a password and
+nothing else. It is the name the *server* returned (`AuthenticationResult.user.name`),
+not what was typed, so it round-trips whatever casing Jellyfin considers canonical.
 
 **`deviceId` surviving `clear()` is the point of the whole design.** Keychain items outlive app deletion on iOS, so a reinstall, a logout, or a restore all keep the same identity and the server's device list shows one jellypic rather than one per install. This is also why it is not `identifierForVendor`, which changes when the last app from a vendor is removed. Doc 01 §7 sets the same rule for the writer.
 
@@ -117,4 +122,87 @@ because the token was in memory, and only the router noticed that
 
 - **No verification against a live server.** The layer compiles and is exercised by nothing. Every entry point needs a UI to be driven from, and UI is a separate conversation (doc 02 §8.4). The Connect screen is the first real test of §2.4 and §2.5.
 - **Library selection is not persisted.** `libraries()` returns every view with `holdsPhotos` available for filtering; deciding and storing the choice belongs with the picker screen.
-- **No token revalidation on launch.** Doc 02 §3 wants relaunch to go straight to the timeline while revalidating in the background. There is no timeline yet.
+- ~~**No token revalidation on launch.**~~ — **done, see §6.**
+
+---
+
+## 6. Session expiry: the index must survive it
+
+Doc 02 §3 asks for a relaunch that goes straight to the timeline and revalidates
+in the background. The hard part is not the probe, it is what happens when the
+probe fails.
+
+### 6.1 Why a dead token could not simply sign you out
+
+Before this, the only route out of a rejected token was Settings → Sign out, and
+`AppServices.signOut` wipes the Core Data index, the 200 MB `URLCache`, the
+`NSCache` and the library preferences. On a 20 000-item library that is a
+multi-minute resync and a lot of heat on an A7 — an unreasonable price for a
+token that expired while the photos on disk are still perfectly valid.
+
+Worse, nothing *said* the token was dead. `SyncEngine.start` short-circuits on
+`Preferences.syncCompleted`, so a fully indexed install makes no request at all
+until a thumbnail misses the cache; the first visible symptom was the viewer
+showing *"Wrong username or password"* — `.unauthorized`'s text, written for the
+connect screen.
+
+### 6.2 Three seams, none of them destructive
+
+- **`JellyfinClient.onTokenRejected`** fires when a 401 comes back from a request
+  that actually **carried** a token. The discriminator is the `Token="` field in
+  the `Authorization` header: `authenticate` builds its request with `token: nil`,
+  so a wrong password can never be mistaken for a rejected session. The hook is
+  wired into `perform` only, **not** `performIgnoringBody` — that one is used
+  exclusively by `logout`, and its completion is dispatched *after* the hook, so
+  a 401 there would raise "session expired" in the middle of a sign-out.
+- **`AppServices.expireSession`** cancels the sync, calls `authStore.clearToken()`
+  — which removes the `accessToken` key and **nothing else** — and posts
+  `sessionExpiredNotification`. The distinction `AuthStore` already drew between
+  `session` (server + user + name, no token) and `credentials` (token required)
+  is what makes this expressible: the app stays signed in, it just cannot talk.
+  `RootViewController.isSignedIn` therefore tests `hasSession`, not `credentials`,
+  and keeps showing the grid.
+- **`AppServices.revalidateSession`** is the launch probe, fired by
+  `RootViewController` right after it installs the grid. It is `libraries()`,
+  i.e. `GET /UserViews` — the cheapest authenticated call, and it answers both
+  "is the token alive" and "does that library still exist". It **ignores its own
+  result**: the reaction is entirely `onTokenRejected`, so an unreachable server
+  is a natural no-op. That matters, because the app is usable offline — index
+  plus cached thumbnails — and only a real 401 may expire anything.
+
+`ImageLoader` is **not** a detector: it only borrows `imageRequest(…)` to build a
+URL and runs it on its own `URLSession`, so a rejected thumbnail never reaches
+`perform`. That is deliberate — a scroll over 20 000 cells would otherwise be
+20 000 chances to fire the hook — and it costs nothing, because the launch probe,
+the sync, the details fetch and the download all go through `perform`.
+
+### 6.3 Why the banner, and why only a password
+
+The grid already owns a floating pill for sync progress, so expiry reuses it:
+spinner off, *"Session expired — tap to sign in"*, and it outranks any sync text
+(`showBanner` returns early while expired). A modal on launch would have been the
+loud option, but the app is still fully usable — browsing cached photos does not
+need the server, and interrupting that to demand a password is the wrong trade.
+
+Tapping it opens `ReauthViewController`, a `CardSheetViewController` over the
+live grid — deliberately *over* it, so the photos stay visible behind the card
+and the "nothing is lost" claim is visible rather than promised. It is not a
+fourth step in `ConnectViewController`: that file's morphing three-step card is
+the most delicate layout in the app, and re-auth needs none of it.
+
+The card asks for a password alone, since the server, user id and username are
+all still in the Keychain. The username field is built but hidden, and appears
+only when `session.username` is nil — which is exactly what an install that
+predates the `username` key looks like.
+
+**The account is checked before the save.** `signIn` wipes the index when the
+user id changes, which is right for a genuine account switch and catastrophic
+here, so `completeSignIn` refuses an `AuthenticationResult` whose `user.id` is
+not the stored one and says so. Typing the wrong username into a re-auth card
+must not silently cost 20 000 rows.
+
+On success the card dismisses, the grid clears the banner, reloads the visible
+thumbnails (their requests returned nil while the token was gone) and calls
+`startSync()` again — which resumes from `Preferences.syncStartIndex` if the
+sync had been cancelled mid-run, or finishes immediately if it was already
+complete.

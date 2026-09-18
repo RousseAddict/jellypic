@@ -25,7 +25,7 @@ final class RootViewController: UIViewController {
     }
 
     private var isSignedIn: Bool {
-        return services.authStore.credentials != nil && Preferences.libraryId != nil
+        return services.hasSession && Preferences.libraryId != nil
     }
 
     private func showCurrentDestination(animated: Bool) {
@@ -35,6 +35,7 @@ final class RootViewController: UIViewController {
                 self?.showCurrentDestination(animated: true)
             }
             transition(to: grid, animated: animated)
+            services.revalidateSession()
         } else {
             let connect = ConnectViewController(services: services)
             connect.onFinished = { [weak self] in

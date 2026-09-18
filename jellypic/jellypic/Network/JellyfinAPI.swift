@@ -14,9 +14,17 @@ struct JellyfinCredentials {
     let serverId: String?
 }
 
+struct JellyfinSession {
+    let baseURL: URL
+    let userId: String
+    let username: String?
+    let serverId: String?
+}
+
 protocol JellyfinAPI: AnyObject {
 
     var credentials: JellyfinCredentials? { get set }
+    var onTokenRejected: (() -> Void)? { get set }
 
     func publicSystemInfo(baseURL: URL,
                           completion: @escaping (Result<PublicSystemInfo, JellyfinError>) -> Void)
