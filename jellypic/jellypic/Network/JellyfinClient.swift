@@ -100,10 +100,10 @@ final class JellyfinClient: JellyfinAPI {
                 startIndex: Int,
                 limit: Int,
                 includeTotalCount: Bool,
-                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void) {
+                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void) -> URLSessionTask? {
         guard let credentials = credentials else {
             completion(.failure(.notAuthenticated))
-            return
+            return nil
         }
         let query = [
             URLQueryItem(name: "userId", value: credentials.userId),
@@ -126,9 +126,9 @@ final class JellyfinClient: JellyfinAPI {
                                         query: query,
                                         token: credentials.accessToken) else {
             completion(.failure(.invalidServerURL))
-            return
+            return nil
         }
-        perform(request, as: QueryResult<PhotoDTO>.self, completion: completion)
+        return perform(request, as: QueryResult<PhotoDTO>.self, completion: completion)
     }
 
     func imageRequest(itemId: String, tag: String?, fillPixels: Int) -> URLRequest? {
@@ -298,10 +298,11 @@ final class JellyfinClient: JellyfinAPI {
         return cleaned.isEmpty ? "unknown" : cleaned
     }
 
+    @discardableResult
     private func perform<T: Decodable>(_ request: URLRequest,
                                        as type: T.Type,
-                                       completion: @escaping (Result<T, JellyfinError>) -> Void) {
-        session.dataTask(with: request) { [weak self] data, response, error in
+                                       completion: @escaping (Result<T, JellyfinError>) -> Void) -> URLSessionTask {
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             if let failure = self.failure(response: response, error: error) {
                 self.finish(.failure(failure), completion)
@@ -317,7 +318,9 @@ final class JellyfinClient: JellyfinAPI {
             } catch {
                 self.finish(.failure(.decoding(error)), completion)
             }
-        }.resume()
+        }
+        task.resume()
+        return task
     }
 
     private func performIgnoringBody(_ request: URLRequest,

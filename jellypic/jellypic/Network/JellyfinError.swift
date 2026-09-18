@@ -45,4 +45,10 @@ extension JellyfinError: LocalizedError {
             return "Signed in, but the Keychain refused to store the session (error \(status))."
         }
     }
+
+    var shortDescription: String {
+        let full = localizedDescription
+        guard let sentence = full.range(of: ". ") else { return full }
+        return String(full[..<sentence.upperBound]).trimmingCharacters(in: .whitespaces)
+    }
 }

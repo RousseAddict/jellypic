@@ -233,6 +233,43 @@ is the policy from §2 made explicit rather than assumed — the index is a
 rebuildable cache, so a schema change is a wipe and a resync, and bumping the
 constant is the whole migration story.
 
+## 5.3 Cancelling a run, and why a boolean was not enough
+
+`cancel()` used to set `isCancelled = true` and nothing else. The in-flight
+request kept running to completion, so two things were wrong.
+
+The visible one: `isRunning` stayed `true` until the request resolved — up to
+the 15 s timeout. `start` is guarded by `guard !isRunning`, so signing out and
+straight back in during that window silently indexed nothing, and the grid sat
+empty with no banner and no error. Nothing in the UI could explain it.
+
+The subtle one is why the fix is not just "keep the task and cancel it".
+**A cancelled `URLSessionTask` still delivers its completion handler**, with
+`NSURLErrorCancelled`. If a new run had started in between, that late callback
+would land in the middle of it and `stop(with: error)` would tear down the
+*new* sync and show its error in the banner. A boolean cannot tell "cancelled"
+from "cancelled, then restarted": `start` resets it to `false`, and the stale
+callback then reads it as live.
+
+So the engine carries a monotonic `runToken`, incremented by both `start` and
+`cancel`. Every callback captures the token it was issued under and returns
+immediately if it no longer matches. Three places check it — the page response,
+the upsert completion, and `advance` after `onProgress` — because each is a
+separate hop back to the main queue and a cancel can land in any of the gaps.
+
+The check in `advance` matters most: it is what stops `Preferences.syncStartIndex`
+from advancing for a run that no longer exists. A stale index is worse than a
+stale page, since §5 makes it the resume point for the *next* run.
+
+`cancel` also clears `isRunning` synchronously rather than waiting for the
+callback, which is what makes an immediate re-login work.
+
+Not fixed by this: a page already handed to `upsert` is written even if the
+cancel arrives while it is in flight, because the write happens inside the
+store. It is harmless in both real callers — `AppServices.signOut` wipes the
+index *after* a network round trip, so the write lands before the wipe, and
+`SyncEngine.start`'s library change is guarded by `!isRunning`.
+
 ## 6. Not `NSBatchInsertRequest`
 
 The obvious fast path for 20 000 rows is `NSBatchInsertRequest`. It is iOS 13+,

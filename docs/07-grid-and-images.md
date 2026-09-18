@@ -193,6 +193,30 @@ Errors reuse it: `onFinish` with an error swaps the text instead of hiding.
 A failed sync is not a modal-alert situation — the grid still works with what it
 has.
 
+### 4.1 Why the error text is shortened here only
+
+`JellyfinError.errorDescription` is written for the connect flow, where the user
+is actively typing an address and a second sentence is actionable: `.unreachable`
+reads "Could not reach the server. Check the address, and that jellypic is allowed
+to access the local network." In a pill floating over the grid that second sentence
+is noise — the address is no longer editable from there.
+
+The pill is pinned `lessThanOrEqualTo` the "more" button, which is itself held by
+required constraints to `view.safeAreaLayoutGuide`. So a long message never
+actually pushes the button: the pill stretches to the limit and truncates. The
+visible symptom is a pill that runs into the button and a message cut mid-word,
+which is why the fix is the text, not the layout.
+
+`shortDescription` on `JellyfinError` returns the first sentence (split on `". "`,
+whole string when there is none). Putting it on the error rather than shortening
+`errorDescription` keeps both audiences served from one message: the connect step
+gets the guidance, the banner gets the headline. Every case is therefore written
+headline-first — a new case must keep that shape.
+
+The gap between pill and button is 24 pt, not the 12 pt of the other floating
+chrome. Ratified in chat: at 12 pt the two controls read as one crowded stack,
+the same argument that moved the scrubber to its own inset (doc 07 §6).
+
 `UIActivityIndicatorView(style: .white)` with `color` overridden. `.medium` is
 iOS 13+; setting the colour on the legacy style is the equivalent that compiles
 at this floor. Marked `// LEGACY(ios12):`.

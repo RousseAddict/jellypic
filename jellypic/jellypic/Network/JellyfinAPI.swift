@@ -32,7 +32,7 @@ protocol JellyfinAPI: AnyObject {
                 startIndex: Int,
                 limit: Int,
                 includeTotalCount: Bool,
-                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void)
+                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void) -> URLSessionTask?
 
     func imageRequest(itemId: String, tag: String?, fillPixels: Int) -> URLRequest?
 

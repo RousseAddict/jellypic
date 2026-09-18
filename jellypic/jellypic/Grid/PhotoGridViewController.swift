@@ -124,7 +124,7 @@ final class PhotoGridViewController: UIViewController {
             banner.centerYAnchor.constraint(equalTo: moreButton.centerYAnchor),
             banner.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
                                             constant: 12),
-            banner.trailingAnchor.constraint(lessThanOrEqualTo: moreButton.leadingAnchor, constant: -12)
+            banner.trailingAnchor.constraint(lessThanOrEqualTo: moreButton.leadingAnchor, constant: -24)
         ])
     }
 
@@ -231,7 +231,7 @@ final class PhotoGridViewController: UIViewController {
         services.sync.onFinish = { [weak self] error in
             guard let self = self else { return }
             if let error = error {
-                self.showBanner(error.localizedDescription)
+                self.showBanner(error.shortDescription)
             } else {
                 self.hideBanner()
             }

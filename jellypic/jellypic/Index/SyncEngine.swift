@@ -13,7 +13,8 @@ final class SyncEngine {
     private let store: PhotoStore
 
     private(set) var isRunning = false
-    private var isCancelled = false
+    private var runToken = 0
+    private var pageTask: URLSessionTask?
     private var libraryId: String = ""
 
     var onProgress: ((Progress) -> Void)?
@@ -40,7 +41,7 @@ final class SyncEngine {
 
         self.libraryId = libraryId
         isRunning = true
-        isCancelled = false
+        runToken += 1
         requestPage(at: Preferences.syncStartIndex, includeTotalCount: true)
     }
 
@@ -52,19 +53,20 @@ final class SyncEngine {
     }
 
     func cancel() {
-        isCancelled = true
+        runToken += 1
+        pageTask?.cancel()
+        pageTask = nil
+        isRunning = false
     }
 
     private func requestPage(at startIndex: Int, includeTotalCount: Bool) {
-        client.photos(libraryId: libraryId,
-                      startIndex: startIndex,
-                      limit: SyncEngine.pageSize,
-                      includeTotalCount: includeTotalCount) { [weak self] result in
-            guard let self = self else { return }
-            guard !self.isCancelled else {
-                self.stop(with: nil)
-                return
-            }
+        let token = runToken
+        pageTask = client.photos(libraryId: libraryId,
+                                 startIndex: startIndex,
+                                 limit: SyncEngine.pageSize,
+                                 includeTotalCount: includeTotalCount) { [weak self] result in
+            guard let self = self, token == self.runToken else { return }
+            self.pageTask = nil
             switch result {
             case .failure(let error):
                 self.stop(with: error)
@@ -72,31 +74,28 @@ final class SyncEngine {
                 if includeTotalCount {
                     Preferences.syncTotal = page.totalRecordCount
                 }
-                self.persist(page, from: startIndex)
+                self.persist(page, from: startIndex, token: token)
             }
         }
     }
 
-    private func persist(_ page: QueryResult<PhotoDTO>, from startIndex: Int) {
+    private func persist(_ page: QueryResult<PhotoDTO>, from startIndex: Int, token: Int) {
         store.upsert(page.items) { [weak self] error in
-            guard let self = self else { return }
+            guard let self = self, token == self.runToken else { return }
             if let error = error {
                 self.stop(with: .persistence(error))
                 return
             }
-            self.advance(after: page, from: startIndex)
+            self.advance(after: page, from: startIndex, token: token)
         }
     }
 
-    private func advance(after page: QueryResult<PhotoDTO>, from startIndex: Int) {
+    private func advance(after page: QueryResult<PhotoDTO>, from startIndex: Int, token: Int) {
         let next = startIndex + page.items.count
         Preferences.syncStartIndex = next
         onProgress?(Progress(indexed: next, total: max(Preferences.syncTotal, next)))
 
-        guard !isCancelled else {
-            stop(with: nil)
-            return
-        }
+        guard token == runToken else { return }
         guard page.items.count == SyncEngine.pageSize else {
             Preferences.syncCompleted = true
             Preferences.syncTotal = next
@@ -107,6 +106,7 @@ final class SyncEngine {
     }
 
     private func stop(with error: JellyfinError?) {
+        pageTask = nil
         isRunning = false
         onFinish?(error)
     }
