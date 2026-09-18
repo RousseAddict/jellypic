@@ -5,7 +5,7 @@ class CardSheetViewController: UIViewController {
     let card = SquircleView()
     let body = UIStackView()
     let footer = UIStackView()
-    let closeButton = CardAccessoryButton(glyph: CloseGlyphView())
+    let closeButton = GlyphButton(glyph: CloseGlyphView())
 
     var onDismissed: (() -> Void)?
 
@@ -42,7 +42,7 @@ class CardSheetViewController: UIViewController {
         header.insertArrangedSubview(view, at: 0)
     }
 
-    func addAccessory(_ button: CardAccessoryButton) {
+    func addAccessory(_ button: GlyphButton) {
         accessories.insertArrangedSubview(button, at: 0)
     }
 
@@ -211,43 +211,3 @@ class CardSheetViewController: UIViewController {
     }
 }
 
-final class CardAccessoryButton: UIControl, Themed {
-
-    static let side: CGFloat = 44
-
-    private let glyph: GlyphView
-
-    init(glyph: GlyphView) {
-        self.glyph = glyph
-        super.init(frame: .zero)
-        backgroundColor = .clear
-
-        glyph.isUserInteractionEnabled = false
-        glyph.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(glyph)
-
-        NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: CardAccessoryButton.side),
-            heightAnchor.constraint(equalToConstant: CardAccessoryButton.side),
-
-            glyph.centerXAnchor.constraint(equalTo: centerXAnchor),
-            glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
-            glyph.widthAnchor.constraint(equalToConstant: glyph.glyphSize.width),
-            glyph.heightAnchor.constraint(equalToConstant: glyph.glyphSize.height)
-        ])
-
-        applyTheme(Theme.palette)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not used")
-    }
-
-    override var isHighlighted: Bool {
-        didSet { alpha = isHighlighted ? 0.5 : 1 }
-    }
-
-    func applyTheme(_ palette: ThemePalette) {
-        glyph.color = palette.textSecondary
-    }
-}

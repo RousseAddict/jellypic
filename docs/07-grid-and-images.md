@@ -76,7 +76,7 @@ one.
 
 ### Floating chrome and the content inset
 
-The "more" button and the sync banner are siblings of the collection view, not
+The settings button and the sync banner are siblings of the collection view, not
 subviews of it — they must not scroll. The collection view gets a 56 pt
 `contentInset.top` so the first row starts below them, and the same value on
 `scrollIndicatorInsets` so the scrollbar does not run under the button.
@@ -84,6 +84,114 @@ subviews of it — they must not scroll. The collection view gets a 56 pt
 Inset rather than a constraint on the collection view's top: the grid stays
 full-bleed, so photos pass *under* the floating controls when scrolling, which
 is the point of floating them.
+
+### The wordmark
+
+Logo plus "Jellypic" in the top-left of that same 56 pt band, opposite the
+"more" button. Ratified in chat: it fades out over the first 40 pt of scroll and
+fades back in when the grid returns to the top. It is not part of the content —
+scrolling it away with the photos would make it a row of the timeline, and it
+would only ever be seen once per session.
+
+The fade is a single `alpha` assignment in `scrollViewDidScroll`, alongside the
+one the scrubber already does. `alpha`, not `isHidden`: a hidden view would pop.
+
+**The wordmark and the sync banner own the same corner**, so they cannot both be
+visible. The banner wins: it is transient and it is information, the wordmark is
+decoration. `isBannerVisible` is a stored flag rather than a test on
+`banner.alpha`, because during the 0.24 s cross-fade the model value is already
+at its destination — reading it would make a scroll event mid-fade snap the
+wordmark to full opacity.
+
+### The settings button
+
+Ratified in chat, and it changed two things at once. The three dots became an
+**account glyph**, and the button lost its `FloatingButton` shell — no surface,
+no shadow, just the glyph in `palette.textPrimary` inside a 44 pt target
+(`GlyphButton(prominent: true)`).
+
+Dropping the shell is what makes it *read* as part of the header band rather
+than as a control parked on top of the grid, and it pairs with the wordmark
+facing it. The price is real and was accepted: a bare glyph over a full-bleed
+grid has nothing behind it, so on a pale photo it would vanish. **That is why it
+fades on the same 40 pt of scroll as the wordmark** — by the time a photo could
+be behind it, it is gone. A `FloatingButton` could have stayed permanently
+visible; this one cannot, and settings are one flick back to the top.
+
+Alpha 0 does not stop a `UIControl` from taking touches, so the fade also sets
+`isUserInteractionEnabled`. Without it, an invisible 44 pt target would eat taps
+on the top-right photo of every scrolled screen — a bug that presents as "some
+photos don't open".
+
+The three-dot glyph now means one thing only: "more about *this photo*", in the
+viewer. The scrubber handle is still deliberately the same three dots turned 90°
+and still matches it. Only the grid left that family, which is the point.
+
+### Why the account glyph is a ring, and what that fixed
+
+The first `PersonGlyphView` was a bare silhouette: a head disc near the top edge
+and a shoulder arc hanging off the bottom. It was geometrically centred in its
+box and still looked off next to the wordmark, for two reasons that compound.
+
+Its **ink was bottom-heavy** — a small head against a wide arc — so its optical
+centre sat below its geometric one, while the wordmark's optical centre sits on
+its x-height. And its **box was not full**: the arc reached the left and right
+edges, the head did not, so the top half was mostly air. Against a 22 pt logo
+mark whose ink fills its square, it read as both low and small. No constraint
+fixes that; the shape has to.
+
+The glyph is now a **user-circle** (the shape of Phosphor's `user-circle`): an
+outer ring, a head and a shoulder arc inside it. A ring is its own optical centre
+in both axes — it cannot look off-centre — and it fills its box, so it balances
+the mark facing it. Stroke is `1.5` at a 20 pt size, the reference's own ratio
+(16/256 ≈ 6 %), not the `2` the other glyphs use: a closed ring at this size
+thickens visually and `2` reads as a blob.
+
+**Read the reference's numbers off the right circles.** It is a filled even-odd
+path, not strokes, so every feature is a *band* and the useful figure is its
+mid-line — and the shoulders' arc centre is nowhere in the path data. `197.5` is
+the y of the chord's endpoints; the circle that arc belongs to is centred at
+`232`, 112 pt lower. Taking 197.5 for the centre is exactly what shipped first,
+and it pulled the shoulders a third of a radius up into the head — the "la tête
+rentre dans le corps" that was reported.
+
+All ratios are therefore expressed against the **ring's mid-stroke radius**
+(96 in the reference, `box.width / 2` here), not its outer radius:
+
+| | reference | ratio |
+|---|---|---|
+| ring mid-stroke | 96 | `1` |
+| head mid-stroke | 40 at cy 120 | `0.417` at `-0.083` |
+| shoulders mid-stroke | 71.83 at cy 232 | `0.748` at `+1.083` |
+
+That makes the head's outer edge and the shoulders' inner edge **tangent**
+(`0.417 - 0.083 = 0.334`, `1.083 - 0.748 = 0.335`) — they touch at one point and
+never cross, which is the whole look.
+
+The sweep is computed, not `π → 2π`. A half-turn would put the arc's ends level
+with its own centre, at `1.32 R` — far outside the ring. The two circles are
+intersected (`meetY`/`meetX`) so the arc starts and stops exactly on the ring's
+**inner** edge, `radius - strokeWidth / 2`, where the reference clips it too.
+
+The **right margin then stopped being a judgement call**. The wordmark's ink
+starts 16 pt inside the safe area, so the glyph's ink should stop 16 pt inside
+it. A 20 pt glyph centred in a 44 pt target carries 12 pt of padding, so the
+button's trailing constant is `-4` — the target keeps its 44 pt and simply
+overhangs into the margin, which is invisible and free. The `-12` it shipped with
+put the ink at 25 pt; that 25-against-16, amplified by a glyph that did not fill
+its own box, is the "margin looks too big" that was reported.
+
+### The mark itself
+
+The mark is the only bitmap in the app, and the only colour outside a photo.
+Everything else is drawn in code precisely because it must follow the palette;
+a brand mark must not. It comes from `icon/jellypic-mark.svg` via
+`icon/render-icons.sh`, which is a **different drawing from the app icon**: the
+icon is full-bleed on opaque white because iOS applies its own squircle mask,
+the mark is transparent and trimmed to the ink. The script renders it once at
+1024 px and resamples the three slots from that, so the petals sit at the same
+optical size at 1x, 2x and 3x — rendering each slot from the vector would leave
+a different amount of slack around the ink at each size.
 
 ## 2. The image pipeline
 
@@ -157,6 +265,32 @@ completion; a mismatch drops the result.
 Cache hits are drawn synchronously with no animation; only a network hit fades
 in (0.18 s). Fading in an image we already had makes fast scrolling look like it
 is loading when it is not.
+
+`prepareForReuse` also resets `isHidden`. A cell is only ever hidden by the zoom
+transition, and that is exactly the case where the cell can be recycled before
+anyone unhides it — see below.
+
+### The cell the transition hides must be the cell it unhides
+
+The zoom transition hides the source tile while the photo flies out of it, and
+unhides it when the animation ends. The first version resolved the tile twice,
+through `collectionView.cellForItem(at: transitionIndexPath)` — once to hide, once
+to unhide. Between those two calls the viewer is open, and the grid behind it is
+free to reload: `controllerDidChangeContent` sets `pendingReload` and calls
+`applyReloadIfIdle()` straight away, whose only guard is that the grid is not being
+dragged. A still grid behind a modal reloads immediately, and during the initial
+indexing a page lands every few seconds.
+
+After that reload the index path resolves to a **different** cell object, or to
+none at all. The unhide is applied to the wrong tile or nowhere, and the original
+cell goes back into the reuse pool with `isHidden = true` — so a blank square
+appears wherever that cell is dequeued next, which is not even the photo that was
+opened. It survives every scroll, because nothing ever sets `isHidden` back.
+
+So `zoomTransitionSetHidden` keeps a `weak var hiddenCell` and unhides *that
+instance*. `weak` is deliberate: if the cell really is gone, there is nothing to
+restore and nothing to leak. `prepareForReuse` is the second line of defence —
+it turns "one cell leaked out of the transition" into "nothing is visible".
 
 ## 3. Coalesced reloads
 

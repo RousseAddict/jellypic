@@ -50,6 +50,10 @@ final class PhotoViewerViewController: UIViewController {
         fatalError("init(coder:) is not used")
     }
 
+    deinit {
+        services.images.releaseFullSize()
+    }
+
     override var prefersStatusBarHidden: Bool {
         return true
     }

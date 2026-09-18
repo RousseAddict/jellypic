@@ -8,13 +8,17 @@ final class PhotoGridViewController: UIViewController {
     private static let spacing: CGFloat = 1
     private static let chromeInset: CGFloat = 56
     private static let scrubberInset: CGFloat = 72
+    private static let brandFadeDistance: CGFloat = 40
+    private static let brandMarkSide: CGFloat = 22
 
     private let services: AppServices
 
     private let layout = UICollectionViewFlowLayout()
     private var collectionView: UICollectionView!
-    private let moreButton = FloatingButton()
+    private let settingsButton = GlyphButton(glyph: PersonGlyphView(), prominent: true)
     private let banner = SyncBannerView()
+    private let brand = UIStackView()
+    private let brandLabel = UILabel()
     private let emptyLabel = UILabel()
     private let scrubber = MonthScrubberView()
 
@@ -23,6 +27,8 @@ final class PhotoGridViewController: UIViewController {
     private var thumbnailPixels = 0
     private var horizontalInset: CGFloat = 0
     private var transitionIndexPath: IndexPath?
+    private weak var hiddenCell: PhotoCell?
+    private var isBannerVisible = false
 
     var onSignedOut: (() -> Void)?
 
@@ -93,6 +99,23 @@ final class PhotoGridViewController: UIViewController {
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(emptyLabel)
 
+        let mark = UIImageView(image: UIImage(named: "LogoMark"))
+        mark.contentMode = .scaleAspectFit
+        mark.translatesAutoresizingMaskIntoConstraints = false
+
+        brandLabel.font = Typography.headline
+        brandLabel.adjustsFontForContentSizeCategory = true
+        brandLabel.text = "Jellypic"
+
+        brand.axis = .horizontal
+        brand.alignment = .center
+        brand.spacing = 8
+        brand.isUserInteractionEnabled = false
+        brand.translatesAutoresizingMaskIntoConstraints = false
+        brand.addArrangedSubview(mark)
+        brand.addArrangedSubview(brandLabel)
+        view.addSubview(brand)
+
         banner.alpha = 0
         banner.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(banner)
@@ -100,9 +123,9 @@ final class PhotoGridViewController: UIViewController {
         scrubber.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrubber)
 
-        moreButton.addTarget(self, action: #selector(showSettings), for: .touchUpInside)
-        moreButton.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(moreButton)
+        settingsButton.addTarget(self, action: #selector(showSettings), for: .touchUpInside)
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(settingsButton)
 
         NSLayoutConstraint.activate([
             scrubber.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
@@ -117,14 +140,23 @@ final class PhotoGridViewController: UIViewController {
             emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
 
-            moreButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            moreButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor,
-                                                 constant: -12),
+            settingsButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            settingsButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor,
+                                                     constant: -4),
 
-            banner.centerYAnchor.constraint(equalTo: moreButton.centerYAnchor),
+            mark.widthAnchor.constraint(equalToConstant: PhotoGridViewController.brandMarkSide),
+            mark.heightAnchor.constraint(equalToConstant: PhotoGridViewController.brandMarkSide),
+
+            brand.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
+            brand.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
+                                           constant: 16),
+            brand.trailingAnchor.constraint(lessThanOrEqualTo: settingsButton.leadingAnchor,
+                                            constant: -24),
+
+            banner.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
             banner.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
                                             constant: 12),
-            banner.trailingAnchor.constraint(lessThanOrEqualTo: moreButton.leadingAnchor, constant: -24)
+            banner.trailingAnchor.constraint(lessThanOrEqualTo: settingsButton.leadingAnchor, constant: -24)
         ])
     }
 
@@ -246,13 +278,38 @@ final class PhotoGridViewController: UIViewController {
 
     private func showBanner(_ text: String) {
         banner.text = text
-        guard banner.alpha < 1 else { return }
-        UIView.animate(withDuration: 0.24) { self.banner.alpha = 1 }
+        guard !isBannerVisible else { return }
+        isBannerVisible = true
+        UIView.animate(withDuration: 0.24) {
+            self.banner.alpha = 1
+            self.brand.alpha = self.brandAlpha()
+        }
     }
 
     private func hideBanner() {
-        guard banner.alpha > 0 else { return }
-        UIView.animate(withDuration: 0.24) { self.banner.alpha = 0 }
+        guard isBannerVisible else { return }
+        isBannerVisible = false
+        UIView.animate(withDuration: 0.24) {
+            self.banner.alpha = 0
+            self.brand.alpha = self.brandAlpha()
+        }
+    }
+
+    private func headerAlpha() -> CGFloat {
+        let scrolled = collectionView.contentOffset.y + collectionView.contentInset.top
+        let progress = scrolled / PhotoGridViewController.brandFadeDistance
+        return 1 - min(max(progress, 0), 1)
+    }
+
+    private func brandAlpha() -> CGFloat {
+        return isBannerVisible ? 0 : headerAlpha()
+    }
+
+    private func updateHeaderAlpha() {
+        let alpha = headerAlpha()
+        brand.alpha = brandAlpha()
+        settingsButton.alpha = alpha
+        settingsButton.isUserInteractionEnabled = alpha > 0
     }
 
     private func refreshEmptyState() {
@@ -293,6 +350,7 @@ final class PhotoGridViewController: UIViewController {
         view.backgroundColor = palette.background
         collectionView.backgroundColor = palette.background
         emptyLabel.textColor = palette.textSecondary
+        brandLabel.textColor = palette.textPrimary
         view.applyThemeRecursively(palette)
     }
 }
@@ -360,6 +418,7 @@ extension PhotoGridViewController: UICollectionViewDelegate {
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard scrollView === collectionView else { return }
+        updateHeaderAlpha()
         scrubber.update(progress: scrubberProgress())
         scrubber.reveal()
     }
@@ -394,6 +453,8 @@ extension PhotoGridViewController: ZoomTransitionEndpoint {
     }
 
     func zoomTransitionSetHidden(_ hidden: Bool) {
-        transitionCell?.isHidden = hidden
+        hiddenCell?.isHidden = false
+        hiddenCell = hidden ? transitionCell : nil
+        hiddenCell?.isHidden = true
     }
 }

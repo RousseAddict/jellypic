@@ -83,10 +83,20 @@ All in `Design/`, all shape-layer backed, all `Themed`:
 | `FloatingButton` | 44 pt circle over content: surface, shadow, one `GlyphView` |
 | `ShareGlyphView` / `StopGlyphView` | arrow-out-of-tray, and the filled square that replaces it mid-download |
 | `CardSheetViewController` | the sheet all cards are built on — see §4.1 |
-| `CardAccessoryButton` | bare `GlyphView` in a fixed 44×44 target, secondary tint |
+| `GlyphButton` | bare `GlyphView` in a fixed 44×44 target — `prominent: true` tints it primary |
+| `PersonGlyphView` | user-circle — ring, head, shoulders; the grid's settings button. See doc 07 |
 
-No SF Symbols (iOS 13+), no image assets: every glyph is a `UIBezierPath`, so
-it stays crisp at any size and costs no bundle space.
+It was called `CardAccessoryButton` for as long as cards were the only place a
+bare glyph could live. The grid's settings button is the same object outside a
+card, so the name had to stop naming its first caller. `prominent` is the only
+axis that separates the two uses: an accessory inside a card must not compete
+with the card's title (`textSecondary`), a lone control over the grid has to
+hold its own (`textPrimary`).
+
+No SF Symbols (iOS 13+): every glyph is a `UIBezierPath`, so it stays crisp at
+any size and costs no bundle space. The **one** image asset in the app is the
+logo mark above the grid (`docs/07` §1) — an asset precisely because it is the
+one drawing that must *not* follow the palette.
 
 ## 4.1 `CardSheetViewController`
 
@@ -138,7 +148,7 @@ base class:
 
 - **an icon target declares its size with constraints, not with
   `intrinsicContentSize`.** An intrinsic size is a preference the solver is free
-  to overrule; `widthAnchor == 44` is not. `CardAccessoryButton` carries both its
+  to overrule; `widthAnchor == 44` is not. `GlyphButton` carries both its
   44×44 and its glyph's size as required constraints.
 - **the accessories stack hugs at `.required`**, so all horizontal slack in the
   header lands on the header view, which is the only thing that should absorb it.
@@ -210,7 +220,7 @@ sits a few points below the title's optical centre; that is the cost of keeping
 Apple's minimum touch target, and it is cheaper than hard-coding a font metric.
 
 No `FloatingButton`: a surface and a shadow on top of a card is a card on a
-card. `CardAccessoryButton` is the bare glyph in `palette.textSecondary`, in a
+card. `GlyphButton` is the bare glyph in `palette.textSecondary`, in a
 44 pt target, dimming on press.
 
 ## 5. The connect flow

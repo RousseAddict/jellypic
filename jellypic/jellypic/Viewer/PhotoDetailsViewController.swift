@@ -10,8 +10,8 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private let progressLabel = UILabel()
     private let progressTrack = SquircleView()
     private let progressFill = SquircleView()
-    private let shareButton = CardAccessoryButton(glyph: ShareGlyphView())
-    private let cancelButton = CardAccessoryButton(glyph: StopGlyphView())
+    private let shareButton = GlyphButton(glyph: ShareGlyphView())
+    private let cancelButton = GlyphButton(glyph: StopGlyphView())
 
     private var progressWidth: NSLayoutConstraint!
     private var details: PhotoDetailsDTO?

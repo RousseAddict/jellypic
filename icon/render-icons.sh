@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Rasterises icon/jellypic-icon.svg into every slot of AppIcon.appiconset.
+# Rasterises icon/jellypic-icon.svg into every slot of AppIcon.appiconset, and
+# icon/jellypic-mark.svg into LogoMark.imageset (the wordmark above the grid).
+#
+# The two SVGs share the same six petals but are NOT the same drawing: the icon
+# is full bleed on opaque white, the mark is transparent and trimmed tight. An
+# icon has iOS's squircle around it; the mark has the app's own background.
 #
 # Run this after editing the SVG, then commit both the SVG and the PNGs.
 # The PNGs are versioned so that a clone builds without this script (and
@@ -26,7 +31,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SVG="icon/jellypic-icon.svg"
+MARK_SVG="icon/jellypic-mark.svg"
 OUT="jellypic/jellypic/Assets.xcassets/AppIcon.appiconset"
+MARK_OUT="jellypic/jellypic/Assets.xcassets/LogoMark.imageset"
 ICC="/System/Library/ColorSync/Profiles/sRGB Profile.icc"
 
 # Distinct pixel sizes across all 18 slots. Several slots resolve to the same
@@ -73,4 +80,40 @@ for px in sizes:
     for xy in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)):
         assert im.getpixel(xy) is not None
 print('%d icons written to %s' % (len(sizes), out))
+PY
+
+# The mark is laid out at 22 pt, so the slots are 22/44/66 px. It is rendered
+# once at 1024, trimmed to the ink, then resampled: the petals do not touch the
+# viewBox edges, and rendering each slot directly would leave a different amount
+# of slack at each size, so the mark would sit at a different optical size in
+# the 2x and 3x builds.
+mkdir -p "$MARK_OUT"
+rsvg-convert -w 1024 -h 1024 "$MARK_SVG" -o "$MARK_OUT/logo-mark.png"
+
+python3 - "$MARK_OUT" "$ICC" <<'PY'
+import sys
+from PIL import Image
+
+out, icc_path = sys.argv[1], sys.argv[2]
+icc = open(icc_path, 'rb').read()
+source = '%s/logo-mark.png' % out
+
+im = Image.open(source).convert('RGBA')
+box = im.getbbox()
+assert box, 'the mark rendered empty'
+# Square the trimmed box so the mark keeps its aspect ratio in a square slot.
+left, top, right, bottom = box
+side = max(right - left, bottom - top)
+cx, cy = (left + right) // 2, (top + bottom) // 2
+im = im.crop((cx - side // 2, cy - side // 2, cx + side // 2, cy + side // 2))
+
+for px, name in ((22, 'logo-mark.png'), (44, 'logo-mark@2x.png'), (66, 'logo-mark@3x.png')):
+    im.resize((px, px), Image.LANCZOS).save('%s/%s' % (out, name),
+                                            format='PNG', icc_profile=icc)
+
+for px, name in ((22, 'logo-mark.png'), (44, 'logo-mark@2x.png'), (66, 'logo-mark@3x.png')):
+    check = Image.open('%s/%s' % (out, name))
+    assert check.mode == 'RGBA', '%s lost its transparency' % name
+    assert check.size == (px, px), '%s is %s' % (name, check.size)
+print('3 mark slots written to %s' % out)
 PY

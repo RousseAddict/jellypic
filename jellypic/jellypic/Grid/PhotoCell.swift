@@ -34,6 +34,7 @@ final class PhotoCell: UICollectionViewCell {
         token = ""
         imageView.image = nil
         imageView.alpha = 1
+        isHidden = false
     }
 
     func configure(itemId: String,

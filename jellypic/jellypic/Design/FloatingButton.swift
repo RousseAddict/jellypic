@@ -140,6 +140,48 @@ final class StopGlyphView: GlyphView {
     }
 }
 
+final class PersonGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 20, height: 20)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 1.5
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let center = CGPoint(x: box.midX, y: box.midY)
+        let radius = box.width / 2
+
+        let path = UIBezierPath(arcCenter: center,
+                                radius: radius,
+                                startAngle: 0,
+                                endAngle: .pi * 2,
+                                clockwise: true)
+        path.append(UIBezierPath(arcCenter: CGPoint(x: center.x, y: center.y - radius * 0.083),
+                                 radius: radius * 0.417,
+                                 startAngle: 0,
+                                 endAngle: .pi * 2,
+                                 clockwise: true))
+
+        let shouldersOffset = radius * 1.083
+        let shouldersRadius = radius * 0.748
+        let inner = radius - strokeWidth / 2
+        let meetY = (shouldersOffset * shouldersOffset + inner * inner
+                     - shouldersRadius * shouldersRadius) / (2 * shouldersOffset)
+        let meetX = sqrt(max(inner * inner - meetY * meetY, 0))
+
+        path.append(UIBezierPath(arcCenter: CGPoint(x: center.x, y: center.y + shouldersOffset),
+                                 radius: shouldersRadius,
+                                 startAngle: atan2(meetY - shouldersOffset, -meetX),
+                                 endAngle: atan2(meetY - shouldersOffset, meetX),
+                                 clockwise: true))
+        return path
+    }
+}
+
 final class CloseGlyphView: GlyphView {
 
     override var glyphSize: CGSize {
@@ -158,6 +200,49 @@ final class CloseGlyphView: GlyphView {
         path.move(to: CGPoint(x: box.maxX, y: box.minY))
         path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
         return path
+    }
+}
+
+final class GlyphButton: UIControl, Themed {
+
+    static let side: CGFloat = 44
+
+    private let glyph: GlyphView
+    private let prominent: Bool
+
+    init(glyph: GlyphView, prominent: Bool = false) {
+        self.glyph = glyph
+        self.prominent = prominent
+        super.init(frame: .zero)
+        backgroundColor = .clear
+
+        glyph.isUserInteractionEnabled = false
+        glyph.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(glyph)
+
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: GlyphButton.side),
+            heightAnchor.constraint(equalToConstant: GlyphButton.side),
+
+            glyph.centerXAnchor.constraint(equalTo: centerXAnchor),
+            glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
+            glyph.widthAnchor.constraint(equalToConstant: glyph.glyphSize.width),
+            glyph.heightAnchor.constraint(equalToConstant: glyph.glyphSize.height)
+        ])
+
+        applyTheme(Theme.palette)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    override var isHighlighted: Bool {
+        didSet { alpha = isHighlighted ? 0.5 : 1 }
+    }
+
+    func applyTheme(_ palette: ThemePalette) {
+        glyph.color = prominent ? palette.textPrimary : palette.textSecondary
     }
 }
 

@@ -107,6 +107,25 @@ warning.
 This is the first number to lower if the 5s struggles — the whole reason it is
 the primary target.
 
+### Emptying it when the viewer closes
+
+Three entries at ~12.6 MB is ~37 MB held for a screen that no longer exists — a
+third of what the 5s gives a foreground app. So `PhotoViewerViewController.deinit`
+calls `ImageLoader.releaseFullSize()`.
+
+**`deinit`, not `viewDidDisappear`.** At the iOS 12 floor a presented view
+controller is full-screen by default, so the share sheet and every alert raised
+from the details card fire `viewDidDisappear` on the viewer — the cache would be
+dumped in the middle of a share, and the photo behind the sheet would have to be
+re-fetched on the way back. `deinit` says the one thing that is actually meant
+here: this viewer is gone.
+
+Keeping the last-viewed photo alive by lowering `countLimit` to 1 on close was
+considered and dropped. `NSCache`'s limits are advisory — it is not required to
+evict on the spot — so the saving would have been unpredictable, and re-opening
+the same photo is a `URLCache` disk hit and a decode, not a round trip to the
+server.
+
 ## 5. The transition
 
 Ratified in chat over a cross-fade: the thumbnail grows out of its cell into the
