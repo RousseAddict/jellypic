@@ -1,11 +1,14 @@
 import CoreData
 
+// LEGACY(ios12): Core Data stands in for SwiftData. Freed at iOS 17.
 final class PhotoStore {
+
+    static let didResetNotification = Notification.Name("PhotoStoreDidReset")
 
     private let container: NSPersistentContainer
     private let backgroundContext: NSManagedObjectContext
 
-    var viewContext: NSManagedObjectContext {
+    private var viewContext: NSManagedObjectContext {
         return container.viewContext
     }
 
@@ -21,6 +24,22 @@ final class PhotoStore {
 
         self.container = container
         self.backgroundContext = background
+    }
+
+    func makeTimelineResults() -> NSFetchedResultsController<PhotoItem> {
+        let request = NSFetchRequest<PhotoItem>(entityName: PhotoItem.entityName)
+        request.sortDescriptors = [
+            NSSortDescriptor(key: #keyPath(PhotoItem.monthKey), ascending: false),
+            NSSortDescriptor(key: #keyPath(PhotoItem.captureDate), ascending: false),
+            NSSortDescriptor(key: #keyPath(PhotoItem.id), ascending: false)
+        ]
+        request.fetchBatchSize = 60
+        request.returnsObjectsAsFaults = false
+
+        return NSFetchedResultsController(fetchRequest: request,
+                                          managedObjectContext: viewContext,
+                                          sectionNameKeyPath: #keyPath(PhotoItem.monthKey),
+                                          cacheName: nil)
     }
 
     func performBackground(_ block: @escaping (NSManagedObjectContext) -> Void) {
@@ -64,25 +83,47 @@ final class PhotoStore {
     }
 
     func reset() {
+        var deleted: [NSManagedObjectID] = []
+
         backgroundContext.performAndWait {
             let request = NSFetchRequest<NSFetchRequestResult>(entityName: PhotoItem.entityName)
             let delete = NSBatchDeleteRequest(fetchRequest: request)
-            _ = try? self.backgroundContext.execute(delete)
+            delete.resultType = .resultTypeObjectIDs
+            let result = try? self.backgroundContext.execute(delete)
+            deleted = ((result as? NSBatchDeleteResult)?.result as? [NSManagedObjectID]) ?? []
             self.backgroundContext.reset()
         }
-        container.viewContext.reset()
+
+        NSManagedObjectContext.mergeChanges(fromRemoteContextSave: [NSDeletedObjectsKey: deleted],
+                                            into: [container.viewContext])
+        NotificationCenter.default.post(name: PhotoStore.didResetNotification, object: self)
     }
 
     private static func load(_ container: NSPersistentContainer) {
+        let url = container.persistentStoreDescriptions.first?.url
+
+        if Preferences.indexSchemaVersion != PhotoModel.schemaVersion, let url = url {
+            destroy(container, at: url)
+        }
+
         var failure: Error?
         container.loadPersistentStores { _, error in
             failure = error
         }
-        guard failure != nil, let url = container.persistentStoreDescriptions.first?.url else { return }
+        if failure != nil, let url = url {
+            destroy(container, at: url)
+            container.loadPersistentStores { _, error in failure = error }
+        }
 
+        if failure == nil {
+            Preferences.indexSchemaVersion = PhotoModel.schemaVersion
+        }
+    }
+
+    private static func destroy(_ container: NSPersistentContainer, at url: URL) {
         try? container.persistentStoreCoordinator.destroyPersistentStore(at: url,
-                                                                        ofType: NSSQLiteStoreType,
-                                                                        options: nil)
-        container.loadPersistentStores { _, _ in }
+                                                                         ofType: NSSQLiteStoreType,
+                                                                         options: nil)
+        Preferences.clearSync()
     }
 }

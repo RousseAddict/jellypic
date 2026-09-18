@@ -10,6 +10,7 @@ enum Preferences {
         static let syncStartIndex = "syncStartIndex"
         static let syncTotal = "syncTotal"
         static let syncCompleted = "syncCompleted"
+        static let indexSchemaVersion = "indexSchemaVersion"
     }
 
     private static let defaults = UserDefaults.standard
@@ -51,6 +52,11 @@ enum Preferences {
     static var syncCompleted: Bool {
         get { return defaults.bool(forKey: Key.syncCompleted) }
         set { defaults.set(newValue, forKey: Key.syncCompleted) }
+    }
+
+    static var indexSchemaVersion: Int {
+        get { return defaults.integer(forKey: Key.indexSchemaVersion) }
+        set { defaults.set(newValue, forKey: Key.indexSchemaVersion) }
     }
 
     static func clearSync() {

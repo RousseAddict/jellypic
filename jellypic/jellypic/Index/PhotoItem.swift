@@ -15,6 +15,8 @@ final class PhotoItem: NSManagedObject {
 
 enum PhotoModel {
 
+    static let schemaVersion = 2
+
     static func make() -> NSManagedObjectModel {
         let entity = NSEntityDescription()
         entity.name = PhotoItem.entityName
@@ -36,10 +38,14 @@ enum PhotoModel {
         let idIndex = NSFetchIndexDescription(name: "byId",
                                               elements: [NSFetchIndexElementDescription(property: id,
                                                                                         collationType: .binary)])
-        let dateIndex = NSFetchIndexDescription(name: "byCaptureDate",
-                                                elements: [NSFetchIndexElementDescription(property: captureDate,
-                                                                                          collationType: .binary)])
-        entity.indexes = [idIndex, dateIndex]
+        let timelineIndex = NSFetchIndexDescription(name: "byTimeline",
+                                                    elements: [NSFetchIndexElementDescription(property: monthKey,
+                                                                                              collationType: .binary),
+                                                               NSFetchIndexElementDescription(property: captureDate,
+                                                                                              collationType: .binary),
+                                                               NSFetchIndexElementDescription(property: id,
+                                                                                              collationType: .binary)])
+        entity.indexes = [idIndex, timelineIndex]
 
         let model = NSManagedObjectModel()
         model.entities = [entity]

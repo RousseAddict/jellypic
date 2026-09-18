@@ -50,6 +50,10 @@ final class PhotoGridViewController: UIViewController {
                                                selector: #selector(themeDidChange),
                                                name: Theme.didChangeNotification,
                                                object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(indexDidReset),
+                                               name: PhotoStore.didResetNotification,
+                                               object: nil)
 
         applyPalette()
         refreshEmptyState()
@@ -130,19 +134,7 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func buildResults() {
-        let request = NSFetchRequest<PhotoItem>(entityName: PhotoItem.entityName)
-        request.sortDescriptors = [
-            NSSortDescriptor(key: "monthKey", ascending: false),
-            NSSortDescriptor(key: "captureDate", ascending: false),
-            NSSortDescriptor(key: "id", ascending: false)
-        ]
-        request.fetchBatchSize = 60
-        request.returnsObjectsAsFaults = false
-
-        results = NSFetchedResultsController(fetchRequest: request,
-                                             managedObjectContext: services.store.viewContext,
-                                             sectionNameKeyPath: "monthKey",
-                                             cacheName: nil)
+        results = services.store.makeTimelineResults()
         results.delegate = self
         try? results.performFetch()
     }
@@ -261,6 +253,13 @@ final class PhotoGridViewController: UIViewController {
     private func refreshEmptyState() {
         let isEmpty = (results.fetchedObjects?.isEmpty ?? true)
         emptyLabel.isHidden = !isEmpty || services.sync.isRunning
+    }
+
+    @objc private func indexDidReset() {
+        try? results.performFetch()
+        pendingReload = false
+        collectionView.reloadData()
+        refreshEmptyState()
     }
 
     private func applyReloadIfIdle() {

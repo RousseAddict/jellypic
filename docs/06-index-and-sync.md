@@ -18,7 +18,8 @@ not of *order*.
 
 `Index/PhotoItem.swift` builds the `NSManagedObjectModel` in code:
 `NSEntityDescription` + seven `NSAttributeDescription` + two
-`NSFetchIndexDescription` (on `id` and `captureDate`).
+`NSFetchIndexDescription` (`byId`, and `byTimeline` over the grid's three sort
+keys — see §5.2).
 
 Two reasons:
 
@@ -34,6 +35,26 @@ Core Data refuses to save a freshly inserted object. Rows are created with
 `NSEntityDescription.insertNewObject(forEntityName:into:)` rather than
 `PhotoItem(context:)`, which is the safer call when the entity comes from a
 model that was never code-generated.
+
+## 2.1 The store owns the fetch
+
+`PhotoStore.makeTimelineResults()` builds the fetched results controller — the
+request, the three sort descriptors, the `sectionNameKeyPath`, the batch size —
+and `viewContext` is private. The grid used to assemble all of that itself,
+with attribute names written as string literals that duplicated
+`PhotoItem`'s declarations; renaming an attribute compiled cleanly and crashed
+at runtime. The names are now `#keyPath(PhotoItem.monthKey)` and friends, so
+the same rename fails to build.
+
+This is also the invariant behind §5.2: the sort order and the composite index
+have to agree, and they cannot agree reliably when they are declared in two
+files that never see each other.
+
+The controller itself still crosses into `PhotoGridViewController` and on into
+the viewer, which is why `CLAUDE.md`'s "Core Data behind a `PhotoStore`
+protocol" is still only half true. Hiding `NSFetchedResultsController` means
+replacing it with something that can express sections, batched faulting and
+incremental delegate callbacks — that is the real work, and it is not done.
 
 ## 3. The query
 
@@ -120,9 +141,53 @@ own sync takes to overwrite it.
 `PhotoStore.reset()` runs its `NSBatchDeleteRequest` on the **background**
 context with `performAndWait`, not on the view context. That is what serialises
 it behind a page write that is already in flight; a delete on another queue
-would race and leave rows from the wiped library behind. The view context is
-reset afterwards because a batch delete goes straight to the store and leaves
-in-memory objects stale.
+would race and leave rows from the wiped library behind.
+
+### The view context cannot simply be reset
+
+A batch delete goes straight to the store and leaves the view context holding
+objects that no longer have rows. The first version answered that with
+`viewContext.reset()`, which is worse than the problem: it turns every
+`PhotoItem` into an inaccessible object while the grid's fetched results
+controller is still alive and still holding them. Sign-out cross-fades over
+**0.3 s with the grid on screen**, and a batch delete fires no delegate
+callback by construction, so the controller never learns anything changed.
+That is an `NSObjectInaccessibleException` with a 300 ms window, widening with
+the size of the index.
+
+The delete now asks for `resultType = .resultTypeObjectIDs` and feeds them to
+`NSManagedObjectContext.mergeChanges(fromRemoteContextSave:into:)`. The view
+context deletes exactly those objects and posts the notification the fetched
+results controller is listening for.
+
+That is enough for correctness but not for the redraw: L1.3 deliberately
+defers `reloadData` until scrolling stops, and a deferred reload after the
+controller has emptied itself is the same crash with a different trigger. So
+`reset()` also posts `PhotoStore.didResetNotification` and the grid refetches
+and reloads **immediately**, bypassing the coalescing. A notification rather
+than a direct call because neither caller — `AppServices.signOut` and
+`SyncEngine.start` on a library change — holds a reference to the grid, and
+the app already uses this pattern for `Theme.didChangeNotification`.
+
+## 5.2 Indexes, and why the model carries a version
+
+The grid sorts on `monthKey`, then `captureDate`, then `id`, and sections on
+`monthKey`. A single-column index on `captureDate` is useless to that query:
+SQLite cannot use an index on the second column of an `ORDER BY`. The model
+therefore declares one composite index over the three sort keys, in order. The
+old `byCaptureDate` index is gone — nothing sorts on `captureDate` alone, so it
+was write cost with no reader. `byId` stays; the upsert's `id IN %@` is the
+hottest query in the sync.
+
+**Fetch indexes are not part of the model's `versionHash`.** Changing them does
+not make an existing store look incompatible, so no lightweight migration runs,
+so the new index is never created on a store that already exists — the change
+is silently inert for anyone who already synced. `PhotoModel.schemaVersion` is
+the workaround: `PhotoStore.load` compares it to
+`Preferences.indexSchemaVersion` and destroys the store when they differ. This
+is the policy from §2 made explicit rather than assumed — the index is a
+rebuildable cache, so a schema change is a wipe and a resync, and bumping the
+constant is the whole migration story.
 
 ## 6. Not `NSBatchInsertRequest`
 

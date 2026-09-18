@@ -23,3 +23,6 @@ xcuserdata/
 
 # Local CI simulation output
 artifacts/
+
+# Working audit notes — a triage scratchpad, not a reference. docs/ is the reference.
+audit.md
