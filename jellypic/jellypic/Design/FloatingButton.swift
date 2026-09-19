@@ -183,6 +183,42 @@ final class PersonGlyphView: GlyphView {
     }
 }
 
+final class MapGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 20, height: 18)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 1.5
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let fold = box.height * 0.2
+        let left = box.minX + box.width / 3
+        let right = box.minX + box.width * 2 / 3
+
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.minX, y: box.minY + fold))
+        path.addLine(to: CGPoint(x: left, y: box.minY))
+        path.addLine(to: CGPoint(x: right, y: box.minY + fold))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.maxY - fold))
+        path.addLine(to: CGPoint(x: right, y: box.maxY))
+        path.addLine(to: CGPoint(x: left, y: box.maxY - fold))
+        path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
+        path.close()
+
+        path.move(to: CGPoint(x: left, y: box.minY))
+        path.addLine(to: CGPoint(x: left, y: box.maxY - fold))
+
+        path.move(to: CGPoint(x: right, y: box.minY + fold))
+        path.addLine(to: CGPoint(x: right, y: box.maxY))
+        return path
+    }
+}
+
 final class CloseGlyphView: GlyphView {
 
     override var glyphSize: CGSize {

@@ -2,10 +2,6 @@ import UIKit
 
 final class PhotoGridViewController: UIViewController {
 
-    private static let targetSide: CGFloat = 118
-    private static let minimumColumns: CGFloat = 3
-    private static let pixelStep = 64
-    private static let spacing: CGFloat = 1
     private static let chromeInset: CGFloat = 56
     private static let scrubberInset: CGFloat = 72
     private static let brandFadeDistance: CGFloat = 40
@@ -16,6 +12,7 @@ final class PhotoGridViewController: UIViewController {
     private let layout = UICollectionViewFlowLayout()
     private var collectionView: UICollectionView!
     private let settingsButton = GlyphButton(glyph: PersonGlyphView(), prominent: true)
+    private let mapButton = GlyphButton(glyph: MapGlyphView(), prominent: true)
     private let banner = SyncBannerView()
     private let brand = UIStackView()
     private let brandLabel = UILabel()
@@ -81,8 +78,8 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func buildHierarchy() {
-        layout.minimumInteritemSpacing = PhotoGridViewController.spacing
-        layout.minimumLineSpacing = PhotoGridViewController.spacing
+        layout.minimumInteritemSpacing = GridMetrics.spacing
+        layout.minimumLineSpacing = GridMetrics.spacing
         layout.sectionInset = UIEdgeInsets(top: 0, left: 0, bottom: 16, right: 0)
 
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
@@ -138,6 +135,10 @@ final class PhotoGridViewController: UIViewController {
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(settingsButton)
 
+        mapButton.addTarget(self, action: #selector(showMap), for: .touchUpInside)
+        mapButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(mapButton)
+
         NSLayoutConstraint.activate([
             scrubber.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
                                           constant: PhotoGridViewController.scrubberInset),
@@ -155,19 +156,22 @@ final class PhotoGridViewController: UIViewController {
             settingsButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor,
                                                      constant: -4),
 
+            mapButton.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
+            mapButton.trailingAnchor.constraint(equalTo: settingsButton.leadingAnchor),
+
             mark.widthAnchor.constraint(equalToConstant: PhotoGridViewController.brandMarkSide),
             mark.heightAnchor.constraint(equalToConstant: PhotoGridViewController.brandMarkSide),
 
             brand.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
             brand.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
                                            constant: 16),
-            brand.trailingAnchor.constraint(lessThanOrEqualTo: settingsButton.leadingAnchor,
+            brand.trailingAnchor.constraint(lessThanOrEqualTo: mapButton.leadingAnchor,
                                             constant: -24),
 
             banner.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
             banner.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
                                             constant: 12),
-            banner.trailingAnchor.constraint(lessThanOrEqualTo: settingsButton.leadingAnchor, constant: -24)
+            banner.trailingAnchor.constraint(lessThanOrEqualTo: mapButton.leadingAnchor, constant: -24)
         ])
     }
 
@@ -242,13 +246,10 @@ final class PhotoGridViewController: UIViewController {
         let width = collectionView.bounds.width - inset * 2
         guard width > 0 else { return }
 
-        let columns = max(PhotoGridViewController.minimumColumns,
-                          (width / PhotoGridViewController.targetSide).rounded())
-        let available = width - PhotoGridViewController.spacing * (columns - 1)
-        let side = floor(available / columns)
+        let side = GridMetrics.itemSide(forWidth: width)
         guard side > 0 else { return }
 
-        let pixels = PhotoGridViewController.thumbnailPixels(for: side)
+        let pixels = GridMetrics.thumbnailPixels(for: side)
         guard layout.itemSize.width != side || thumbnailPixels != pixels else { return }
 
         horizontalInset = inset
@@ -261,11 +262,6 @@ final class PhotoGridViewController: UIViewController {
         guard thumbnailPixels != pixels else { return }
         thumbnailPixels = pixels
         collectionView.reloadData()
-    }
-
-    private static func thumbnailPixels(for side: CGFloat) -> Int {
-        let exact = Int((side * UIScreen.main.scale).rounded(.up))
-        return (exact + pixelStep - 1) / pixelStep * pixelStep
     }
 
     private func startSync() {
@@ -329,6 +325,8 @@ final class PhotoGridViewController: UIViewController {
         brand.alpha = brandAlpha()
         settingsButton.alpha = alpha
         settingsButton.isUserInteractionEnabled = alpha > 0
+        mapButton.alpha = alpha
+        mapButton.isUserInteractionEnabled = alpha > 0
     }
 
     private func refreshEmptyState() {
@@ -370,6 +368,10 @@ final class PhotoGridViewController: UIViewController {
         settings.onSignedOut = { [weak self] in self?.onSignedOut?() }
         settings.onResyncRequested = { [weak self] in self?.restartSync() }
         settings.present(over: self)
+    }
+
+    @objc private func showMap() {
+        present(MapViewController(services: services), animated: true, completion: nil)
     }
 
     private func restartSync() {

@@ -1,5 +1,24 @@
 import UIKit
 
+enum GridMetrics {
+
+    static let spacing: CGFloat = 1
+
+    private static let targetSide: CGFloat = 118
+    private static let minimumColumns: CGFloat = 3
+    private static let pixelStep = 64
+
+    static func itemSide(forWidth width: CGFloat) -> CGFloat {
+        let columns = max(minimumColumns, (width / targetSide).rounded())
+        return floor((width - spacing * (columns - 1)) / columns)
+    }
+
+    static func thumbnailPixels(for side: CGFloat) -> Int {
+        let exact = Int((side * UIScreen.main.scale).rounded(.up))
+        return (exact + pixelStep - 1) / pixelStep * pixelStep
+    }
+}
+
 final class PhotoCell: UICollectionViewCell {
 
     static let reuseIdentifier = "PhotoCell"

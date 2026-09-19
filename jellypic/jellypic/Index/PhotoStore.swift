@@ -27,10 +27,54 @@ extension PhotoTimeline {
     }
 }
 
+final class PhotoListTimeline: PhotoTimeline {
+
+    private let photos: [Photo]
+
+    var onChange: (() -> Void)?
+    var onReset: (() -> Void)?
+
+    init(photos: [Photo]) {
+        self.photos = photos
+    }
+
+    var sectionCount: Int {
+        return photos.isEmpty ? 0 : 1
+    }
+
+    var isEmpty: Bool {
+        return photos.isEmpty
+    }
+
+    func numberOfPhotos(inSection section: Int) -> Int {
+        return photos.count
+    }
+
+    func monthKey(forSection section: Int) -> String {
+        return ""
+    }
+
+    func photo(at indexPath: IndexPath) -> Photo {
+        return photos[indexPath.item]
+    }
+
+    func indexPath(forPhotoId id: String) -> IndexPath? {
+        guard let index = photos.firstIndex(where: { $0.id == id }) else { return nil }
+        return IndexPath(item: index, section: 0)
+    }
+}
+
+struct PhotoLocation {
+    let photo: Photo
+    let latitude: Double
+    let longitude: Double
+}
+
 protocol PhotoStore: AnyObject {
     func makeTimeline() -> PhotoTimeline
     func upsert(_ photos: [PhotoDTO], completion: @escaping (Error?) -> Void)
     func count() -> Int
+    func locations(completion: @escaping ([PhotoLocation]) -> Void)
     func reset()
 }
 
@@ -90,6 +134,40 @@ final class CoreDataPhotoStore: PhotoStore {
         return (try? container.viewContext.count(for: request)) ?? 0
     }
 
+    func locations(completion: @escaping ([PhotoLocation]) -> Void) {
+        let context = container.newBackgroundContext()
+        context.perform {
+            let request = NSFetchRequest<NSDictionary>(entityName: PhotoItem.entityName)
+            request.resultType = .dictionaryResultType
+            request.propertiesToFetch = [#keyPath(PhotoItem.id),
+                                         #keyPath(PhotoItem.imageTag),
+                                         #keyPath(PhotoItem.captureDate),
+                                         #keyPath(PhotoItem.latitude),
+                                         #keyPath(PhotoItem.longitude)]
+            request.sortDescriptors = [
+                NSSortDescriptor(key: #keyPath(PhotoItem.captureDate), ascending: false),
+                NSSortDescriptor(key: #keyPath(PhotoItem.id), ascending: false)
+            ]
+            request.predicate = NSPredicate(format: "latitude != nil AND longitude != nil")
+
+            let rows = (try? context.fetch(request)) ?? []
+            var locations: [PhotoLocation] = []
+            locations.reserveCapacity(rows.count)
+            for row in rows {
+                guard let id = row[#keyPath(PhotoItem.id)] as? String,
+                      let latitude = row[#keyPath(PhotoItem.latitude)] as? Double,
+                      let longitude = row[#keyPath(PhotoItem.longitude)] as? Double else { continue }
+                let photo = Photo(id: id,
+                                  imageTag: row[#keyPath(PhotoItem.imageTag)] as? String,
+                                  captureDate: row[#keyPath(PhotoItem.captureDate)] as? Date)
+                locations.append(PhotoLocation(photo: photo,
+                                               latitude: latitude,
+                                               longitude: longitude))
+            }
+            DispatchQueue.main.async { completion(locations) }
+        }
+    }
+
     func reset() {
         var deleted: [NSManagedObjectID] = []
 
@@ -130,6 +208,8 @@ final class CoreDataPhotoStore: PhotoStore {
             item.imageTag = photo.primaryImageTag
             item.width = Int32(photo.width ?? 0)
             item.height = Int32(photo.height ?? 0)
+            item.latitude = photo.latitude.map { NSNumber(value: $0) }
+            item.longitude = photo.longitude.map { NSNumber(value: $0) }
         }
 
         try context.save()

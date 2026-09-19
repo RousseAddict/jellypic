@@ -11,11 +11,13 @@ final class PhotoItem: NSManagedObject {
     @NSManaged var imageTag: String?
     @NSManaged var width: Int32
     @NSManaged var height: Int32
+    @NSManaged var latitude: NSNumber?
+    @NSManaged var longitude: NSNumber?
 }
 
 enum PhotoModel {
 
-    static let schemaVersion = 2
+    static let schemaVersion = 3
 
     static func make() -> NSManagedObjectModel {
         let entity = NSEntityDescription()
@@ -32,8 +34,11 @@ enum PhotoModel {
         width.defaultValue = 0
         let height = attribute("height", .integer32AttributeType, optional: false)
         height.defaultValue = 0
+        let latitude = attribute("latitude", .doubleAttributeType)
+        let longitude = attribute("longitude", .doubleAttributeType)
 
-        entity.properties = [id, name, captureDate, monthKey, imageTag, width, height]
+        entity.properties = [id, name, captureDate, monthKey, imageTag, width, height,
+                             latitude, longitude]
 
         let idIndex = NSFetchIndexDescription(name: "byId",
                                               elements: [NSFetchIndexElementDescription(property: id,

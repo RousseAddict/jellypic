@@ -61,6 +61,8 @@ struct PhotoDTO: Decodable {
     let dateCreated: Date?
     let width: Int?
     let height: Int?
+    let latitude: Double?
+    let longitude: Double?
     let imageTags: [String: String]?
 
     enum CodingKeys: String, CodingKey {
@@ -70,6 +72,8 @@ struct PhotoDTO: Decodable {
         case dateCreated = "DateCreated"
         case width = "Width"
         case height = "Height"
+        case latitude = "Latitude"
+        case longitude = "Longitude"
         case imageTags = "ImageTags"
     }
 
