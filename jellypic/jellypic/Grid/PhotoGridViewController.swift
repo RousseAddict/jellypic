@@ -28,6 +28,8 @@ final class PhotoGridViewController: UIViewController {
     private weak var viewer: PhotoViewerViewController?
     private var isBannerVisible = false
     private var isSessionExpired = false
+    private var didSyncFail = false
+    private var didIntroduceScrubber = false
 
     var onSignedOut: (() -> Void)?
 
@@ -70,6 +72,7 @@ final class PhotoGridViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         startSync()
+        introduceScrubber()
     }
 
     override func viewDidLayoutSubviews() {
@@ -124,7 +127,7 @@ final class PhotoGridViewController: UIViewController {
         view.addSubview(brand)
 
         banner.alpha = 0
-        banner.onTap = { [weak self] in self?.presentReauth() }
+        banner.onTap = { [weak self] in self?.bannerTapped() }
         banner.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(banner)
 
@@ -205,6 +208,13 @@ final class PhotoGridViewController: UIViewController {
         }
     }
 
+    private func introduceScrubber() {
+        guard !didIntroduceScrubber, scrollableHeight() != nil else { return }
+        didIntroduceScrubber = true
+        scrubber.reveal()
+        scrubber.scheduleFade()
+    }
+
     private func scrubTo(_ progress: CGFloat) {
         guard let travel = scrollableHeight() else { return }
         let y = -collectionView.contentInset.top + travel * progress
@@ -271,23 +281,33 @@ final class PhotoGridViewController: UIViewController {
         }
         services.sync.onFinish = { [weak self] error in
             guard let self = self else { return }
+            self.didSyncFail = error != nil
             if let error = error {
-                self.showBanner(error.shortDescription)
+                self.showBanner("\(error.shortDescription) Tap to retry.", busy: false)
             } else {
                 self.hideBanner()
             }
             self.refreshEmptyState()
         }
         guard !services.sync.isRunning else { return }
+        didSyncFail = false
         services.sync.start(libraryId: libraryId)
         if services.sync.isRunning {
             showBanner("Indexing…")
         }
     }
 
-    private func showBanner(_ text: String) {
+    private func bannerTapped() {
+        if isSessionExpired {
+            presentReauth()
+        } else if didSyncFail {
+            startSync()
+        }
+    }
+
+    private func showBanner(_ text: String, busy: Bool = true) {
         guard !isSessionExpired else { return }
-        banner.isBusy = true
+        banner.isBusy = busy
         banner.text = text
         revealBanner()
     }
@@ -330,7 +350,7 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func refreshEmptyState() {
-        emptyLabel.isHidden = !timeline.isEmpty || services.sync.isRunning
+        emptyLabel.isHidden = !timeline.isEmpty || !Preferences.syncCompleted
     }
 
     private func applyReloadIfIdle() {
@@ -384,6 +404,7 @@ final class PhotoGridViewController: UIViewController {
 
     private func restartSync() {
         guard let libraryId = Preferences.libraryId else { return }
+        didSyncFail = false
         services.sync.refresh(libraryId: libraryId)
         if services.sync.isRunning {
             showBanner("Indexing…")

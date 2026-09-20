@@ -7,7 +7,7 @@ final class MonthScrubberView: UIView, Themed {
     private static let thumbWidth: CGFloat = 20
     private static let thumbHeight: CGFloat = 44
     private static let grabInset: CGFloat = 14
-    private static let idleDelay: TimeInterval = 1.5
+    private static let idleDelay: TimeInterval = 2.5
 
     private let thumb = SquircleView()
     private let grip = HandleGlyphView()

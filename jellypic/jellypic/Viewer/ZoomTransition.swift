@@ -40,7 +40,8 @@ final class ZoomTransition: NSObject, UIViewControllerAnimatedTransitioning {
             viewerView = context.view(forKey: .from)
         }
 
-        guard let image = source?.zoomTransitionImage(),
+        guard !UIAccessibility.isReduceMotionEnabled,
+              let image = source?.zoomTransitionImage(),
               let start = source?.zoomTransitionRect(in: container),
               let end = destination?.zoomTransitionRect(in: container) else {
             UIView.animate(withDuration: duration,

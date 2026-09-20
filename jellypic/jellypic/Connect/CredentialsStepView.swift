@@ -28,6 +28,7 @@ final class CredentialsStepView: UIView {
 
         usernameInput.setPlaceholder("Username")
         usernameInput.textField.keyboardType = .default
+        usernameInput.textField.textContentType = .username
         usernameInput.textField.autocapitalizationType = .none
         usernameInput.textField.autocorrectionType = .no
         usernameInput.textField.returnKeyType = .next
@@ -37,6 +38,7 @@ final class CredentialsStepView: UIView {
 
         passwordInput.setPlaceholder("Password")
         passwordInput.textField.isSecureTextEntry = true
+        passwordInput.textField.textContentType = .password
         passwordInput.textField.autocapitalizationType = .none
         passwordInput.textField.autocorrectionType = .no
         passwordInput.textField.returnKeyType = .go

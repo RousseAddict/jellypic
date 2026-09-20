@@ -58,7 +58,7 @@ enum Theme {
         surface: UIColor(hex: 0xFFFFFF),
         field: UIColor(hex: 0xF2F2F4),
         textPrimary: UIColor(hex: 0x0B0B0C),
-        textSecondary: UIColor(hex: 0x7A7A80),
+        textSecondary: UIColor(hex: 0x6B6B72),
         separator: UIColor(hex: 0xE6E6E9),
         accent: UIColor(hex: 0x0B0B0C),
         onAccent: UIColor(hex: 0xFFFFFF),

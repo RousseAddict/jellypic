@@ -46,6 +46,10 @@ final class PhotoCell: UICollectionViewCell {
         fatalError("init(coder:) is not used")
     }
 
+    override var isHighlighted: Bool {
+        didSet { imageView.alpha = isHighlighted ? 0.7 : 1 }
+    }
+
     override func prepareForReuse() {
         super.prepareForReuse()
         task?.cancel()

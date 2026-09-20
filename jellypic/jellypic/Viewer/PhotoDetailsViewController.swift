@@ -15,6 +15,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
 
     private var progressWidth: NSLayoutConstraint!
     private var details: PhotoDetailsDTO?
+    private var detailsError: JellyfinError?
     private var originalBytes: Int64?
     private var downloadTask: URLSessionTask?
 
@@ -84,8 +85,12 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private func fetch() {
         services.client.photoDetails(itemId: itemId) { [weak self] result in
             guard let self = self else { return }
-            guard case .success(let details) = result else { return }
-            self.details = details
+            switch result {
+            case .success(let details):
+                self.details = details
+            case .failure(let error):
+                self.detailsError = error
+            }
             self.render()
         }
         services.client.originalFileSize(itemId: itemId) { [weak self] bytes in
@@ -101,7 +106,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
         }
 
         guard let details = details else {
-            addRow("", "Loading…")
+            addRow("", detailsError?.shortDescription ?? "Loading…")
             return
         }
 

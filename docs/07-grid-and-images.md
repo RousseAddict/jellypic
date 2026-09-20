@@ -193,6 +193,15 @@ the mark is transparent and trimmed to the ink. The script renders it once at
 optical size at 1x, 2x and 3x — rendering each slot from the vector would leave
 a different amount of slack around the ink at each size.
 
+### The cell answers the finger
+
+`PhotoCell` overrides `isHighlighted` to drop the image view to `alpha 0.7`.
+`didSelectItemAt` deselects immediately and the zoom transition takes 0.34 s, so
+without this the grid spends a third of a second doing visibly nothing after a
+tap — which reads as a lost tap and invites a double tap. It was also the only
+mute surface left: `FloatingButton` scales to 0.94, `ActionButton` to 0.97,
+`OptionRowView` and `SettingsRowView` dim. One property, no layout.
+
 ## 2. The image pipeline
 
 Three layers, `Images/ImageLoader.swift`:
@@ -381,6 +390,53 @@ expired and `hideBanner` refuses to run. Otherwise the cancelled sync's own
 `onFinish` error — which arrives immediately after the 401 — would overwrite the
 one message that has an action attached to it.
 
+### 4.3 The fourth state: failed, and retryable
+
+`showBanner` used to force `isBusy = true` for every caller, `onFinish` with an
+error included — so a stopped sync kept spinning. It now takes `busy:`, defaulting
+to true, and the error path passes false. The spinner means "work is happening"
+and nothing else.
+
+`banner.onTap` no longer goes straight to re-auth. It dispatches on the state the
+banner is actually showing: expired → the re-auth card, failed → `startSync()`
+again. On an ordinary network error the pill was tappable and did nothing, and the
+only real recourse was Settings → Resync, behind an alert that talks about
+re-reading all N photos — which does not read as "try again".
+
+The error text is `"\(error.shortDescription) Tap to retry."`, and the label is
+`numberOfLines = 2`. One line fitted ~188 pt on a 5s, so `.notAJellyfinServer`
+(78 characters) and `.decoding` (61) were always truncated; the headline-first
+rule of §4.1 saved the common cases only. Two lines turn the pill into a rounded
+rectangle, so `layoutSubviews` clamps the radius to `min(bounds.height / 2, 16)`
+— on one line the height is ~32 pt, so the capsule look is unchanged.
+
+`didSyncFail` is cleared in `startSync` (before `sync.start`) and in
+`restartSync`, not only when a run succeeds. Both are the entry points that make
+the failure stale.
+
+### 4.4 The empty label waits for the server
+
+`refreshEmptyState` keyed on `services.sync.isRunning`, and `viewDidLoad` runs it
+before `viewDidAppear` starts the sync — so the first launch of a fresh install
+showed *"No photos in this library yet."* for the whole latency of the first
+page. Worse, a sync that failed on an empty index said "the library is empty" and
+"the network failed" at the same time, on the same screen.
+
+The condition is now `!timeline.isEmpty || !Preferences.syncCompleted`: the label
+is a statement about the *server*, so it may only appear once the server has been
+read to the end. While indexing and after a failure the centre stays empty and
+the banner does the talking — ratified in chat over a tile skeleton and over a
+second centred message.
+
+`Preferences.syncCompleted` is a safe key for this because `PhotoStore.destroy`
+calls `Preferences.clearSync()`: a schema bump that wipes the index also clears
+the flag, so the two can never disagree.
+
+**Not done, on purpose:** the audit also asked the empty state to name the likely
+cause (server-side HEIC invisibility, doc 02 §2.4). This library is JPEG and the
+writer is out of scope, so that sentence would be exactly the kind of confident
+falsehood this section exists to remove.
+
 ## 5. Settings as a card
 
 Ratified in chat over a pushed screen or a full-screen modal: a card that slides
@@ -459,11 +515,20 @@ what absorbs the shrink: 20 × 44 plus 14 pt on every side is a 48 × 72 target,
 so the handle got smaller and the thing you actually hit did not.
 
 **Fading is driven by scroll events, not by a timer per frame.** `reveal()` shows
-the thumb and cancels any pending fade; `scheduleFade()` arms the 1.5 s timer and
+the thumb and cancels any pending fade; `scheduleFade()` arms the 2.5 s timer and
 is called only from `scrollViewDidEndDecelerating` and from
 `scrollViewDidEndDragging` when there is no deceleration to wait for. Arming the
 timer inside `scrollViewDidScroll` instead would allocate and invalidate a
 `Timer` on every frame of every scroll, on an A7.
+
+**It introduces itself once.** On 20 000 photos the scrubber *is* the navigation,
+and a control that starts at `alpha = 0` and only ever appears while you are
+already scrolling never teaches itself. `introduceScrubber()` runs from
+`viewDidAppear` — `reveal()` then `scheduleFade()`, which is exactly what the two
+methods were separated for — guarded by a one-shot flag and by
+`scrollableHeight() != nil`, so it neither flashes on every return from the
+viewer nor advertises a scrubber on a library that does not scroll. The idle
+delay moved 1.5 → 2.5 s so the first sighting is long enough to register.
 
 **The mapping is proportional to content height, not per-section.** A scrubber
 anchored on section boundaries sounds more correct and behaves worse: months

@@ -21,6 +21,7 @@ final class ServerStepView: UIView, Themed {
 
         input.setPlaceholder("192.168.1.10")
         input.textField.keyboardType = .URL
+        input.textField.textContentType = .URL
         input.textField.autocapitalizationType = .none
         input.textField.autocorrectionType = .no
         input.textField.returnKeyType = .continue

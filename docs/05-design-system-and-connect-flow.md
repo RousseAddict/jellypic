@@ -67,6 +67,14 @@ iOS 12 has neither dynamic `UIColor` nor `userInterfaceStyle`, so:
 Typography is five roles (title / headline / body / caption / button), all run
 through `UIFontMetrics` so Dynamic Type works without per-label code.
 
+**Light `textSecondary` is `0x6B6B72`, not `0x7A7A80`.** The original failed
+WCAG AA: ≈ 4.0:1 on `0xF7F7F8` where normal text needs 4.5:1 — and it is normal
+text, `caption` at 13 pt. That one token carries the sync banner, the connect
+subtitles and hints, the settings detail lines and micro-headers, the EXIF keys
+and the empty state, so it was the single highest-leverage contrast fix in the
+app. `0x6B6B72` measures ≈ 4.9:1 and is visually indistinguishable at this size.
+The dark palette's `0x8E8E95` is ≈ 6.0:1 on `0x0B0B0C` and is left alone.
+
 ## 4. Components
 
 All in `Design/`, all shape-layer backed, all `Themed`:
@@ -282,6 +290,13 @@ Mechanics worth remembering:
 - The keyboard moves the card with `cardCenterY.constant`, using the duration
   and curve from the notification so it tracks the keyboard exactly, and it is
   clamped so the card top never goes above `safeAreaInsets.top + 24`.
+- **Every field declares a `textContentType`**: `.URL` on the server step,
+  `.username` / `.password` on the credentials step, and the same pair on
+  `ReauthViewController`, which replays that entry. Without it there is no
+  keychain fill and no QuickType, and a password typed blind on a 4-inch screen
+  is the worst moment of the flow (doc 02 §4.2). It has existed since iOS 11, so
+  it is free at this floor. The re-auth card is easy to forget here — it is a
+  second implementation of the same two fields.
 
 ## 5.1 Navigating between steps
 

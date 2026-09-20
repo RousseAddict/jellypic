@@ -199,6 +199,15 @@ image having been squashed.
 Either endpoint returning `nil` (no image loaded, cell off-screen) degrades to a
 cross-fade instead of failing.
 
+**Reduce Motion takes that same exit.** `UIAccessibility.isReduceMotionEnabled` is
+the first clause of the `guard` that computes the two endpoints, so the setting
+costs one condition rather than a second code path — the graceful degradation was
+already written and tested for the off-screen case. A zoom that flies a photo
+across the screen is exactly the class of animation the setting exists to suppress,
+and the cross-fade keeps the same duration, so the viewer still arrives when it
+used to. The property is back-annotated `@available(iOS 8.0, *)`, so it is free at
+the 12.0 floor.
+
 `modalPresentationStyle = .overFullScreen`, not `.fullScreen`: the latter removes
 the presenting view once the transition ends, and the grid must stay on screen
 underneath for the dismissal to have something to land on.
@@ -336,6 +345,20 @@ Verified in Jellyfin v10.11.0 source rather than assumed:
   `Person`, so the call has no hidden metadata-refresh cost.
 - `/Users/{userId}/Items/{itemId}` is marked `[Obsolete]`; `/Items/{itemId}` with
   `userId` as a query parameter is the current form.
+
+### When the fetch fails
+
+`fetch` used to drop the `.failure` on the floor, so an unreachable server left the
+card reading "Loading…" until it was closed — a spinner with no end, which is the
+one thing worse than an error. The result is now kept in `detailsError` beside
+`details`, and `render` falls back to `detailsError?.shortDescription` in the same
+single row the placeholder used. No retry button: the card is one tap to close and
+one tap to reopen, which *is* the retry, and a button would need its own state in a
+view whose whole job is to display someone else's.
+
+The file-size probe is deliberately not wired to that: it fails silently and the
+Share button stays enabled, because downloading the original is a different request
+that may well succeed when the metadata one did not.
 
 ### Aperture and shutter speed are APEX, not what they look like
 

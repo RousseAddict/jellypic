@@ -69,6 +69,7 @@ final class ReauthViewController: CardSheetViewController {
 
         usernameInput.setPlaceholder("Username")
         usernameInput.textField.text = session.username
+        usernameInput.textField.textContentType = .username
         usernameInput.textField.autocapitalizationType = .none
         usernameInput.textField.autocorrectionType = .no
         usernameInput.textField.returnKeyType = .next
@@ -77,6 +78,7 @@ final class ReauthViewController: CardSheetViewController {
 
         passwordInput.setPlaceholder("Password")
         passwordInput.textField.isSecureTextEntry = true
+        passwordInput.textField.textContentType = .password
         passwordInput.textField.returnKeyType = .go
         passwordInput.textField.delegate = self
 

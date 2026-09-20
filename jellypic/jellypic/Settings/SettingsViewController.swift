@@ -181,8 +181,8 @@ final class SettingsViewController: CardSheetViewController {
         signOutRow.detail = "Signing out…"
         services.signOut { [weak self] in
             guard let self = self else { return }
-            self.detachFromParent()
-            self.onSignedOut?()
+            self.onDismissed = self.onSignedOut
+            self.dismissCard()
         }
     }
 

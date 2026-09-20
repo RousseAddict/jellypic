@@ -40,6 +40,7 @@ final class SyncBannerView: UIView, Themed {
 
         label.font = Typography.caption
         label.adjustsFontForContentSizeCategory = true
+        label.numberOfLines = 2
         label.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(label)
 
@@ -72,7 +73,7 @@ final class SyncBannerView: UIView, Themed {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        surface.cornerRadius = bounds.height / 2
+        surface.cornerRadius = min(bounds.height / 2, 16)
     }
 
     var text: String? {

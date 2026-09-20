@@ -196,6 +196,13 @@ data will be removed" is not — and it says explicitly that **nothing on the
 server changes**, because "sign out wipes the index" is otherwise easy to read as
 "sign out deletes my photos".
 
+**The card leaves the way it arrived.** The completion used to call
+`detachFromParent()`, which is the non-animated half of the pair, so the card
+vanished a frame before the root cross-fade started. It now assigns
+`onDismissed = onSignedOut` and calls `dismissCard()`: the base class already
+slides the card out and fires `onDismissed` in the completion, so the sign-out
+hook rides the existing animation instead of racing it.
+
 ## 6. Not done yet
 
 - **Dark mode has only been seen on the iOS 12 5s.** It is correct there, but the
