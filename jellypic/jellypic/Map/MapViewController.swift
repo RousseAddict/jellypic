@@ -78,6 +78,8 @@ enum MapClustering {
 
 final class MapViewController: UIViewController {
 
+    private static let focusSpan: CLLocationDegrees = 0.01
+
     private let services: AppServices
 
     private var mapView: MKMapView!
@@ -88,6 +90,7 @@ final class MapViewController: UIViewController {
     private var locations: [PhotoLocation] = []
     private var displayed: [Int64: PhotoCluster] = [:]
     private var cell: Double = 0
+    private var pendingFocus: CLLocationCoordinate2D?
 
     init(services: AppServices) {
         self.services = services
@@ -107,9 +110,29 @@ final class MapViewController: UIViewController {
             guard let self = self else { return }
             self.locations = locations
             self.showMessage(locations.isEmpty ? "No photos carry a location yet" : nil)
-            self.frameContent()
+            if let focus = self.pendingFocus {
+                self.pendingFocus = nil
+                self.frame(on: focus, animated: false)
+            } else {
+                self.frameContent()
+            }
             self.rebuildClusters()
         }
+    }
+
+    func focus(latitude: Double, longitude: Double) {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        guard isViewLoaded, !locations.isEmpty else {
+            pendingFocus = coordinate
+            return
+        }
+        frame(on: coordinate, animated: true)
+    }
+
+    private func frame(on coordinate: CLLocationCoordinate2D, animated: Bool) {
+        let span = MKCoordinateSpan(latitudeDelta: MapViewController.focusSpan,
+                                    longitudeDelta: MapViewController.focusSpan)
+        mapView.setRegion(MKCoordinateRegion(center: coordinate, span: span), animated: animated)
     }
 
     private func buildHierarchy() {
@@ -221,9 +244,14 @@ final class MapViewController: UIViewController {
 
     private func openBucket(with photos: [Photo]) {
         guard !photos.isEmpty else { return }
-        present(PhotoBucketViewController(services: services, photos: photos),
-                animated: true,
-                completion: nil)
+        let bucket = PhotoBucketViewController(services: services, photos: photos)
+        bucket.onShowLocation = { [weak self] latitude, longitude in
+            guard let self = self else { return }
+            self.dismiss(animated: true) {
+                self.focus(latitude: latitude, longitude: longitude)
+            }
+        }
+        present(bucket, animated: true, completion: nil)
     }
 
     @objc private func close() {

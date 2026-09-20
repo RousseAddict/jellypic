@@ -17,6 +17,8 @@ final class PhotoBucketViewController: UIViewController {
     private var transitionIndexPath: IndexPath?
     private weak var hiddenCell: PhotoCell?
 
+    var onShowLocation: ((Double, Double) -> Void)?
+
     init(services: AppServices, photos: [Photo]) {
         self.services = services
         self.timeline = PhotoListTimeline(photos: photos)
@@ -164,6 +166,12 @@ extension PhotoBucketViewController: UICollectionViewDelegate {
         viewer.transitionSource = self
         viewer.onWillDismiss = { [weak self] path in
             self?.prepareForReturn(to: path)
+        }
+        viewer.onShowLocation = { [weak self] latitude, longitude in
+            guard let self = self else { return }
+            self.dismiss(animated: false) {
+                self.onShowLocation?(latitude, longitude)
+            }
         }
         present(viewer, animated: true, completion: nil)
     }

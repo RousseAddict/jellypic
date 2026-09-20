@@ -18,6 +18,8 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private var originalBytes: Int64?
     private var downloadTask: URLSessionTask?
 
+    var onShowLocation: ((Double, Double) -> Void)?
+
     init(services: AppServices, itemId: String, displayImage: UIImage?) {
         self.services = services
         self.itemId = itemId
@@ -115,12 +117,20 @@ final class PhotoDetailsViewController: CardSheetViewController {
                                                           seconds: details.exposureSeconds,
                                                           iso: details.isoSpeedRating))
         addRow("Software", details.software)
-        addRow("Location", PhotoDetailsFormatter.coordinates(latitude: details.latitude,
-                                                             longitude: details.longitude))
+        addRow("Location",
+               PhotoDetailsFormatter.coordinates(latitude: details.latitude,
+                                                 longitude: details.longitude),
+               action: onShowLocation == nil ? nil : #selector(showLocation))
         addRow("Altitude", PhotoDetailsFormatter.altitude(details.altitude))
     }
 
-    private func addRow(_ key: String, _ value: String?) {
+    @objc private func showLocation() {
+        guard let latitude = details?.latitude, let longitude = details?.longitude else { return }
+        dismissCard()
+        onShowLocation?(latitude, longitude)
+    }
+
+    private func addRow(_ key: String, _ value: String?, action: Selector? = nil) {
         guard let value = value, !value.isEmpty else { return }
         let palette = Theme.palette
 
@@ -135,16 +145,39 @@ final class PhotoDetailsViewController: CardSheetViewController {
         let valueLabel = UILabel()
         valueLabel.font = Typography.caption
         valueLabel.adjustsFontForContentSizeCategory = true
-        valueLabel.textColor = palette.textPrimary
+        valueLabel.textColor = action == nil ? palette.textPrimary : palette.accent
         valueLabel.textAlignment = .right
         valueLabel.numberOfLines = 0
         valueLabel.text = value
 
-        let row = UIStackView(arrangedSubviews: [keyLabel, valueLabel])
+        let row = UIStackView(arrangedSubviews: [keyLabel, valueBox(valueLabel, action: action)])
         row.axis = .horizontal
         row.alignment = .firstBaseline
         row.spacing = 16
         body.addArrangedSubview(row)
+
+        guard let action = action else { return }
+        row.isUserInteractionEnabled = true
+        row.addGestureRecognizer(UITapGestureRecognizer(target: self, action: action))
+    }
+
+    private func valueBox(_ valueLabel: UILabel, action: Selector?) -> UIView {
+        guard action != nil else { return valueLabel }
+
+        let chevron = ChevronGlyphView()
+        chevron.color = Theme.palette.accent
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+
+        let box = UIStackView(arrangedSubviews: [valueLabel, chevron])
+        box.axis = .horizontal
+        box.alignment = .center
+        box.spacing = 6
+
+        NSLayoutConstraint.activate([
+            chevron.widthAnchor.constraint(equalToConstant: chevron.glyphSize.width),
+            chevron.heightAnchor.constraint(equalToConstant: chevron.glyphSize.height)
+        ])
+        return box
     }
 
     @objc private func share() {

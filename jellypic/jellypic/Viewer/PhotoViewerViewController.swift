@@ -28,6 +28,7 @@ final class PhotoViewerViewController: UIViewController {
 
     weak var transitionSource: ZoomTransitionEndpoint?
     var onWillDismiss: ((IndexPath) -> Void)?
+    var onShowLocation: ((Double, Double) -> Void)?
 
     init(services: AppServices,
          timeline: PhotoTimeline,
@@ -241,6 +242,9 @@ final class PhotoViewerViewController: UIViewController {
                                               itemId: photo.id,
                                               displayImage: currentCell?.imageView.image)
         card.onDismissed = { [weak self] in self?.detailsCard = nil }
+        if let onShowLocation = onShowLocation {
+            card.onShowLocation = onShowLocation
+        }
         detailsCard = card
         card.present(over: self)
     }

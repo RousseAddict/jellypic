@@ -371,7 +371,15 @@ final class PhotoGridViewController: UIViewController {
     }
 
     @objc private func showMap() {
-        present(MapViewController(services: services), animated: true, completion: nil)
+        presentMap(latitude: nil, longitude: nil)
+    }
+
+    private func presentMap(latitude: Double?, longitude: Double?) {
+        let map = MapViewController(services: services)
+        if let latitude = latitude, let longitude = longitude {
+            map.focus(latitude: latitude, longitude: longitude)
+        }
+        present(map, animated: true, completion: nil)
     }
 
     private func restartSync() {
@@ -447,6 +455,12 @@ extension PhotoGridViewController: UICollectionViewDelegate {
         viewer.transitionSource = self
         viewer.onWillDismiss = { [weak self] path in
             self?.prepareForReturn(to: path)
+        }
+        viewer.onShowLocation = { [weak self] latitude, longitude in
+            guard let self = self else { return }
+            self.dismiss(animated: true) {
+                self.presentMap(latitude: latitude, longitude: longitude)
+            }
         }
         self.viewer = viewer
         present(viewer, animated: true, completion: nil)

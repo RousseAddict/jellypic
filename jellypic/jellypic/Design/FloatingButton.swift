@@ -219,6 +219,26 @@ final class MapGlyphView: GlyphView {
     }
 }
 
+final class ChevronGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 7, height: 12)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 2
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.minX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.midY))
+        path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
+        return path
+    }
+}
+
 final class CloseGlyphView: GlyphView {
 
     override var glyphSize: CGSize {
