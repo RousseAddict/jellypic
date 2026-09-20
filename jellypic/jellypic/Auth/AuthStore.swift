@@ -67,7 +67,11 @@ final class AuthStore {
         } else {
             keychain.remove(Key.serverId)
         }
-        return writes.first(where: { $0 != errSecSuccess }) ?? errSecSuccess
+        guard let failure = writes.first(where: { $0 != errSecSuccess }) else {
+            return errSecSuccess
+        }
+        clearToken()
+        return failure
     }
 
     func clearToken() {

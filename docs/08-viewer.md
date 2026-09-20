@@ -346,6 +346,13 @@ Verified in Jellyfin v10.11.0 source rather than assumed:
 - `/Users/{userId}/Items/{itemId}` is marked `[Obsolete]`; `/Items/{itemId}` with
   `userId` as a query parameter is the current form.
 
+Both requests hand back their `URLSessionTask` — the pattern `photos` and
+`downloadOriginal` already use — and `deinit` cancels them alongside the download.
+Closing the card used to leave them running: two requests per open, and the
+file-size probe is a `Range: bytes=0-0` on `/Items/{id}/File`, so the server opens
+the original to answer it. Flicking the card open and shut on a phone is cheap;
+making the server do it repeatedly is not.
+
 ### When the fetch fails
 
 `fetch` used to drop the `.failure` on the floor, so an unreachable server left the

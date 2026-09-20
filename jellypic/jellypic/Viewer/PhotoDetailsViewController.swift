@@ -18,6 +18,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private var detailsError: JellyfinError?
     private var originalBytes: Int64?
     private var downloadTask: URLSessionTask?
+    private var metadataTasks: [URLSessionTask] = []
 
     var onShowLocation: ((Double, Double) -> Void)?
 
@@ -34,6 +35,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
 
     deinit {
         downloadTask?.cancel()
+        metadataTasks.forEach { $0.cancel() }
     }
 
     override func viewDidLoad() {
@@ -83,7 +85,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
     }
 
     private func fetch() {
-        services.client.photoDetails(itemId: itemId) { [weak self] result in
+        let detailsTask = services.client.photoDetails(itemId: itemId) { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success(let details):
@@ -93,11 +95,12 @@ final class PhotoDetailsViewController: CardSheetViewController {
             }
             self.render()
         }
-        services.client.originalFileSize(itemId: itemId) { [weak self] bytes in
+        let sizeTask = services.client.originalFileSize(itemId: itemId) { [weak self] bytes in
             guard let self = self, let bytes = bytes else { return }
             self.originalBytes = bytes
             self.render()
         }
+        metadataTasks = [detailsTask, sizeTask].compactMap { $0 }
     }
 
     private func render() {

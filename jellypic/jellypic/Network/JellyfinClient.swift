@@ -172,28 +172,28 @@ final class JellyfinClient: JellyfinAPI {
     }
 
     func photoDetails(itemId: String,
-                      completion: @escaping (Result<PhotoDetailsDTO, JellyfinError>) -> Void) {
+                      completion: @escaping (Result<PhotoDetailsDTO, JellyfinError>) -> Void) -> URLSessionTask? {
         guard let credentials = credentials else {
             completion(.failure(.notAuthenticated))
-            return
+            return nil
         }
         guard let request = makeRequest(baseURL: credentials.baseURL,
                                         path: "Items/\(itemId)",
                                         query: [URLQueryItem(name: "userId", value: credentials.userId)],
                                         token: credentials.accessToken) else {
             completion(.failure(.invalidServerURL))
-            return
+            return nil
         }
-        perform(request, as: PhotoDetailsDTO.self, completion: completion)
+        return perform(request, as: PhotoDetailsDTO.self, completion: completion)
     }
 
-    func originalFileSize(itemId: String, completion: @escaping (Int64?) -> Void) {
+    func originalFileSize(itemId: String, completion: @escaping (Int64?) -> Void) -> URLSessionTask? {
         guard var request = originalFileRequest(itemId: itemId) else {
             completion(nil)
-            return
+            return nil
         }
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        session.dataTask(with: request) { [weak self] _, response, error in
+        let task = session.dataTask(with: request) { [weak self] _, response, error in
             if let failure = self?.failure(response: response, error: error) {
                 self?.reportIfTokenRejected(failure, on: request)
             }
@@ -201,7 +201,9 @@ final class JellyfinClient: JellyfinAPI {
             DispatchQueue.main.async {
                 completion(size)
             }
-        }.resume()
+        }
+        task.resume()
+        return task
     }
 
     func downloadOriginal(itemId: String,

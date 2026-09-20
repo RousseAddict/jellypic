@@ -49,9 +49,9 @@ protocol JellyfinAPI: AnyObject {
     func fullImageRequest(itemId: String, tag: String?, maxPixels: Int) -> URLRequest?
 
     func photoDetails(itemId: String,
-                      completion: @escaping (Result<PhotoDetailsDTO, JellyfinError>) -> Void)
+                      completion: @escaping (Result<PhotoDetailsDTO, JellyfinError>) -> Void) -> URLSessionTask?
 
-    func originalFileSize(itemId: String, completion: @escaping (Int64?) -> Void)
+    func originalFileSize(itemId: String, completion: @escaping (Int64?) -> Void) -> URLSessionTask?
 
     func downloadOriginal(itemId: String,
                           fileName: String,

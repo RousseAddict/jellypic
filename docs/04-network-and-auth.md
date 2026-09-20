@@ -120,11 +120,24 @@ behind was the alternative.
 in-memory `client.credentials` is now assigned **after** the status is checked,
 so a failed write leaves the app signed out in memory as well as on disk. It used
 to assign first and return the status afterwards, which produced the one state
-nothing handles — a session that works perfectly until the process dies. The
-partial Keychain state left behind is deliberately *not* cleared: `clear()` would
-take `serverURL` and `userId` with it, and those are exactly what §6.4 needs to
-keep the cached index browsable. A server and a user without a token is a state
-the app already knows by another name — an expired session.
+nothing handles — a session that works perfectly until the process dies.
+
+**The destructive half of `signIn` moved after the same check.** Signing in as a
+different user resets the store, empties the image caches and forgets the library;
+that block used to run *before* `save`, so the very failure the previous paragraph
+is about — the `-34018` that already bit this project once — deleted 20 000 rows
+and then returned an error, leaving the user on the old account with an empty
+index and no explanation. Writing first and destroying only on success means the
+worst case is an error message and an unchanged app. The `previous` session is
+still read at the top of the function, before `save` overwrites it, which is what
+makes the reordering possible at all.
+
+Only the token is rolled back. `save` calls `clearToken()` when any of its writes
+failed, so a half-written sign-in cannot leave a secret in the Keychain that no
+code path will ever delete — but `clear()` would take `serverURL` and `userId`
+with it, and those are exactly what §6.4 needs to keep the cached index
+browsable. A server and a user without a token is a state the app already knows
+by another name: an expired session, with the re-auth card as its exit.
 
 `username` and `serverId` are read back through `nonEmpty(_:)`. A Keychain hit
 that returns an empty string is not a value, and the one caller that cares —

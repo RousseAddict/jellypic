@@ -51,14 +51,14 @@ final class AppServices {
                                               userId: result.user.id,
                                               serverId: result.serverId)
 
+        let status = authStore.save(credentials, username: result.user.name)
+        guard status == errSecSuccess else { return status }
+
         if let previous = previous, previous.userId != credentials.userId {
             store.reset()
             images.clearCaches()
             Preferences.clearLibrary()
         }
-
-        let status = authStore.save(credentials, username: result.user.name)
-        guard status == errSecSuccess else { return status }
 
         client.credentials = credentials
         client.cachedImageBaseURL = baseURL
