@@ -17,6 +17,9 @@ final class PhotoViewerViewController: UIViewController {
     private let playButton = FloatingButton(glyph: PlayGlyphView())
     private let datePill = SquircleView()
     private let dateLabel = UILabel()
+    private let conversionPill = SquircleView()
+    private let conversionLabel = UILabel()
+    private var probeWork: DispatchWorkItem?
     private lazy var playback = VideoPlaybackController(services: services, presenter: self)
 
     private var isChromeVisible = false
@@ -150,6 +153,20 @@ final class PhotoViewerViewController: UIViewController {
         playButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(playButton)
 
+        conversionPill.cornerRadius = 15
+        conversionPill.fillColor = Theme.palette.surface
+        conversionPill.applyShadow(Theme.palette)
+        conversionPill.isHidden = true
+        conversionPill.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(conversionPill)
+
+        conversionLabel.font = Typography.caption
+        conversionLabel.adjustsFontForContentSizeCategory = true
+        conversionLabel.textColor = Theme.palette.textPrimary
+        conversionLabel.text = "Needs converting"
+        conversionLabel.translatesAutoresizingMaskIntoConstraints = false
+        conversionPill.addSubview(conversionLabel)
+
         playback.onBusyChanged = { [weak self] busy in
             self?.playButton.isUserInteractionEnabled = !busy
             self?.playButton.alpha = busy ? 0.5 : 1
@@ -160,6 +177,14 @@ final class PhotoViewerViewController: UIViewController {
             playButton.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             playButton.widthAnchor.constraint(equalToConstant: 64),
             playButton.heightAnchor.constraint(equalToConstant: 64),
+
+            conversionPill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            conversionPill.topAnchor.constraint(equalTo: playButton.bottomAnchor, constant: 16),
+
+            conversionLabel.leadingAnchor.constraint(equalTo: conversionPill.leadingAnchor, constant: 14),
+            conversionLabel.trailingAnchor.constraint(equalTo: conversionPill.trailingAnchor, constant: -14),
+            conversionLabel.topAnchor.constraint(equalTo: conversionPill.topAnchor, constant: 7),
+            conversionLabel.bottomAnchor.constraint(equalTo: conversionPill.bottomAnchor, constant: -7),
 
             closeButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             closeButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
@@ -205,6 +230,29 @@ final class PhotoViewerViewController: UIViewController {
         currentPhotoId = photo.id
         dateLabel.text = PhotoDateFormatter.string(from: photo.captureDate)
         playButton.isHidden = !photo.isVideo
+        conversionPill.isHidden = true
+        scheduleProbe(for: photo)
+    }
+
+    private func scheduleProbe(for photo: Photo) {
+        probeWork?.cancel()
+        probeWork = nil
+        guard photo.isVideo else { return }
+
+        let itemId = photo.id
+        let work = DispatchWorkItem { [weak self] in
+            self?.playback.probe(itemId: itemId) { needsConversion in
+                guard let self = self, self.currentPhotoId == itemId else { return }
+                self.conversionPill.isHidden = !needsConversion
+            }
+        }
+        probeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
+    private func setVideoOverlayAlpha(_ alpha: CGFloat) {
+        playButton.alpha = alpha
+        conversionPill.alpha = alpha
     }
 
     func timelineDidChange() {
@@ -283,7 +331,7 @@ final class PhotoViewerViewController: UIViewController {
         case .began:
             collectionView.isScrollEnabled = false
             setChrome(visible: false, animated: true)
-            UIView.animate(withDuration: 0.2) { self.playButton.alpha = 0 }
+            UIView.animate(withDuration: 0.2) { self.setVideoOverlayAlpha(0) }
 
         case .changed:
             let progress = min(1, max(0, translation.y / (view.bounds.height * 0.6)))
@@ -306,7 +354,7 @@ final class PhotoViewerViewController: UIViewController {
                            animations: {
                             self.collectionView.transform = .identity
                             self.backdrop.alpha = 1
-                            self.playButton.alpha = 1
+                            self.setVideoOverlayAlpha(1)
                            },
                            completion: nil)
 
@@ -388,7 +436,7 @@ extension PhotoViewerViewController: ZoomTransitionEndpoint {
 
     func zoomTransitionSetHidden(_ hidden: Bool) {
         collectionView.isHidden = hidden
-        playButton.alpha = hidden ? 0 : 1
+        setVideoOverlayAlpha(hidden ? 0 : 1)
     }
 }
 

@@ -252,6 +252,36 @@ final class JellyfinClient: JellyfinAPI {
         return components.url
     }
 
+    func transcodedStreamURL(serverPath: String) -> URL? {
+        guard let credentials = credentials,
+              let source = URLComponents(string: serverPath),
+              source.scheme == nil,
+              source.host == nil else { return nil }
+        let segments = source.path.components(separatedBy: "/").filter { !$0.isEmpty }
+        guard !segments.isEmpty, !segments.contains("..") else { return nil }
+
+        var target = credentials.baseURL
+        for segment in segments {
+            target.appendPathComponent(segment)
+        }
+        guard var components = URLComponents(url: target, resolvingAgainstBaseURL: false) else { return nil }
+        components.percentEncodedQuery = source.percentEncodedQuery
+        return components.url
+    }
+
+    func reportPlaybackStopped(itemId: String, playSessionId: String) {
+        guard let credentials = credentials else { return }
+        guard var request = makeRequest(baseURL: credentials.baseURL,
+                                        path: "Sessions/Playing/Stopped",
+                                        method: "POST",
+                                        token: credentials.accessToken) else { return }
+        let body: [String: Any] = ["ItemId": itemId, "PlaySessionId": playSessionId]
+        guard let data = try? JSONSerialization.data(withJSONObject: body, options: []) else { return }
+        request.httpBody = data
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        performIgnoringBody(request) { _ in }
+    }
+
     func downloadOriginal(itemId: String,
                           fileName: String,
                           progress: @escaping (Int64, Int64) -> Void,

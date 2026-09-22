@@ -59,6 +59,10 @@ protocol JellyfinAPI: AnyObject {
 
     func directPlayURL(itemId: String, mediaSourceId: String?, playSessionId: String?) -> URL?
 
+    func transcodedStreamURL(serverPath: String) -> URL?
+
+    func reportPlaybackStopped(itemId: String, playSessionId: String)
+
     func downloadOriginal(itemId: String,
                           fileName: String,
                           progress: @escaping (Int64, Int64) -> Void,

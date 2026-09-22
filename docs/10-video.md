@@ -4,9 +4,10 @@ Why the reader shows videos, what that costs, and what is deliberately left for 
 
 The work is cut in three steps. **Step 1 makes videos exist in the app**: indexed, in
 the timeline, marked, tappable. **Step 2 asks the server what this device can play, and
-plays it when the answer is "as-is".** Step 3 accepts the server's transcode.
+plays it when the answer is "as-is".** **Step 3 accepts the server's transcode when it
+is not.**
 
-Sections 1–6 cover step 1, section 7 covers step 2.
+Sections 1–6 cover step 1, section 7 covers step 2, section 8 covers step 3.
 
 ---
 
@@ -163,6 +164,11 @@ That is worth the oddity: the alert shown when a video cannot be direct-played p
 the server's reason rather than our guess at it, which is what will say whether step 3
 needs to handle one codec or five.
 
+**Measured on device, 2026-09-22: `VideoCodecNotSupported`, alone.** Nothing about the
+container, the audio codec or the bitrate. The A7's missing HEVC decoder is the entire
+problem, and the transcoding profile already posted (`ts` / `hls` / `h264` / `aac`)
+is exactly the shape of the answer — so step 3 is one path, not a matrix.
+
 ### One file, so the video frameworks have one door
 
 `Viewer/VideoPlayback.swift` holds the capability probe, the profile, and the small
@@ -200,14 +206,110 @@ transition and the drag-to-dismiss — or it floats, unmoved, over a shrinking i
 Those set its `alpha`; `isHidden` stays reserved for "this item is not a video", so the
 two concerns compose instead of fighting over one property.
 
-## 8. Not done yet
+## 8. Step 3 — accepting the transcode, and warning before it is spent
 
-- **Step 3 — accept `TranscodingUrl`** (HLS) in the same `AVPlayer`, and close the
-  session with `/Sessions/Playing/Stopped` so ffmpeg does not keep running after the
-  viewer is dismissed. **This is the step that costs the server real CPU**, which is
-  why it is asked for per item and never turned on by default. The `TranscodingProfiles`
-  entry is already posted, so the server already returns a usable URL — step 3 is
-  mostly deciding when it is acceptable to fetch it.
+### The warning moved in front of the tap
+
+Step 2 answered a video it could not play with an alert *after* the tap. Step 3 could
+have kept that shape — alert, "Convert and play", "Cancel" — and the earlier draft of
+this document said it would. It does not, because a better signal turned out to be
+affordable.
+
+**`PlaybackInfo` with `AutoOpenLiveStream: false` starts nothing.** `MediaInfoHelper`
+only reaches `OpenMediaSource` when that flag is set; otherwise the call resolves the
+source, matches it against the posted profile, and returns a plan. No ffmpeg, no job,
+no CPU beyond the query. So the verdict can be asked for *before* the user commits to
+anything.
+
+The viewer therefore probes the item it has settled on, and a video that will need
+converting says so under its play button. **A video that plays directly shows nothing** —
+the absence of the pill is the good news, so the common case stays silent.
+
+Given that, a confirmation alert would be the same warning twice for one decision, so
+the tap starts the conversion directly. The pill *is* the consent step.
+
+### What the probe costs, and why it is bounded
+
+One request per video the viewer settles on, which is not free — flicking past ten
+videos without playing one is ten POSTs for nothing. Three things keep it small:
+
+- **It is debounced by 0.4 s.** `updateForCurrentPhoto` runs from `scrollViewDidScroll`,
+  the moment the midpoint crosses, so it fires mid-flick. The probe is a
+  `DispatchWorkItem` cancelled and rescheduled on every change; a fast swipe through a
+  month of videos issues no requests at all.
+- **The plan is cached by item id**, so coming back to a video is free — and so is the
+  tap that follows the pill, which reuses the plan the probe already fetched rather than
+  asking twice.
+- **The cache lives on the controller, which lives with the viewer.** Closing the viewer
+  drops it. That bound is deliberate: the plan embeds an `ApiKey` and a `PlaySessionId`,
+  and neither should outlive the screen that obtained them.
+
+**It stops at the viewer.** Marking videos in the grid is not a harder version of this —
+it is a different problem. The codec is not in the index, and putting it there means
+`fields=MediaSources` across 20 000 items on every sync, megabytes of JSON and another
+schema bump, to answer a question that only matters once someone is looking at the video.
+
+### The transcoding URL is relative, and is not trusted
+
+`MediaInfoHelper` builds it as `streamInfo.ToUrl(null, token, …)` — **`baseUrl` is
+null**, so `TranscodingUrl` arrives as a path: `/videos/{id}/master.m3u8?…`. It is
+otherwise self-sufficient; `StreamInfo.ToUrl` appends `PlaySessionId`, `DeviceId` and
+`ApiKey` itself, so nothing has to be added to it.
+
+`transcodedStreamURL(serverPath:)` rebuilds it against our own base URL a component at
+a time, and **rejects rather than repairs**: a path that carries a scheme or a host is
+refused outright, as is one containing `..`. Concatenating the server's string onto the
+origin would be shorter, but an absolute URL in that field would send an `ApiKey` to
+whatever host it named. Appending component by component is also what preserves a base
+URL that has a path prefix — `https://host/jellyfin` — which a plain join onto a
+leading `/` would silently drop. This is the same rule as the download file names in
+docs/04 §3: **a server-supplied path is input, not instruction.**
+
+### One POST closes the session, and it must actually fire
+
+`ReportPlaybackStopped` calls
+`KillTranscodingJobs(User.GetDeviceId(), playbackStopInfo.PlaySessionId, s => true)`
+*before* it touches the session manager. So a single `POST /Sessions/Playing/Stopped`
+with `{ItemId, PlaySessionId}` is what stops ffmpeg — there is no separate teardown
+endpoint to call, and the kill is matched on the `DeviceId` from our `Authorization`
+header, which the client already sends.
+
+It is only sent for the transcoded case. A direct play started no job, so reporting a
+stop for it would be a request that asks the server to cancel nothing.
+
+Firing it reliably is the awkward part. `AVPlayerViewController` is presented modally
+and dismissed by its own Done button, so the app never runs code at the moment of
+dismissal unless it asks for it. A small subclass overrides `viewDidDisappear` — **and
+guards on `isBeingDismissed`**, which is not decoration: at the iOS 12 floor modals are
+full screen, so an alert or a route picker presented over the player also fires
+`viewDidDisappear`, and an unguarded version would kill the transcode of a video that
+is still on screen. That is the same trap as `releaseFullSize()` in docs/08, reached
+from the other side: there the answer was `deinit`, here it is the flag, because the
+report needs to happen while the controller is still alive enough to carry its ids.
+
+The handler is nil'd as it fires, so a second disappearance cannot report twice.
+
+### The player opens immediately, on purpose
+
+`master.m3u8` does not answer until ffmpeg has produced its first segment, which on a
+weak server is seconds. Presenting the player straight away and letting it show its own
+activity indicator costs no UI, and — more importantly — **the wait stays cancellable**:
+the Done button is live the whole time, and using it sends the stop report, so a
+conversion that is taking too long can be called off by the same gesture that ends a
+normal playback. Holding the viewer with a dimmed play button until the stream was
+ready would have needed a KVO observer on `AVPlayerItem.status` and would have made the
+wait a dead end.
+
+### Playback still is not reported as playback
+
+Step 3 sends `Stopped` and nothing else. No `Sessions/Playing`, no `Progress`, no
+`Ping`. The stop report is there to end a *process*, not to keep a session diary, and
+it works without a matching start because the kill is keyed on the `PlaySessionId`
+carried in the stream URL. Reporting playback properly is a separate feature, listed
+below.
+
+## 9. Not done yet
+
 - Nothing reports playback progress to the server, so Jellyfin will not show these as
   watched and the session list will not show the app as playing.
 - No PiP, no background audio, no video frame in the zoom transition (it animates the
