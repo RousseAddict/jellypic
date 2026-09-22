@@ -445,6 +445,7 @@ extension PhotoGridViewController: UICollectionViewDataSource {
         cell.configure(itemId: photo.id,
                        tag: photo.imageTag,
                        pixels: thumbnailPixels,
+                       duration: photo.isVideo ? photo.duration : nil,
                        placeholder: Theme.palette.field,
                        loader: services.images)
         return cell

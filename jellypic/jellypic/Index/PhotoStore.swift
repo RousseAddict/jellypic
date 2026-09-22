@@ -4,6 +4,8 @@ struct Photo {
     let id: String
     let imageTag: String?
     let captureDate: Date?
+    let isVideo: Bool
+    let duration: Double
 }
 
 protocol PhotoTimeline: AnyObject {
@@ -143,7 +145,9 @@ final class CoreDataPhotoStore: PhotoStore {
                                          #keyPath(PhotoItem.imageTag),
                                          #keyPath(PhotoItem.captureDate),
                                          #keyPath(PhotoItem.latitude),
-                                         #keyPath(PhotoItem.longitude)]
+                                         #keyPath(PhotoItem.longitude),
+                                         #keyPath(PhotoItem.isVideo),
+                                         #keyPath(PhotoItem.duration)]
             request.sortDescriptors = [
                 NSSortDescriptor(key: #keyPath(PhotoItem.captureDate), ascending: false),
                 NSSortDescriptor(key: #keyPath(PhotoItem.id), ascending: false)
@@ -159,7 +163,9 @@ final class CoreDataPhotoStore: PhotoStore {
                       let longitude = row[#keyPath(PhotoItem.longitude)] as? Double else { continue }
                 let photo = Photo(id: id,
                                   imageTag: row[#keyPath(PhotoItem.imageTag)] as? String,
-                                  captureDate: row[#keyPath(PhotoItem.captureDate)] as? Date)
+                                  captureDate: row[#keyPath(PhotoItem.captureDate)] as? Date,
+                                  isVideo: row[#keyPath(PhotoItem.isVideo)] as? Bool ?? false,
+                                  duration: row[#keyPath(PhotoItem.duration)] as? Double ?? 0)
                 locations.append(PhotoLocation(photo: photo,
                                                latitude: latitude,
                                                longitude: longitude))
@@ -210,6 +216,8 @@ final class CoreDataPhotoStore: PhotoStore {
             item.height = Int32(photo.height ?? 0)
             item.latitude = photo.latitude.map { NSNumber(value: $0) }
             item.longitude = photo.longitude.map { NSNumber(value: $0) }
+            item.isVideo = photo.isVideo
+            item.duration = photo.durationSeconds
         }
 
         try context.save()
@@ -288,7 +296,11 @@ final class CoreDataTimeline: NSObject, PhotoTimeline {
 
     func photo(at indexPath: IndexPath) -> Photo {
         let item = controller.object(at: indexPath)
-        return Photo(id: item.id, imageTag: item.imageTag, captureDate: item.captureDate)
+        return Photo(id: item.id,
+                     imageTag: item.imageTag,
+                     captureDate: item.captureDate,
+                     isVideo: item.isVideo,
+                     duration: item.duration)
     }
 
     func indexPath(forPhotoId id: String) -> IndexPath? {

@@ -111,7 +111,7 @@ final class JellyfinClient: JellyfinAPI {
             URLQueryItem(name: "userId", value: credentials.userId),
             URLQueryItem(name: "parentId", value: libraryId),
             URLQueryItem(name: "recursive", value: "true"),
-            URLQueryItem(name: "includeItemTypes", value: "Photo"),
+            URLQueryItem(name: "includeItemTypes", value: "Photo,Video"),
             URLQueryItem(name: "sortBy", value: "PremiereDate,SortName"),
             URLQueryItem(name: "sortOrder", value: "Descending"),
             URLQueryItem(name: "fields", value: "DateCreated,Width,Height"),
