@@ -206,6 +206,52 @@ final class JellyfinClient: JellyfinAPI {
         return task
     }
 
+    func playbackInfo(itemId: String,
+                      deviceProfile: [String: Any],
+                      completion: @escaping (Result<PlaybackInfoResponse, JellyfinError>) -> Void) -> URLSessionTask? {
+        guard let credentials = credentials else {
+            completion(.failure(.notAuthenticated))
+            return nil
+        }
+        guard var request = makeRequest(baseURL: credentials.baseURL,
+                                        path: "Items/\(itemId)/PlaybackInfo",
+                                        method: "POST",
+                                        token: credentials.accessToken) else {
+            completion(.failure(.invalidServerURL))
+            return nil
+        }
+        let body: [String: Any] = [
+            "UserId": credentials.userId,
+            "DeviceProfile": deviceProfile,
+            "AutoOpenLiveStream": false
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: body, options: []) else {
+            completion(.failure(.invalidServerURL))
+            return nil
+        }
+        request.httpBody = data
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return perform(request, as: PlaybackInfoResponse.self, completion: completion)
+    }
+
+    func directPlayURL(itemId: String, mediaSourceId: String?, playSessionId: String?) -> URL? {
+        guard let credentials = credentials else { return nil }
+        var query = [
+            URLQueryItem(name: "static", value: "true"),
+            URLQueryItem(name: "api_key", value: credentials.accessToken)
+        ]
+        if let mediaSourceId = mediaSourceId {
+            query.append(URLQueryItem(name: "mediaSourceId", value: mediaSourceId))
+        }
+        if let playSessionId = playSessionId {
+            query.append(URLQueryItem(name: "playSessionId", value: playSessionId))
+        }
+        let target = credentials.baseURL.appendingPathComponent("Videos/\(itemId)/stream")
+        guard var components = URLComponents(url: target, resolvingAgainstBaseURL: false) else { return nil }
+        components.queryItems = query
+        return components.url
+    }
+
     func downloadOriginal(itemId: String,
                           fileName: String,
                           progress: @escaping (Int64, Int64) -> Void,

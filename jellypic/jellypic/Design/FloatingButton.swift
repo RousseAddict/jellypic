@@ -260,6 +260,23 @@ final class CloseGlyphView: GlyphView {
     }
 }
 
+final class PlayGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 24, height: 26)
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let nudge = rect.width * 0.08
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: rect.minX + nudge, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX + nudge, y: rect.maxY))
+        path.close()
+        return path
+    }
+}
+
 final class GlyphButton: UIControl, Themed {
 
     static let side: CGFloat = 44

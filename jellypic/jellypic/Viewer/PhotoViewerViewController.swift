@@ -14,8 +14,10 @@ final class PhotoViewerViewController: UIViewController {
     private var collectionView: UICollectionView!
     private let closeButton = FloatingButton(glyph: CloseGlyphView())
     private let moreButton = FloatingButton()
+    private let playButton = FloatingButton(glyph: PlayGlyphView())
     private let datePill = SquircleView()
     private let dateLabel = UILabel()
+    private lazy var playback = VideoPlaybackController(services: services, presenter: self)
 
     private var isChromeVisible = false
     private var laidOutSize = CGSize.zero
@@ -65,7 +67,7 @@ final class PhotoViewerViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         buildHierarchy()
-        updateDateLabel()
+        updateForCurrentPhoto()
         setChrome(visible: false, animated: false)
     }
 
@@ -143,7 +145,22 @@ final class PhotoViewerViewController: UIViewController {
         moreButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(moreButton)
 
+        playButton.isHidden = true
+        playButton.addTarget(self, action: #selector(playVideo), for: .touchUpInside)
+        playButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(playButton)
+
+        playback.onBusyChanged = { [weak self] busy in
+            self?.playButton.isUserInteractionEnabled = !busy
+            self?.playButton.alpha = busy ? 0.5 : 1
+        }
+
         NSLayoutConstraint.activate([
+            playButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            playButton.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            playButton.widthAnchor.constraint(equalToConstant: 64),
+            playButton.heightAnchor.constraint(equalToConstant: 64),
+
             closeButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             closeButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
                                                  constant: 12),
@@ -180,13 +197,14 @@ final class PhotoViewerViewController: UIViewController {
             return
         }
         currentIndexPath = path
-        updateDateLabel()
+        updateForCurrentPhoto()
     }
 
-    private func updateDateLabel() {
+    private func updateForCurrentPhoto() {
         guard let photo = timeline.photoIfPresent(at: currentIndexPath) else { return }
         currentPhotoId = photo.id
         dateLabel.text = PhotoDateFormatter.string(from: photo.captureDate)
+        playButton.isHidden = !photo.isVideo
     }
 
     func timelineDidChange() {
@@ -212,7 +230,7 @@ final class PhotoViewerViewController: UIViewController {
         collectionView.layoutIfNeeded()
         collectionView.scrollToItem(at: path, at: .centeredHorizontally, animated: false)
         isAdjustingLayout = false
-        updateDateLabel()
+        updateForCurrentPhoto()
     }
 
     private func setChrome(visible: Bool, animated: Bool) {
@@ -249,6 +267,11 @@ final class PhotoViewerViewController: UIViewController {
         card.present(over: self)
     }
 
+    @objc private func playVideo() {
+        guard let photo = timeline.photoIfPresent(at: currentIndexPath), photo.isVideo else { return }
+        playback.play(itemId: photo.id)
+    }
+
     @objc private func close() {
         dismiss(animated: true, completion: nil)
     }
@@ -260,6 +283,7 @@ final class PhotoViewerViewController: UIViewController {
         case .began:
             collectionView.isScrollEnabled = false
             setChrome(visible: false, animated: true)
+            UIView.animate(withDuration: 0.2) { self.playButton.alpha = 0 }
 
         case .changed:
             let progress = min(1, max(0, translation.y / (view.bounds.height * 0.6)))
@@ -282,6 +306,7 @@ final class PhotoViewerViewController: UIViewController {
                            animations: {
                             self.collectionView.transform = .identity
                             self.backdrop.alpha = 1
+                            self.playButton.alpha = 1
                            },
                            completion: nil)
 
@@ -363,6 +388,7 @@ extension PhotoViewerViewController: ZoomTransitionEndpoint {
 
     func zoomTransitionSetHidden(_ hidden: Bool) {
         collectionView.isHidden = hidden
+        playButton.alpha = hidden ? 0 : 1
     }
 }
 

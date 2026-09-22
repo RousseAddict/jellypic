@@ -53,6 +53,12 @@ protocol JellyfinAPI: AnyObject {
 
     func originalFileSize(itemId: String, completion: @escaping (Int64?) -> Void) -> URLSessionTask?
 
+    func playbackInfo(itemId: String,
+                      deviceProfile: [String: Any],
+                      completion: @escaping (Result<PlaybackInfoResponse, JellyfinError>) -> Void) -> URLSessionTask?
+
+    func directPlayURL(itemId: String, mediaSourceId: String?, playSessionId: String?) -> URL?
+
     func downloadOriginal(itemId: String,
                           fileName: String,
                           progress: @escaping (Int64, Int64) -> Void,

@@ -53,6 +53,7 @@
 		1A0000000000000000000012E /* MapViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011D /* MapViewController.swift */; };
 		1A0000000000000000000012F /* PhotoMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011E /* PhotoMarkerView.swift */; };
 		1A00000000000000000000130 /* PhotoBucketViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011F /* PhotoBucketViewController.swift */; };
+		1A00000000000000000000132 /* VideoPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000131 /* VideoPlayback.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -104,6 +105,7 @@
 		1A0000000000000000000011D /* MapViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapViewController.swift; sourceTree = "<group>"; };
 		1A0000000000000000000011E /* PhotoMarkerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMarkerView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000011F /* PhotoBucketViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBucketViewController.swift; sourceTree = "<group>"; };
+		1A00000000000000000000131 /* VideoPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayback.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -215,6 +217,7 @@
 				1A0000000000000000000011A /* PhotoDetailsViewController.swift */,
 				1A00000000000000000000117 /* ZoomablePhotoCell.swift */,
 				1A00000000000000000000118 /* ZoomTransition.swift */,
+				1A00000000000000000000131 /* VideoPlayback.swift */,
 			);
 			path = Viewer;
 			sourceTree = "<group>";
@@ -380,6 +383,7 @@
 				1A0000000000000000000012E /* MapViewController.swift in Sources */,
 				1A0000000000000000000012F /* PhotoMarkerView.swift in Sources */,
 				1A00000000000000000000130 /* PhotoBucketViewController.swift in Sources */,
+				1A00000000000000000000132 /* VideoPlayback.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

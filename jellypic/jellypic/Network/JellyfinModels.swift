@@ -173,6 +173,51 @@ struct PhotoDetailsDTO: Decodable {
     }
 }
 
+struct MediaSourceDTO: Decodable {
+    let id: String?
+    let container: String?
+    let supportsDirectPlay: Bool?
+    let supportsDirectStream: Bool?
+    let supportsTranscoding: Bool?
+    let transcodingUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "Id"
+        case container = "Container"
+        case supportsDirectPlay = "SupportsDirectPlay"
+        case supportsDirectStream = "SupportsDirectStream"
+        case supportsTranscoding = "SupportsTranscoding"
+        case transcodingUrl = "TranscodingUrl"
+    }
+
+    var transcodeReasons: [String] {
+        guard let raw = transcodingUrl,
+              let components = URLComponents(string: raw),
+              let value = components.queryItems?.first(where: {
+                  $0.name.caseInsensitiveCompare("TranscodeReasons") == .orderedSame
+              })?.value else { return [] }
+        return value.components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+}
+
+struct PlaybackInfoResponse: Decodable {
+    let mediaSources: [MediaSourceDTO]
+    let playSessionId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case mediaSources = "MediaSources"
+        case playSessionId = "PlaySessionId"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mediaSources = try container.decodeIfPresent([MediaSourceDTO].self, forKey: .mediaSources) ?? []
+        playSessionId = try container.decodeIfPresent(String.self, forKey: .playSessionId)
+    }
+}
+
 struct QueryResult<Element: Decodable>: Decodable {
     let items: [Element]
     let totalRecordCount: Int
