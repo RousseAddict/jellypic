@@ -42,7 +42,8 @@ protocol JellyfinAPI: AnyObject {
                 startIndex: Int,
                 limit: Int,
                 includeTotalCount: Bool,
-                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void) -> URLSessionTask?
+                minDateLastSaved: Date?,
+                completion: @escaping (Result<PhotoPage, JellyfinError>) -> Void) -> URLSessionTask?
 
     func imageRequest(itemId: String, tag: String?, fillPixels: Int) -> URLRequest?
 

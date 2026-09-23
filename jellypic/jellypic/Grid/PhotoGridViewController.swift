@@ -6,6 +6,7 @@ final class PhotoGridViewController: UIViewController {
     private static let scrubberInset: CGFloat = 72
     private static let brandFadeDistance: CGFloat = 40
     private static let brandMarkSide: CGFloat = 22
+    private static let refreshLookback: TimeInterval = 48 * 60 * 60
 
     private let services: AppServices
 
@@ -14,6 +15,7 @@ final class PhotoGridViewController: UIViewController {
     private let settingsButton = GlyphButton(glyph: PersonGlyphView(), prominent: true)
     private let mapButton = GlyphButton(glyph: MapGlyphView(), prominent: true)
     private let banner = SyncBannerView()
+    private let refreshControl = UIRefreshControl()
     private let brand = UIStackView()
     private let brandLabel = UILabel()
     private let emptyLabel = UILabel()
@@ -60,6 +62,10 @@ final class PhotoGridViewController: UIViewController {
                                                selector: #selector(sessionDidExpire),
                                                name: AppServices.sessionExpiredNotification,
                                                object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(catchUp),
+                                               name: UIApplication.didBecomeActiveNotification,
+                                               object: nil)
 
         applyPalette()
         refreshEmptyState()
@@ -72,6 +78,7 @@ final class PhotoGridViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         startSync()
+        catchUp()
         introduceScrubber()
     }
 
@@ -99,6 +106,8 @@ final class PhotoGridViewController: UIViewController {
                                                    left: 0,
                                                    bottom: 0,
                                                    right: 0)
+        refreshControl.addTarget(self, action: #selector(pullToRefresh), for: .valueChanged)
+        collectionView.refreshControl = refreshControl
         view.addSubview(collectionView)
 
         emptyLabel.font = Typography.body
@@ -297,6 +306,22 @@ final class PhotoGridViewController: UIViewController {
         }
     }
 
+    @objc private func catchUp() {
+        guard let libraryId = Preferences.libraryId else { return }
+        services.sync.catchUp(libraryId: libraryId)
+    }
+
+    @objc private func pullToRefresh() {
+        guard let libraryId = Preferences.libraryId else {
+            refreshControl.endRefreshing()
+            return
+        }
+        services.sync.catchUp(libraryId: libraryId,
+                              lookback: PhotoGridViewController.refreshLookback) { [weak self] in
+            self?.refreshControl.endRefreshing()
+        }
+    }
+
     private func bannerTapped() {
         if isSessionExpired {
             presentReauth()
@@ -387,6 +412,7 @@ final class PhotoGridViewController: UIViewController {
         let settings = SettingsViewController(services: services)
         settings.onSignedOut = { [weak self] in self?.onSignedOut?() }
         settings.onResyncRequested = { [weak self] in self?.restartSync() }
+        settings.onDismissed = { [weak self] in self?.catchUp() }
         settings.present(over: self)
     }
 

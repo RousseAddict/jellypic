@@ -281,6 +281,119 @@ store. It is harmless in both real callers — `AppServices.signOut` wipes the
 index *after* a network round trip, so the write lands before the wipe, and
 `SyncEngine.start`'s library change is guarded by `!isRunning`.
 
+## 5.4 Catch-up: the one request that picks up what the writer sent
+
+The full sync is the only thing that ever wrote to the index, and it
+short-circuits on `syncCompleted`. That was fine while the app could only read;
+once it could *create* an item (docs/12), the only way to see one's own upload
+was Settings → Resync — 39 pages and 7 710 re-upserts on an A7. `catchUp` is the
+cheap alternative: one request, no banner, no timer.
+
+**`minDateLastSaved`, not `DateCreated`.** `DateCreated` is EXIF-derived for
+photos (`Emby.Photos/PhotoProvider.cs` sets
+`item.DateCreated = dateTaken.ToUniversalTime()`), so a 2014 photo uploaded
+today sorts into the middle of the library and a "newest first" scan would never
+reach it. Ascending `DateCreated` on the live library starts at
+`1970-01-01T05:00:00Z`. `minDateLastSaved` is a real server-side filter and
+composes with the existing `sortBy=PremiereDate,SortName`: measured against the
+server, `minDateLastSaved=2026-09-23T00:00:00.0000000Z` returned exactly 2 items
+of 7 712 and a far-future value returned 0. Nothing is persisted from the
+catch-up that is not already persisted by a sync page, so
+`PhotoModel.schemaVersion` does not move and nobody re-syncs 20 000 rows.
+
+**`DateLastSaved` is a filter you can send, NOT a field you can read back.**
+This cost a whole first implementation. `fields=DateLastSaved` changes nothing:
+the item JSON simply has no such key. Measured, the complete key set of an item
+from this query is
+
+```
+BackdropImageTags, ChannelId, DateCreated, Id, ImageBlurHashes, ImageOrientation,
+ImageTags, LocationType, MediaType, Name, ServerId, Type, UserData
+```
+
+so a `dateLastSaved` on `PhotoDTO` decodes to `nil` for every item, forever, and
+a watermark derived from it can never move. **Do not put it back.** `sortBy=DateLastSaved`
+is equally inert — it silently falls back to name order, which is what makes this
+look like it works when you eyeball the first page.
+
+**So the watermark is the server's own clock, read from the `Date` response
+header** (`Date: Wed, 23 Sep 2026 20:42:11 GMT`, verified present). Server clock
+rather than `Date()` on purpose: the value is compared server-side against
+`DateLastSaved`, so a device clock running *ahead* would skip a window
+permanently, and silently. The device clock is now read nowhere in this feature.
+
+The committed value is the server time of the **first** page of the run, not the
+last, and it is committed only once the run ends cleanly. Anything saved while
+the run was in flight therefore falls inside the next run rather than between
+two of them. A full sync commits it too, at `syncCompleted`, so a Resync always
+repairs a bad watermark.
+
+An install with a completed sync and no watermark seeds itself with a `limit=1`
+request whose items are discarded — it is there purely to read the `Date`
+header. That is one cheap request, once per install, and it is what removed the
+last device-clock read.
+
+The filter is inclusive, so every catch-up re-fetches the single newest item.
+That is deliberate rather than tolerated: `upsert` is idempotent, and the
+alternative — storing watermark + 1 tick — is how an item that landed on the
+same tick gets lost forever.
+
+**Paging.** One page is the normal case. It loops only while a page comes back
+full, advancing `startIndex` within the *same* `minDateLastSaved`. Holding the
+filter still is what makes a W4 queue landing 250 photos arrive whole; a
+mid-loop failure just leaves the watermark low and the next catch-up redoes
+idempotent work, which is the safe direction to fail in.
+
+**It is silent, and shares the engine's existing discipline.** It takes
+`isRunning` (so it can never race the full sync, and a duplicate call is a
+no-op), bumps `runToken` and stores its `pageTask`, so `cancel()` and the
+stale-callback checks of §5.3 apply unchanged. It never calls `onFinish` —
+that closure drives the grid's sync banner, and a background top-up must not put
+a banner on screen. It does not touch `syncStartIndex` or `syncCompleted`: it is
+not a sync run. The new rows reach the UI through `store.upsert`, the FRC and the
+grid's existing coalesced reload, so there is no new UI path at all.
+
+Failures are ignored, exactly like the `libraries()` launch probe of docs/04 §6:
+an unreachable server must not produce a banner, and a 401 is already handled by
+`JellyfinClient.onTokenRejected`.
+
+### Triggers, and the one that was missing
+
+The grid fires it from `viewDidAppear`, from
+`UIApplication.didBecomeActiveNotification`, and from the settings card's
+`onDismissed`. The third is not decoration — **it is why the feature shipped
+broken the first time.**
+
+`CardSheetViewController.present(over:)` is child-VC containment
+(`parent.addChild` + `addSubview`), not a modal presentation. The grid therefore
+never disappears behind the settings card, and closing the card fires **no**
+appearance callback on the grid. Combined with the seeding path returning
+without a request, a fresh install that sent a photo and closed the card made
+*zero* catch-up requests, forever, until the app was backgrounded. Nothing in
+the UI could explain it — the same failure shape as §5.3's stuck `isRunning`.
+
+The other two are both still needed and neither is redundant: `didBecomeActive`
+does not fire when returning from the viewer, and `viewDidAppear` does not fire
+on a foreground with the grid already up. Cold launch fires two of them, and the
+`!isRunning` guard makes the second a no-op.
+
+### Pull to refresh
+
+A plain `UIRefreshControl` on the collection view, running the same catch-up
+with a **48-hour lookback** subtracted from the watermark. It is the manual
+escape hatch: the automatic path can only ever move forward, so without a
+lookback a pull could not recover anything the watermark had already passed —
+including the seeding gap on a fresh install, which is precisely the state a
+user reaches for a refresh gesture in. On an install with no watermark at all
+the pull seeds first and then immediately runs the looked-back page, so a pull
+is never a no-op.
+
+The spinner is the only feedback, and `SyncBannerView` is deliberately left
+alone: docs/07 §4.2 gives the banner to the expired session, and a routine
+refresh must not compete for that corner. A failed refresh just ends the
+spinner. `cancel()` fires the pending completion as well, so a sign-out mid-pull
+cannot strand it.
+
 ## 6. Not `NSBatchInsertRequest`
 
 The obvious fast path for 20 000 rows is `NSBatchInsertRequest`. It is iOS 13+,
@@ -293,6 +406,8 @@ what is left, and at 200 rows a page the fetch is one indexed `IN` query.
 - No deletion detection: an item removed from the server stays in the index
   until a full resync. Needs a "seen this run" marker or a total-count
   comparison.
-- No incremental sync. A refresh re-walks everything. Jellyfin has no
-  "changed since" filter on `/Items`, so the cheap version would be to trust
-  `TotalRecordCount` and only re-walk when it moves.
+- No incremental sync in the general sense. §5.4's catch-up covers what the
+  server saves *after* the watermark, which is exactly the writer's own uploads;
+  anything added to the library by other means before the watermark still needs
+  a full Resync. The claim that once stood here — that Jellyfin has no "changed
+  since" filter on `/Items` — was wrong: `minDateLastSaved` is one.

@@ -264,6 +264,15 @@ resync then shows the photo in the grid, and opening it shows the real original 
 re-encode. Sending the same photo twice returns `created: false` and produces no second
 file.*
 
+W2's second half — *the photo appears* — no longer costs a resync. The reader gained a
+one-request catch-up on `minDateLastSaved` (docs/06 §5.4), fired from the grid's
+`viewDidAppear`, from `didBecomeActive` and from the settings card's `onDismissed`, plus a
+pull-to-refresh with a 48-hour lookback. The send alert says the photo is not there yet
+rather than implying it is: the server's `LibraryMonitorDelay` is 60 s on this library and
+no client-side trick beats it. This is a top-up, not a proof of the library — **W6's
+`Have` reconciliation is still the only thing that establishes what the server does and
+does not have.**
+
 **W3 — the picker.** The biggest piece of UI in the writer: a `PHFetchResult`-backed grid
 with multi-selection. Design ratified in chat, §10 below.
 

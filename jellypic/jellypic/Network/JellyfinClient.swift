@@ -102,12 +102,13 @@ final class JellyfinClient: JellyfinAPI {
                 startIndex: Int,
                 limit: Int,
                 includeTotalCount: Bool,
-                completion: @escaping (Result<QueryResult<PhotoDTO>, JellyfinError>) -> Void) -> URLSessionTask? {
+                minDateLastSaved: Date?,
+                completion: @escaping (Result<PhotoPage, JellyfinError>) -> Void) -> URLSessionTask? {
         guard let credentials = credentials else {
             completion(.failure(.notAuthenticated))
             return nil
         }
-        let query = [
+        var query = [
             URLQueryItem(name: "userId", value: credentials.userId),
             URLQueryItem(name: "parentId", value: libraryId),
             URLQueryItem(name: "recursive", value: "true"),
@@ -123,6 +124,10 @@ final class JellyfinClient: JellyfinAPI {
             URLQueryItem(name: "startIndex", value: String(startIndex)),
             URLQueryItem(name: "limit", value: String(limit))
         ]
+        if let minDateLastSaved = minDateLastSaved {
+            query.append(URLQueryItem(name: "minDateLastSaved",
+                                      value: JellyfinDate.format(minDateLastSaved)))
+        }
         guard let request = makeRequest(baseURL: credentials.baseURL,
                                         path: "Items",
                                         query: query,
@@ -130,7 +135,11 @@ final class JellyfinClient: JellyfinAPI {
             completion(.failure(.invalidServerURL))
             return nil
         }
-        return perform(request, as: QueryResult<PhotoDTO>.self, completion: completion)
+        return perform(request, as: QueryResult<PhotoDTO>.self, mapping: { result, response in
+            PhotoPage(items: result.items,
+                      totalRecordCount: result.totalRecordCount,
+                      serverDate: JellyfinClient.serverDate(from: response))
+        }, completion: completion)
     }
 
     func imageRequest(itemId: String, tag: String?, fillPixels: Int) -> URLRequest? {
@@ -366,6 +375,13 @@ final class JellyfinClient: JellyfinAPI {
     private func perform<T: Decodable>(_ request: URLRequest,
                                        as type: T.Type,
                                        completion: @escaping (Result<T, JellyfinError>) -> Void) -> URLSessionTask {
+        return perform(request, as: type, mapping: { value, _ in value }, completion: completion)
+    }
+
+    private func perform<T: Decodable, R>(_ request: URLRequest,
+                                          as type: T.Type,
+                                          mapping: @escaping (T, HTTPURLResponse?) -> R,
+                                          completion: @escaping (Result<R, JellyfinError>) -> Void) -> URLSessionTask {
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             if let failure = self.failure(response: response, error: error) {
@@ -379,13 +395,18 @@ final class JellyfinClient: JellyfinAPI {
             }
             do {
                 let value = try self.decoder.decode(T.self, from: data)
-                self.finish(.success(value), completion)
+                self.finish(.success(mapping(value, response as? HTTPURLResponse)), completion)
             } catch {
                 self.finish(.failure(.decoding(error)), completion)
             }
         }
         task.resume()
         return task
+    }
+
+    private static func serverDate(from response: HTTPURLResponse?) -> Date? {
+        guard let raw = response?.allHeaderFields["Date"] as? String else { return nil }
+        return JellyfinDate.parseHeader(raw)
     }
 
     private func performIgnoringBody(_ request: URLRequest,

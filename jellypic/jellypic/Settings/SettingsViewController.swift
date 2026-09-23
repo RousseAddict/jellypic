@@ -206,7 +206,7 @@ final class SettingsViewController: CardSheetViewController {
             case .success(let receipt):
                 self.report(title: receipt.created ? "Sent" : "Already there",
                             message: receipt.created
-                                ? "Filed as \(receipt.path)."
+                                ? "Filed as \(receipt.path).\n\nYour server picks up new photos after about a minute; Jellypic will show it the next time you open the grid."
                                 : "Your server already had this photo, as \(receipt.path).")
             case .failure(let failure):
                 self.report(title: "Not sent", message: SettingsViewController.sendFailureText(failure))

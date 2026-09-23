@@ -99,6 +99,12 @@ struct PhotoDTO: Decodable {
     }
 }
 
+struct PhotoPage {
+    let items: [PhotoDTO]
+    let totalRecordCount: Int
+    let serverDate: Date?
+}
+
 struct PhotoDetailsDTO: Decodable {
     let name: String?
     let path: String?

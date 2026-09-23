@@ -10,6 +10,14 @@ enum JellyfinDate {
         return plain.date(from: normalized)
     }
 
+    static func format(_ date: Date) -> String {
+        return fractional.string(from: date)
+    }
+
+    static func parseHeader(_ raw: String) -> Date? {
+        return httpDate.date(from: raw)
+    }
+
     static func normalize(_ raw: String) -> String {
         var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return value }
@@ -51,6 +59,14 @@ enum JellyfinDate {
     private static let fractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let httpDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
         return formatter
     }()
 
