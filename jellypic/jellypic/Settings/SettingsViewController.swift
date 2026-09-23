@@ -10,6 +10,10 @@ final class SettingsViewController: CardSheetViewController {
     private let serverLabel = UILabel()
     private let indexLabel = UILabel()
 
+    private let backupControl = UISegmentedControl()
+    private let backupNote = SettingsNoteView()
+    private let backupModes: [BackupMode] = [.off, .manual, .automatic]
+
     private let themeControl = UISegmentedControl()
     private let cacheRow = SettingsRowView()
     private let resyncRow = SettingsRowView()
@@ -35,10 +39,12 @@ final class SettingsViewController: CardSheetViewController {
         buildHierarchy()
         applyPalette()
         render()
+        services.upload.refreshAvailability { [weak self] in self?.renderBackup() }
     }
 
     private func buildHierarchy() {
         buildIdentity()
+        buildBackupControl()
         buildThemeControl()
 
         cacheRow.title = "Image cache"
@@ -51,6 +57,8 @@ final class SettingsViewController: CardSheetViewController {
         signOutRow.isDestructive = true
         signOutRow.addTarget(self, action: #selector(confirmSignOut), for: .touchUpInside)
 
+        body.addArrangedSubview(section("Backup",
+                                        SettingsGroupView(rows: [backupControl, backupNote], padding: 8)))
         body.addArrangedSubview(section("Appearance",
                                         SettingsGroupView(rows: [themeControl], padding: 8)))
         body.addArrangedSubview(section("Storage",
@@ -93,6 +101,14 @@ final class SettingsViewController: CardSheetViewController {
         return stack
     }
 
+    private func buildBackupControl() {
+        for (index, title) in ["Off", "Manual", "Automatic"].enumerated() {
+            backupControl.insertSegment(withTitle: title, at: index, animated: false)
+        }
+        backupControl.selectedSegmentIndex = backupModes.firstIndex(of: services.upload.mode) ?? 0
+        backupControl.addTarget(self, action: #selector(backupModeChanged), for: .valueChanged)
+    }
+
     private func buildThemeControl() {
         var modes: [ThemeMode] = [.light, .dark]
         var titles = ["Light", "Dark"]
@@ -122,6 +138,32 @@ final class SettingsViewController: CardSheetViewController {
             ? "\(indexed) photos indexed"
             : "\(indexed) of \(total) photos indexed"
         cacheRow.detail = SettingsViewController.sizeText(services.images.diskUsage())
+        renderBackup()
+    }
+
+    private func renderBackup() {
+        backupControl.isEnabled = services.upload.availability.allowsChanges
+        backupNote.text = backupNoteText()
+    }
+
+    private func backupNoteText() -> String {
+        switch services.upload.availability {
+        case .notInstalled:
+            return "Requires the upload plugin on your server"
+        case .incompatible:
+            return "Update the upload plugin on your server"
+        case .blocked(let reason):
+            return reason
+        case .unknown, .ready:
+            switch services.upload.mode {
+            case .off:
+                return "Photos taken on this device stay on this device"
+            case .manual:
+                return "Choose photos on the grid to send them"
+            case .automatic:
+                return "New photos are sent in the background"
+            }
+        }
     }
 
     private static func sizeText(_ bytes: Int64) -> String {
@@ -129,6 +171,13 @@ final class SettingsViewController: CardSheetViewController {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
+    }
+
+    @objc private func backupModeChanged() {
+        let index = backupControl.selectedSegmentIndex
+        guard index >= 0, index < backupModes.count else { return }
+        services.upload.mode = backupModes[index]
+        renderBackup()
     }
 
     @objc private func themeChanged() {
@@ -195,8 +244,10 @@ final class SettingsViewController: CardSheetViewController {
         for label in sectionLabels {
             label.textColor = palette.textSecondary
         }
-        themeControl.tintColor = palette.accent
-        themeControl.backgroundColor = palette.surface
+        for control in [backupControl, themeControl] {
+            control.tintColor = palette.accent
+            control.backgroundColor = palette.surface
+        }
         view.applyThemeRecursively(palette)
     }
 }
@@ -270,6 +321,43 @@ final class SettingsGroupView: UIView, Themed {
         for line in separators {
             line.backgroundColor = palette.separator
         }
+    }
+}
+
+final class SettingsNoteView: UIView, Themed {
+
+    private let label = UILabel()
+
+    var text: String? {
+        didSet { label.text = text }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+
+        label.font = Typography.caption
+        label.adjustsFontForContentSizeCategory = true
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10)
+        ])
+
+        applyTheme(Theme.palette)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    func applyTheme(_ palette: ThemePalette) {
+        label.textColor = palette.textSecondary
     }
 }
 

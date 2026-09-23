@@ -357,26 +357,9 @@ final class JellyfinClient: JellyfinAPI {
 
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue(authorizationHeader(token: token), forHTTPHeaderField: "Authorization")
+        request.setValue(jellyfinAuthorization(identity: identity, token: token),
+                         forHTTPHeaderField: "Authorization")
         return request
-    }
-
-    private func authorizationHeader(token: String?) -> String {
-        var fields: [String] = []
-        if let token = token {
-            fields.append("Token=\"\(sanitized(token))\"")
-        }
-        fields.append("Client=\"\(sanitized(identity.client))\"")
-        fields.append("Device=\"\(sanitized(identity.device))\"")
-        fields.append("DeviceId=\"\(sanitized(identity.deviceId))\"")
-        fields.append("Version=\"\(sanitized(identity.version))\"")
-        return "MediaBrowser " + fields.joined(separator: ", ")
-    }
-
-    private func sanitized(_ value: String) -> String {
-        let forbidden = CharacterSet(charactersIn: "\"\\,\r\n")
-        let cleaned = value.components(separatedBy: forbidden).joined()
-        return cleaned.isEmpty ? "unknown" : cleaned
     }
 
     @discardableResult

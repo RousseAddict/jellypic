@@ -54,6 +54,9 @@
 		1A0000000000000000000012F /* PhotoMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011E /* PhotoMarkerView.swift */; };
 		1A00000000000000000000130 /* PhotoBucketViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000011F /* PhotoBucketViewController.swift */; };
 		1A00000000000000000000132 /* VideoPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000131 /* VideoPlayback.swift */; };
+		1A00000000000000000000134 /* AuthorizationHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000133 /* AuthorizationHeader.swift */; };
+		1A00000000000000000000136 /* UploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000135 /* UploadService.swift */; };
+		1A00000000000000000000138 /* UploadClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000137 /* UploadClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -106,6 +109,9 @@
 		1A0000000000000000000011E /* PhotoMarkerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMarkerView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000011F /* PhotoBucketViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBucketViewController.swift; sourceTree = "<group>"; };
 		1A00000000000000000000131 /* VideoPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayback.swift; sourceTree = "<group>"; };
+		1A00000000000000000000133 /* AuthorizationHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationHeader.swift; sourceTree = "<group>"; };
+		1A00000000000000000000135 /* UploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadService.swift; sourceTree = "<group>"; };
+		1A00000000000000000000137 /* UploadClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +157,7 @@
 				1A000000000000000000000D2 /* Settings */,
 				1A000000000000000000000D3 /* Viewer */,
 				1A000000000000000000000D4 /* Map */,
+				1A000000000000000000000D5 /* Writer */,
 				1A00000000000000000000B2 /* LaunchScreen.storyboard */,
 				1A00000000000000000000B3 /* Assets.xcassets */,
 				1A00000000000000000000B4 /* Info.plist */,
@@ -168,6 +175,7 @@
 				1A00000000000000000000C2 /* JellyfinDate.swift */,
 				1A00000000000000000000C3 /* ServerURL.swift */,
 				1A0000000000000000000011C /* FileDownloader.swift */,
+				1A00000000000000000000133 /* AuthorizationHeader.swift */,
 			);
 			path = Network;
 			sourceTree = "<group>";
@@ -230,6 +238,15 @@
 				1A0000000000000000000011F /* PhotoBucketViewController.swift */,
 			);
 			path = Map;
+			sourceTree = "<group>";
+		};
+		1A000000000000000000000D5 /* Writer */ = {
+			isa = PBXGroup;
+			children = (
+				1A00000000000000000000135 /* UploadService.swift */,
+				1A00000000000000000000137 /* UploadClient.swift */,
+			);
+			path = Writer;
 			sourceTree = "<group>";
 		};
 		1A00000000000000000000CF /* Index */ = {
@@ -384,6 +401,9 @@
 				1A0000000000000000000012F /* PhotoMarkerView.swift in Sources */,
 				1A00000000000000000000130 /* PhotoBucketViewController.swift in Sources */,
 				1A00000000000000000000132 /* VideoPlayback.swift in Sources */,
+				1A00000000000000000000134 /* AuthorizationHeader.swift in Sources */,
+				1A00000000000000000000136 /* UploadService.swift in Sources */,
+				1A00000000000000000000138 /* UploadClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

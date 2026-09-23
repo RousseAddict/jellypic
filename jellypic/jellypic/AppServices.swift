@@ -11,6 +11,7 @@ final class AppServices {
     let store: PhotoStore
     let sync: SyncEngine
     let images: ImageLoader
+    let upload: UploadService
 
     private init() {
         let authStore = AuthStore()
@@ -26,14 +27,19 @@ final class AppServices {
 
         let store = CoreDataPhotoStore()
 
+        let upload = JellyfinUploadService(identity: identity)
+        upload.credentials = authStore.credentials
+
         self.authStore = authStore
         self.client = client
         self.store = store
         self.sync = SyncEngine(client: client, store: store)
         self.images = ImageLoader(client: client)
+        self.upload = upload
 
         client.onTokenRejected = { [weak self] in self?.expireSession() }
         images.onUnauthorized = { [weak self] in self?.expireSession() }
+        upload.onTokenRejected = { [weak self] in self?.expireSession() }
     }
 
     var hasSession: Bool {
@@ -62,6 +68,7 @@ final class AppServices {
 
         client.credentials = credentials
         client.cachedImageBaseURL = baseURL
+        upload.credentials = credentials
         return status
     }
 
@@ -75,6 +82,7 @@ final class AppServices {
         sync.cancel()
         authStore.clearToken()
         client.credentials = nil
+        upload.credentials = nil
         NotificationCenter.default.post(name: AppServices.sessionExpiredNotification, object: nil)
     }
 
@@ -85,6 +93,8 @@ final class AppServices {
             self.authStore.clear()
             self.client.credentials = nil
             self.client.cachedImageBaseURL = nil
+            self.upload.credentials = nil
+            self.upload.reset()
             self.store.reset()
             self.images.clearCaches()
             Preferences.clearLibrary()
