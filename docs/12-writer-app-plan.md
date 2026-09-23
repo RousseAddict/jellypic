@@ -15,8 +15,13 @@ traps that are already known before a line is written.
   on the only device this can be tested on.
 - **Default scope: the camera roll minus screenshots.** `smartAlbumUserLibrary` minus
   `smartAlbumScreenshots`. Hidden and Recently Deleted are excluded unconditionally.
-- **After a successful upload the app inserts the row into its own index**, from the item
-  id the plugin returns, so the photo appears in the grid within seconds.
+- ~~**After a successful upload the app inserts the row into its own index**, from the item
+  id the plugin returns.~~ **Withdrawn — the plugin cannot return an item id.** Doc 11 §8
+  settles it: filing the bytes and Jellyfin noticing them are separate events, the
+  notification is debounced by `LibraryMonitorDelay` (60 s, restarted by every sibling), so
+  a response carrying an id would promise something the server cannot deliver. The receipt
+  is `{ key, path, created }` and nothing more. How the grid learns about an upload is
+  therefore still open — see §9.
 - **iCloud Photos is off on the target device**, so every original is local. The per-asset
   in-cloud check is still implemented — two lines — so this degrades correctly for someone
   else, but it drives no UI and makes no promise.
@@ -175,6 +180,52 @@ SHA-256 changes. Deletion propagation is out of scope (doc 11 §12), so the supe
 version stays. That is the honest cost of this choice and it is the right trade: keeping
 one too many is recoverable, silently keeping the wrong one is not.
 
+### What W2 actually built, and the four decisions it forced
+
+`Writer/AssetExporter.swift` is the only file in the app that imports `Photos`, and the
+invariant of §2 still holds: `grep -rn "import Photos" jellypic/` returns that one line.
+
+- **`requestData(for:options:dataReceivedHandler:completionHandler:)`, not
+  `writeData(for:toFile:)`.** §5 named the latter, and it is still the right *class* of
+  API — raw resource bytes, no re-encode — but it writes the file itself, which leaves no
+  seam to hash through. The chunked variant hands us each `Data` as it arrives, so the
+  `OutputStream` write and the `CC_SHA256_Update` happen in the same pass, which is what §5
+  promised. Same guarantee about the bytes, one read instead of two.
+- **`CommonCrypto`, not `CryptoKit`.** `CryptoKit` is iOS 13. `import CommonCrypto` has been
+  a first-class Swift module since Xcode 10, needs no bridging header, and ships in the SDK,
+  so the zero-dependency rule survives. This is *not* marked `LEGACY(ios12)`: `CC_SHA256` is
+  not a shim for a missing API, it is a perfectly good one that happens to be older.
+- **`OutputStream`, not `FileHandle`.** On the 12.0 floor `FileHandle.write(_:)` reports a
+  failed write by raising an Objective-C exception, which Swift cannot catch — a full disk
+  would terminate the app. `OutputStream.write(_:maxLength:)` returns the count and exposes
+  `streamError`, and its short-write loop is three lines.
+- **Every `+` in the query is percent-encoded by hand.** `URLQueryItem` does not encode `+`,
+  because it is a legal query character; ASP.NET's model binder then reads it as a space. A
+  `capturedAt` of `2026-09-21T18:42:33+02:00` would arrive as `18:42:33 02:00`, fail to
+  parse, and file the photo under `undated/` — a silent wrong answer, not an error. So the
+  request rewrites `percentEncodedQuery` and replaces `+` with `%2B` after building it,
+  which also covers a `+` in a filename.
+
+Two smaller things settled while building it:
+
+- **The device slug is the hardware model identifier** (`iPhone6,1`), read from `uname`, not
+  `UIDevice.current.name`. The name is user-chosen and routinely contains a person's real
+  name; it would end up in every filename on the server. The plugin slugifies whatever it
+  receives, so `iPhone6,1` lands as `iphone6-1`.
+- **`capturedAt` is sent as a local wall clock with its offset**, formatted
+  `yyyy-MM-dd'T'HH:mm:ssXXXXX` under `en_US_POSIX`. The plugin parses it as a
+  `DateTimeOffset` and then takes `.DateTime`, i.e. it keeps the wall clock and drops the
+  zone — deliberately, per doc 11 §8. Known and accepted residual: `PHAsset.creationDate`
+  is an absolute instant with no capture timezone attached, so a photo taken abroad is
+  rendered in the *current* zone and can land in a neighbouring month's folder. It affects
+  the folder only; Jellyfin reads EXIF for the timeline and the reader sorts on
+  `PremiereDate`. Same class of residual as the video date question measured in doc 10, and
+  the same verdict: do not add a correction on theory.
+
+The staging directory is `Library/Caches/Uploads`, swept on `JellyfinUploadService.init`
+rather than from `AppDelegate` — the sweep is a writer concern and routing it through
+`AppDelegate` would spend one of the four touch points of §2 on a `try?`.
+
 ## 6. The queue
 
 **A temporary file per pending upload is the binding constraint.** 20 000 × 3 MB is 60 GB;
@@ -205,11 +256,13 @@ airplane mode it is NOT greyed; installing the plugin enables it without reinsta
 app.*
 
 **W2 — one photo, end to end.** `UploadService`, `UploadClient`, `PHAssetResourceManager`
-to a temp file, SHA-256 in the same pass, `POST /Items`, then the row inserted into the
-index from the returned item id. Driven from a debug entry point, no picker yet. The plugin
-needs only `Targets` and `Items` at this stage.
-*Device test: the photo appears in the grid in the right month within seconds, and opening
-it shows the real original — not a re-encode.*
+to a temp file, SHA-256 in the same pass, `POST /Items`. Driven from a debug entry point, no
+picker yet. The plugin needs only `Targets` and `Items` at this stage. **No index insertion**
+— see §1: there is no item id to insert from.
+*Device test: the call returns `created: true` with a path in the right month folder; a
+resync then shows the photo in the grid, and opening it shows the real original — not a
+re-encode. Sending the same photo twice returns `created: false` and produces no second
+file.*
 
 **W3 — the picker.** The biggest piece of UI in the writer: a `PHFetchResult`-backed grid
 with multi-selection. Design ratified in chat, §10 below.
@@ -259,6 +312,19 @@ when the SDK rises.
 
 ## 9. Still open
 
+- **How the grid learns about a photo it just sent.** The plugin returns no item id (§1) and
+  the reader has no incremental sync, so today the answer is "at the next resync". The
+  options, none chosen: a single targeted `/Items` query after a run, keyed on the 16 hex
+  characters the filename carries, once the debounced scan has had time to fire; or
+  `POST /Library/Media/Updated` to skip the debounce and then query. Both cost a round trip
+  and a delay, and neither is worth designing before W4 makes "a run" a thing that ends.
+- **The local hash memo of doc 11 §5** (`localIdentifier + modificationDate → sha256`) is
+  not built. W2 hashes one photo on demand; the memo only pays for itself once W4 retries
+  and W6 reconciles.
+- **The background `URLSession` is not in yet.** W2 uploads from a foreground session with a
+  one-hour resource timeout. W4 owns the switch, and it is not a drop-in: a background
+  session forbids the per-task completion handler this code uses, so `UploadClient` gains a
+  delegate then. The `upload(_:targetId:completion:)` signature is meant to survive it.
 - Live Photos, bursts, albums, and deletion propagation are out of scope for v1 by doc 11
   §12; each is a contract change before it is an app change.
 

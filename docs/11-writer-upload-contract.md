@@ -91,11 +91,32 @@ Returns, for each photo library the plugin is configured for and the caller may 
 ```
 
 `reason` when `writable` is false: `READ_ONLY_MOUNT`, `PERMISSION_DENIED`, `PATH_MISSING`,
-`NOT_CONFIGURED`.
+`NOT_CONFIGURED`, `WRITE_FAILED`. The last one was added when the plugin was written: the
+first four are diagnoses, and a catch-all that pretends to be one of them would be a lie
+told to the user. The app already renders an unknown code as a generic refusal, so it
+needs no change to absorb a sixth.
+
+`freeBytes` is absent when it cannot be determined, and so is `reason` when `writable` is
+true: the server omits null fields.
+
+**Every field name is lowercase on the wire, and the plugin pins it there with explicit
+serializer attributes.** Jellyfin serves plain `application/json` with its *PascalCase*
+formatter — the camelCase one answers only to `application/json; profile="CamelCase"` —
+so an unannotated DTO would send `Targets`/`Id`/`Writable` and the app, decoding nothing,
+would report a version mismatch instead of a casing one.
+
+The listed targets are **the libraries the caller can see**, not only the writable ones. A
+library the administrator has not opted in appears with `NOT_CONFIGURED`, so the app can
+name it; an empty array means the caller can see no photo library at all.
 
 The probe creates and deletes a temporary file **in the target root**, every time the
 endpoint is called. It is not cached for the process lifetime: volumes get remounted and
-disks fill.
+disks fill. The file name is dot-prefixed, so the scanner's own hidden-file pattern covers
+the microsecond it exists.
+
+A library may have several physical folders. **v1 uses the first that exists**, and the
+same function resolves it for the probe and for the upload, so a preflight can never
+validate one directory and the upload write to another.
 
 The absolute server path is **not** returned. The app never needs it, and it would leak
 host layout to a non-administrator.
@@ -180,11 +201,28 @@ Content-Type: image/heic
 
 201  { "key": "…", "path": "2026/2026-09/…", "created": true  }
 200  { "key": "…", "path": "2026/2026-09/…", "created": false }   // idempotent replay
+4xx  { "code": "HASH_MISMATCH" }
 ```
+
+Every error body is that one object, and `code` is the name in the §10 table. Same casing
+rule as §4: lowercase, pinned by an explicit serializer attribute.
 
 `capturedAt` is used **only to choose the folder**. Jellyfin still reads EXIF itself for
 the timeline, and the reader still sorts on `PremiereDate` (doc 04). We are not a metadata
-source.
+source. It is optional; absent or unparseable sends the photo to `undated/`, named
+`<deviceSlug>_<16 hex>.<ext>` since there is no timestamp to lead with — unparseable, not
+`400`, because that is the same bucket the reader already uses for a photo without a date.
+
+**It is the wall clock at the shutter, and the offset is read and then dropped.** EXIF has
+no timezone and the plugin is choosing a folder to match it. Converting to UTC would move a
+photo taken near midnight into the neighbouring month, which is precisely the bug the video
+work measured for in doc 10.
+
+**`fileName` contributes its extension and nothing else.** The name on disk is rebuilt
+from validated components (§7), and the extension is taken from a fixed allowlist of
+photo and video types. That allowlist is a write-path guard, not a formality: `.nfo` and
+`.xml` are files Jellyfin *interprets* inside a media folder, so an unrestricted extension
+would let any authenticated user plant metadata. Anything else → `422 UNSUPPORTED_TYPE`.
 
 Write algorithm:
 
@@ -194,9 +232,26 @@ Write algorithm:
    that this is an atomic rename rather than a copy across filesystems.
 4. Notify the library of the new path.
 
+A zero-byte body is refused with `422 EMPTY_BODY` rather than allowed to pass the hash
+check by declaring the hash of nothing. Truncation is caught by step 2; emptiness is the
+one length the hash cannot flag on its own.
+
 **Trap: ASP.NET's default request body limit is ~30 MB.** A 4K video sails past it and the
-client gets a `413` that looks like a policy refusal. The endpoint must lift the limit
-explicitly, and the plugin must document the Kestrel-level ceiling.
+client gets a `413` that looks like a policy refusal. Nothing in Jellyfin raises it —
+`Jellyfin.Server/Extensions/WebHostBuilderExtensions.cs:SetupJellyfinWebServer` never
+touches `KestrelServerOptions.Limits`, so Kestrel's own default stands. The fix is an MVC
+attribute on the action, the same mechanism core uses to *lower* it
+(`ClientLogController.LogFile` carries `[RequestSizeLimit(MaxDocumentSize)]`). **The
+plugin's ceiling is 4 GiB**, declared rather than removed: an authenticated caller should
+not be able to open an unbounded write onto the host.
+
+**The 201 does not promise the photo is visible in Jellyfin yet**, and the response shape
+is what says so — it returns the key and the relative path, never an item id. Notifying
+the library queues a *debounced* refresh: `FileRefresher.RestartTimer` waits
+`ServerConfiguration.LibraryMonitorDelay`, **60 seconds by default**, and every sibling
+path arriving in the same folder restarts that timer. During a 20 000-photo backup the
+scan therefore fires once, after the run, rather than 20 000 times — which is the
+behaviour we want, but it means the app must not wait on it.
 
 ## 9. The staging directory, and two independent reasons the scanner ignores it
 
@@ -218,6 +273,15 @@ mechanisms, neither depending on the other.
 (This also settles a question open since August in doc 01 §9: **10.11 does honour
 `.ignore`.**)
 
+There is a third mechanism, and it is the one to *avoid*. `LibraryMonitor` keeps a
+`_tempIgnoredPaths` set for "I am writing this myself": `ReportFileSystemChangeBeginning`
+adds a path, `ReportFileSystemChangeComplete` removes it — but only after
+`await Task.Delay(45000)`, a hard-coded 45 seconds. Bracketing an upload in that pair
+would silence the very path we then ask the library to notice, for three quarters of a
+minute per photo. **The plugin does not use the pair.** The staging directory is already
+covered twice over, and the destination is announced with a bare `ReportFileSystemChanged`
+after the rename.
+
 ## 10. Error taxonomy: terminal versus retryable
 
 This belongs in the contract from the first line, because it is what stops a read-only
@@ -229,6 +293,9 @@ mount from producing 20 000 retries.
 | `409 TARGET_NOT_WRITABLE` | filesystem refused | **terminal for the whole queue**, banner, re-run preflight |
 | `507 INSUFFICIENT_STORAGE` | disk full | **terminal for the whole queue**, banner |
 | `422 HASH_MISMATCH` | bytes corrupted in transit | retry this item once, then terminal for this item |
+| `422 UNSUPPORTED_TYPE` | extension not on the allowlist | terminal for this item |
+| `422 EMPTY_BODY` | zero bytes received | terminal for this item |
+| `400 BAD_REQUEST` | a query parameter is malformed | terminal for this item — it is a client bug |
 | `413` | above the body limit | terminal for this item |
 | `404 UNKNOWN_TARGET` | library removed or unconfigured | terminal, re-run preflight |
 | `5xx`, timeout | transient | retry with backoff |
@@ -247,6 +314,14 @@ Jellyfin has no built-in "may upload photos" policy, so the plugin defines its o
 
 That default is the point: **installing the plugin must not, by itself, open a write
 surface on the host.** An administrator opts one library in, deliberately.
+
+And opting in is a checkbox, not a command. The plugin ships a dashboard configuration
+page listing every candidate library with the folder it would write to and a live write
+probe; ticking one and saving is the entire setup. This is a contract clause rather than a
+plugin detail because it is what makes the pair installable by someone who did not write
+it: a setup step that requires a hand-built `curl` against the configuration API is a
+setup step most people will not complete, and the app has no way to tell that apart from a
+server that refuses uploads.
 
 ## 12. Out of scope for v1
 

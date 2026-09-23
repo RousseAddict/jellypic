@@ -12,7 +12,10 @@ final class SettingsViewController: CardSheetViewController {
 
     private let backupControl = UISegmentedControl()
     private let backupNote = SettingsNoteView()
+    private let sendRow = SettingsRowView()
     private let backupModes: [BackupMode] = [.off, .manual, .automatic]
+
+    private lazy var sendGroup = SettingsGroupView(rows: [sendRow], padding: 0)
 
     private let themeControl = UISegmentedControl()
     private let cacheRow = SettingsRowView()
@@ -47,6 +50,9 @@ final class SettingsViewController: CardSheetViewController {
         buildBackupControl()
         buildThemeControl()
 
+        sendRow.title = "Send my latest photo"
+        sendRow.addTarget(self, action: #selector(sendLatestPhoto), for: .touchUpInside)
+
         cacheRow.title = "Image cache"
         cacheRow.addTarget(self, action: #selector(resetCache), for: .touchUpInside)
 
@@ -58,13 +64,14 @@ final class SettingsViewController: CardSheetViewController {
         signOutRow.addTarget(self, action: #selector(confirmSignOut), for: .touchUpInside)
 
         body.addArrangedSubview(section("Backup",
-                                        SettingsGroupView(rows: [backupControl, backupNote], padding: 8)))
+                                        [SettingsGroupView(rows: [backupControl, backupNote], padding: 8),
+                                         sendGroup]))
         body.addArrangedSubview(section("Appearance",
-                                        SettingsGroupView(rows: [themeControl], padding: 8)))
+                                        [SettingsGroupView(rows: [themeControl], padding: 8)]))
         body.addArrangedSubview(section("Storage",
-                                        SettingsGroupView(rows: [cacheRow, resyncRow], padding: 0)))
+                                        [SettingsGroupView(rows: [cacheRow, resyncRow], padding: 0)]))
         body.addArrangedSubview(section("Account",
-                                        SettingsGroupView(rows: [signOutRow], padding: 0)))
+                                        [SettingsGroupView(rows: [signOutRow], padding: 0)]))
     }
 
     private func buildIdentity() {
@@ -87,7 +94,7 @@ final class SettingsViewController: CardSheetViewController {
         setHeaderView(identity)
     }
 
-    private func section(_ title: String, _ group: SettingsGroupView) -> UIStackView {
+    private func section(_ title: String, _ groups: [SettingsGroupView]) -> UIStackView {
         let header = UILabel()
         header.font = Typography.sectionHeader
         header.adjustsFontForContentSizeCategory = true
@@ -95,7 +102,7 @@ final class SettingsViewController: CardSheetViewController {
                                                    attributes: [.kern: 0.9])
         sectionLabels.append(header)
 
-        let stack = UIStackView(arrangedSubviews: [header, group])
+        let stack = UIStackView(arrangedSubviews: [header] + groups)
         stack.axis = .vertical
         stack.spacing = 8
         return stack
@@ -144,6 +151,12 @@ final class SettingsViewController: CardSheetViewController {
     private func renderBackup() {
         backupControl.isEnabled = services.upload.availability.allowsChanges
         backupNote.text = backupNoteText()
+        sendGroup.isHidden = services.upload.mode == .off
+        if case .ready = services.upload.availability {
+            sendRow.isEnabled = true
+        } else {
+            sendRow.isEnabled = false
+        }
     }
 
     private func backupNoteText() -> String {
@@ -178,6 +191,48 @@ final class SettingsViewController: CardSheetViewController {
         guard index >= 0, index < backupModes.count else { return }
         services.upload.mode = backupModes[index]
         renderBackup()
+    }
+
+    @objc private func sendLatestPhoto() {
+        sendRow.isEnabled = false
+        sendRow.detail = "Sending…"
+
+        services.upload.uploadMostRecentPhoto { [weak self] result in
+            guard let self = self else { return }
+            self.sendRow.detail = nil
+            self.renderBackup()
+
+            switch result {
+            case .success(let receipt):
+                self.report(title: receipt.created ? "Sent" : "Already there",
+                            message: receipt.created
+                                ? "Filed as \(receipt.path)."
+                                : "Your server already had this photo, as \(receipt.path).")
+            case .failure(let failure):
+                self.report(title: "Not sent", message: SettingsViewController.sendFailureText(failure))
+            }
+        }
+    }
+
+    private func report(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+
+    private static func sendFailureText(_ failure: BackupUploadError) -> String {
+        switch failure {
+        case .notReady:
+            return "Your server is not ready to take photos yet."
+        case .permissionDenied:
+            return "Jellypic cannot read your photos. Allow access in the Settings app."
+        case .photoUnavailable:
+            return "No photo on this device could be read."
+        case .unauthorized:
+            return "Your session expired. Sign in again to continue."
+        case .refused(let reason):
+            return reason + "."
+        }
     }
 
     @objc private func themeChanged() {

@@ -23,6 +23,14 @@ enum BackupAvailability {
     }
 }
 
+enum BackupUploadError: Error {
+    case notReady
+    case permissionDenied
+    case photoUnavailable
+    case unauthorized
+    case refused(String)
+}
+
 protocol UploadService: AnyObject {
 
     var credentials: JellyfinCredentials? { get set }
@@ -32,6 +40,7 @@ protocol UploadService: AnyObject {
     var availability: BackupAvailability { get }
 
     func refreshAvailability(completion: @escaping () -> Void)
+    func uploadMostRecentPhoto(completion: @escaping (Result<UploadReceipt, BackupUploadError>) -> Void)
     func reset()
 }
 
@@ -42,12 +51,16 @@ final class JellyfinUploadService: UploadService {
     }
 
     private let client: UploadClient
+    private let exporter = AssetExporter()
     private let defaults = UserDefaults.standard
 
     private(set) var availability: BackupAvailability = .unknown
 
     init(identity: DeviceIdentity) {
         client = UploadClient(identity: identity)
+
+        let exporter = self.exporter
+        DispatchQueue.global(qos: .utility).async { exporter.sweep() }
     }
 
     var credentials: JellyfinCredentials? {
@@ -82,9 +95,56 @@ final class JellyfinUploadService: UploadService {
         }
     }
 
+    func uploadMostRecentPhoto(completion: @escaping (Result<UploadReceipt, BackupUploadError>) -> Void) {
+        guard case .ready(let target) = availability else {
+            completion(.failure(.notReady))
+            return
+        }
+
+        exporter.exportMostRecent { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .failure(let failure):
+                completion(.failure(JellyfinUploadService.translate(failure)))
+            case .success(let export):
+                self.client.upload(export, targetId: target.id) { outcome in
+                    self.exporter.discard(export)
+                    switch outcome {
+                    case .success(let receipt):
+                        completion(.success(receipt))
+                    case .failure(let failure):
+                        completion(.failure(JellyfinUploadService.translate(failure)))
+                    }
+                }
+            }
+        }
+    }
+
     func reset() {
         mode = .off
         availability = .unknown
+    }
+
+    private static func translate(_ failure: AssetExportFailure) -> BackupUploadError {
+        switch failure {
+        case .denied:
+            return .permissionDenied
+        case .noAsset, .noResource, .notLocal:
+            return .photoUnavailable
+        case .write:
+            return .refused("Could not stage the photo on this device")
+        }
+    }
+
+    private static func translate(_ failure: UploadFailure) -> BackupUploadError {
+        switch failure {
+        case .unauthorized:
+            return .unauthorized
+        case .transient:
+            return .refused("Your server did not answer")
+        case .stopQueue(let code), .rejected(let code):
+            return .refused(refusalText(code))
+        }
     }
 
     private static func resolve(_ targets: [UploadTarget]) -> BackupAvailability {
@@ -103,8 +163,22 @@ final class JellyfinUploadService: UploadService {
             return "Your server is not allowed to write to the photo folder"
         case "PATH_MISSING"?:
             return "The photo folder is missing on your server"
-        case "NOT_CONFIGURED"?:
+        case "NOT_CONFIGURED"?, "UNKNOWN_TARGET"?:
             return "No library on your server is open for upload"
+        case "TARGET_NOT_WRITABLE"?:
+            return "Your server could not write to the photo folder"
+        case "INSUFFICIENT_STORAGE"?:
+            return "Your server has run out of space"
+        case "HASH_MISMATCH"?:
+            return "The photo was damaged on the way to your server"
+        case "UNSUPPORTED_TYPE"?:
+            return "Your server does not accept this kind of file"
+        case "EMPTY_BODY"?:
+            return "The photo arrived empty"
+        case "TOO_LARGE"?:
+            return "The photo is larger than your server accepts"
+        case "INCOMPATIBLE"?:
+            return "Update the upload plugin on your server"
         default:
             return "Your server refused the upload folder"
         }

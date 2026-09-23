@@ -57,6 +57,7 @@
 		1A00000000000000000000134 /* AuthorizationHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000133 /* AuthorizationHeader.swift */; };
 		1A00000000000000000000136 /* UploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000135 /* UploadService.swift */; };
 		1A00000000000000000000138 /* UploadClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000137 /* UploadClient.swift */; };
+		1A0000000000000000000013A /* AssetExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000139 /* AssetExporter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -112,6 +113,7 @@
 		1A00000000000000000000133 /* AuthorizationHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationHeader.swift; sourceTree = "<group>"; };
 		1A00000000000000000000135 /* UploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadService.swift; sourceTree = "<group>"; };
 		1A00000000000000000000137 /* UploadClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadClient.swift; sourceTree = "<group>"; };
+		1A00000000000000000000139 /* AssetExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetExporter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -245,6 +247,7 @@
 			children = (
 				1A00000000000000000000135 /* UploadService.swift */,
 				1A00000000000000000000137 /* UploadClient.swift */,
+				1A00000000000000000000139 /* AssetExporter.swift */,
 			);
 			path = Writer;
 			sourceTree = "<group>";
@@ -404,6 +407,7 @@
 				1A00000000000000000000134 /* AuthorizationHeader.swift in Sources */,
 				1A00000000000000000000136 /* UploadService.swift in Sources */,
 				1A00000000000000000000138 /* UploadClient.swift in Sources */,
+				1A0000000000000000000013A /* AssetExporter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
