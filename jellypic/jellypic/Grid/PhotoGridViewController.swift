@@ -31,6 +31,7 @@ final class PhotoGridViewController: UIViewController {
     private weak var viewer: PhotoViewerViewController?
     private var isBannerVisible = false
     private var isSessionExpired = false
+    private var isQueueBannerVisible = false
     private var didSyncFail = false
     private var didIntroduceScrubber = false
 
@@ -67,6 +68,10 @@ final class PhotoGridViewController: UIViewController {
                                                selector: #selector(catchUp),
                                                name: UIApplication.didBecomeActiveNotification,
                                                object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(updateQueueBanner),
+                                               name: UploadQueue.didChangeNotification,
+                                               object: nil)
 
         applyPalette()
         refreshEmptyState()
@@ -81,6 +86,7 @@ final class PhotoGridViewController: UIViewController {
         startSync()
         catchUp()
         refreshSendButton()
+        updateQueueBanner()
         introduceScrubber()
     }
 
@@ -335,13 +341,68 @@ final class PhotoGridViewController: UIViewController {
     private func bannerTapped() {
         if isSessionExpired {
             presentReauth()
-        } else if didSyncFail {
+            return
+        }
+        if isQueueBannerVisible {
+            let state = services.upload.queueState
+            if state.isRunning {
+                services.upload.stopQueue()
+            } else if state.pending > 0 {
+                services.upload.resumeQueue()
+            } else {
+                services.upload.clearQueue()
+            }
+            return
+        }
+        if didSyncFail {
             startSync()
         }
     }
 
-    private func showBanner(_ text: String, busy: Bool = true) {
+    @objc private func updateQueueBanner() {
+        let state = services.upload.queueState
+        let done = state.sent + state.duplicates + state.failed
+
+        if state.pending > 0 {
+            if state.isRunning {
+                showQueueBanner("Sending \(done + 1) of \(done + state.pending) — tap to stop")
+            } else if let reason = state.stopReason {
+                showQueueBanner(reason.text + " Tap to retry.", busy: false)
+            } else {
+                showQueueBanner("Paused — tap to resume", busy: false)
+            }
+            return
+        }
+
+        if state.failed > 0 {
+            let detail = state.lastErrorText ?? ""
+            showQueueBanner("\(state.failed) not sent. \(detail) Tap to dismiss.", busy: false)
+            return
+        }
+
+        hideQueueBanner()
+    }
+
+    private func showQueueBanner(_ text: String, busy: Bool = true) {
+        isQueueBannerVisible = true
         guard !isSessionExpired else { return }
+        banner.isBusy = busy
+        banner.text = text
+        revealBanner()
+    }
+
+    private func hideQueueBanner() {
+        guard isQueueBannerVisible else { return }
+        isQueueBannerVisible = false
+        if services.sync.isRunning {
+            showBanner("Indexing…")
+        } else {
+            hideBanner()
+        }
+    }
+
+    private func showBanner(_ text: String, busy: Bool = true) {
+        guard !isSessionExpired, !isQueueBannerVisible else { return }
         banner.isBusy = busy
         banner.text = text
         revealBanner()
@@ -357,7 +418,7 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func hideBanner() {
-        guard isBannerVisible, !isSessionExpired else { return }
+        guard isBannerVisible, !isSessionExpired, !isQueueBannerVisible else { return }
         isBannerVisible = false
         UIView.animate(withDuration: 0.24) {
             self.banner.alpha = 0
@@ -418,6 +479,8 @@ final class PhotoGridViewController: UIViewController {
         hideBanner()
         reloadVisibleThumbnails()
         startSync()
+        services.upload.resumeQueue()
+        updateQueueBanner()
     }
 
     @objc private func showSettings() {
@@ -447,39 +510,14 @@ final class PhotoGridViewController: UIViewController {
             return
         }
         sendButton.isHidden = false
+
+        if services.upload.queueState.canAutoResume {
+            services.upload.resumeQueue()
+        }
     }
 
     @objc private func showPicker() {
-        let picker = AssetPickerViewController(services: services)
-        picker.onFinished = { [weak self] summary in self?.reportSend(summary) }
-        present(picker, animated: true, completion: nil)
-    }
-
-    private func reportSend(_ summary: BackupSendSummary) {
-        var lines: [String] = []
-        if summary.sent > 0 {
-            lines.append("\(summary.sent) sent.")
-        }
-        if summary.duplicates > 0 {
-            lines.append("\(summary.duplicates) already on your server.")
-        }
-        if summary.failed > 0 {
-            lines.append("\(summary.failed) not sent.")
-            if let error = summary.lastError {
-                lines.append(error.text)
-            }
-        }
-        if summary.sent > 0 {
-            lines.append("Your server picks up new photos after about a minute; Jellypic will show them the next time you open the grid.")
-        }
-        guard !lines.isEmpty else { return }
-
-        let title = summary.sent > 0 ? "Sent" : (summary.failed > 0 ? "Not sent" : "Already there")
-        let alert = UIAlertController(title: title,
-                                      message: lines.joined(separator: "\n\n"),
-                                      preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
-        present(alert, animated: true, completion: nil)
+        present(AssetPickerViewController(services: services), animated: true, completion: nil)
     }
 
     @objc private func showMap() {

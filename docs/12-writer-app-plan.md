@@ -182,8 +182,10 @@ one too many is recoverable, silently keeping the wrong one is not.
 
 ### What W2 actually built, and the four decisions it forced
 
-`Writer/AssetExporter.swift` is the only file in the app that imports `Photos`, and the
-invariant of §2 still holds: `grep -rn "import Photos" jellypic/` returns that one line.
+`Writer/AssetExporter.swift` was the first file in the app to import `Photos`. It is now
+five — `AssetExporter`, `AssetPickerViewController`, `AssetGridCell`, `UploadService`,
+`UploadQueue` — and the invariant of §2 is the one that matters, not the count:
+`grep -rn "import Photos" jellypic/` returns only files under `Writer/`.
 
 - **`requestData(for:options:dataReceivedHandler:completionHandler:)`, not
   `writeData(for:toFile:)`.** §5 named the latter, and it is still the right *class* of
@@ -231,13 +233,16 @@ rather than from `AppDelegate` — the sweep is a writer concern and routing it 
 **A temporary file per pending upload is the binding constraint.** 20 000 × 3 MB is 60 GB;
 the queue therefore materialises a window of one to three assets, and re-arms on each
 completion. It is slower than a fat pipeline and it is the only shape that fits.
+**W4 ships that window at one**, and §12 records why it stays there until the background
+session arrives.
 
 - A single background `URLSession` with a **stable identifier**, recreated at launch with
   that same identifier. Two sessions sharing an identifier is a hard failure, so the
-  instance is owned by `AppServices` and created once.
+  instance is owned by `AppServices` and created once. **W5, not W4** — see §9.
 - `allowsCellularAccess = false` by default, overridable.
 - `isDiscretionary = true` in Automatic — the system picks charging and Wi-Fi — and
-  **never** in Manual, where the user is watching the screen.
+  **never** in Manual, where the user is watching the screen. It is a property of the
+  background session, so it arrives with it in W5.
 - Orphaned temporary files are swept at launch. A crash mid-upload otherwise leaks a file
   per attempt, forever.
 - The error taxonomy of doc 11 §10 is implemented as written: `409`/`507` stop the whole
@@ -330,10 +335,12 @@ when the SDK rises.
 - **The local hash memo of doc 11 §5** (`localIdentifier + modificationDate → sha256`) is
   not built. W2 hashes one photo on demand; the memo only pays for itself once W4 retries
   and W6 reconciles.
-- **The background `URLSession` is not in yet.** W2 uploads from a foreground session with a
-  one-hour resource timeout. W4 owns the switch, and it is not a drop-in: a background
-  session forbids the per-task completion handler this code uses, so `UploadClient` gains a
-  delegate then. The `upload(_:targetId:completion:)` signature is meant to survive it.
+- **The background `URLSession` is not in yet, and W4 deliberately did not bring it.** W2
+  and W4 both upload from a foreground session with a one-hour resource timeout, plus a
+  `beginBackgroundTask` so locking the phone mid-photo finishes that photo and nothing
+  more. **W5 owns the switch**, and it is not a drop-in: a background session forbids the
+  per-task completion handler this code uses, so `UploadClient` gains a delegate then. The
+  `upload(_:targetId:completion:)` signature is meant to survive it.
 - Live Photos, bursts, albums, and deletion propagation are out of scope for v1 by doc 11
   §12; each is a contract change before it is an app change.
 
@@ -438,3 +445,92 @@ completion hops to the main queue, so the stack never grows. `cancelSend()` bump
 `isSending` and fires the completion with the tally so far — a stop can never hang the
 picker. On completion the picker dismisses and the *grid* presents the summary, because an
 alert on a view controller that is disappearing is an alert nobody sees.
+**W4 reverses this one deliberately — see §12.**
+
+## 12. What W4 built
+
+`Writer/UploadQueue.swift`, beside `UploadService.swift` so that file stays the policy
+layer: the queue owns the durable list, the run loop, the backoff, the background task and
+the notification, and nothing else.
+
+**Tap Send and the picker closes at once.** That reverses §11's answer, which was the right
+one for a send you had to watch and the wrong one for a run that now outlives the screen.
+The grid's existing banner carries it instead — the same pill, the same
+`… Tap to retry.` shape a failed sync already uses, so there is no new UI and no new
+concept.
+
+### Durability is cheap because the upload is idempotent
+
+`POST /UploadForJelly/Items` answers 201 on create and 200 on replay (doc 11 §8), so a
+photo the process died on costs one request and produces no second file. The queue
+therefore does **not** write per completion: it persists every 10 completions, and
+unconditionally on `willResignActive` and in the background-task expiration handler. Worst
+case after a kill is a handful of idempotent replays.
+
+One JSON file at `Library/Application Support/Uploads/queue.json`, consumed from the head.
+Not `UserDefaults` — `Auth/Preferences.swift` is the reader's surface and §2 keeps backup
+state under `Writer/`. Not `Caches/` — that is the *staging* directory precisely because
+iOS may purge it, and a pending list must not be purgeable. Not Core Data — a
+`PhotoModel.schemaVersion` bump forces a resync of 20 000 rows (doc 06 §2.2) and the queue
+is worth none of it.
+
+**The tally is durable too**, or the banner after a relaunch mid-run lies: `Sending N of M`
+is computed as `sent + duplicates + failed` against that plus `pending`, so the count has
+to survive the kill that the pending list survives.
+
+Two things are deliberately **not** persisted. `stopReason` is an error, not data — a
+relaunch re-runs the preflight and re-derives it, which is doc 11 §10's own instruction. And
+the last error is kept as its rendered sentence (`lastErrorText`), not as the enum: the
+`String` is what the banner shows, and it spares the state file a `Codable` conformance on
+a type that exists to be read by a human.
+
+`paused` **is** persisted, and it is the one flag that earns its place: "the user tapped
+stop" and "the process was killed" are otherwise the same state — not running, pending > 0,
+no stop reason — and they must behave in opposite ways. `UploadQueueState.canAutoResume`
+folds that policy into the state, so the grid asks a question instead of carrying a rule.
+
+### The window stays at one
+
+Doc §6 allows one to three. One is the right end of it here: the binding constraint is the
+temp file, not throughput, and three in flight would mean cancelling peers the moment one
+of them returns a whole-queue refusal. Parallelism pays once the *system* schedules it,
+which is W5's background session. Recorded here rather than left to look like an accident.
+
+### The taxonomy, uncollapsed
+
+W3 mapped `.stopQueue(code)` and `.rejected(code)` to the same `.refused(text)`, so a
+read-only mount would have failed 200 photos one at a time, each with its own pointless
+round trip. A private `Outcome` enum now decides what a failure does to the *queue*:
+`halt` keeps the pending list and stops (401, `404`/`409`/`507`, no Wi-Fi, photo access
+denied), `retry` backs off 1 s / 4 s / 15 s, `failItem` charges one photo and moves on.
+The text tables did not move to a second home — `BackupUploadError.from(_:)` and
+`refusalText(_:)` became statics on the error, shared by both the queue's verdict and the
+one-photo debug path.
+
+`UploadFailure.offline` is new, and narrow: `NSURLErrorDataNotAllowed` (-1020) is the exact
+error `allowsCellularAccess = false` produces when only cellular is up. It is the
+user-visible face of the Wi-Fi policy, and everything else stays `.transient`.
+
+### Banner precedence: expired > queue > sync
+
+Three states now want one pill. The precedence is enforced the way expiry already was — a
+boolean flag consulted by a guard, not a refactor: `showBanner` (the sync path) refuses
+when `isSessionExpired || isQueueBannerVisible`, and `showQueueBanner` refuses to paint
+when the session is expired but still raises its flag, so re-authenticating repaints the
+run instead of losing it. `hideQueueBanner` falls back to `Indexing…` when a sync is still
+running, rather than hiding a banner that has something to say.
+
+The banner is fed by `UploadQueue.didChangeNotification` and not by a closure, for the
+reason `Theme.didChangeNotification` exists: `SettingsViewController` holds the same
+`services.upload` and a second owner would clobber a closure.
+
+One affordance, and the text says which way it goes: `Sending 3 of 12 — tap to stop` ·
+`Paused — tap to resume` · `Your server's photo folder is read-only. Tap to retry.` ·
+`2 not sent. … Tap to dismiss.`
+
+**What makes relaunch resume the run** is not a new call site: `updateSendButton()` already
+fires from `viewDidAppear`, from `didBecomeActive` and from the settings card's
+`onDismissed`, and it now asks `canAutoResume` once availability comes back `.ready`. A
+stop reason sends `resumeQueue()` through `refreshAvailability` first — doc 11 §10's
+"re-run the preflight" — so tapping a read-only refusal after remounting the library
+re-checks before it re-sends.

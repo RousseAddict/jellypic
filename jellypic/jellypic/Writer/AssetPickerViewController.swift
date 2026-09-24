@@ -32,10 +32,7 @@ final class AssetPickerViewController: UIViewController {
 
     private var thumbnailPixels = 0
     private var horizontalInset: CGFloat = 0
-    private var isSending = false
     private var isPillVisible = false
-
-    var onFinished: ((BackupSendSummary) -> Void)?
 
     init(services: AppServices) {
         self.services = services
@@ -296,36 +293,19 @@ final class AssetPickerViewController: UIViewController {
     }
 
     @objc private func cancel() {
-        guard !isSending else {
-            services.upload.cancelSend()
-            pill.title = "Stopping…"
-            return
-        }
         dismiss(animated: true, completion: nil)
     }
 
     @objc private func send() {
-        guard !isSending, !order.isEmpty else { return }
+        guard !order.isEmpty else { return }
 
         let fetched = PHAsset.fetchAssets(withLocalIdentifiers: order, options: nil)
         var selected: [PHAsset] = []
         fetched.enumerateObjects { asset, _, _ in selected.append(asset) }
         guard !selected.isEmpty else { return }
 
-        isSending = true
-        collectionView.isUserInteractionEnabled = false
-        cancelButton.title = "Stop"
-        pill.isEnabled = false
-
-        let total = selected.count
-        services.upload.send(selected, progress: { [weak self] done in
-            self?.pill.title = "Sending \(done + 1) of \(total)"
-        }, completion: { [weak self] summary in
-            guard let self = self else { return }
-            self.isSending = false
-            let onFinished = self.onFinished
-            self.dismiss(animated: true) { onFinished?(summary) }
-        })
+        services.upload.enqueue(selected)
+        dismiss(animated: true, completion: nil)
     }
 }
 
@@ -391,7 +371,6 @@ extension AssetPickerViewController: UICollectionViewDelegate {
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: false)
-        guard !isSending else { return }
 
         let identifier = asset(at: indexPath).localIdentifier
         if chosen.remove(identifier) != nil {

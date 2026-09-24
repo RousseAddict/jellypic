@@ -24,6 +24,7 @@ enum UploadFailure: Error {
     case stopQueue(String)
     case rejected(String)
     case transient
+    case offline
 }
 
 final class UploadClient {
@@ -138,6 +139,11 @@ final class UploadClient {
     private func receipt(data: Data?,
                          response: URLResponse?,
                          error: Error?) -> Result<UploadReceipt, UploadFailure> {
+        if let error = error as NSError?,
+           error.domain == NSURLErrorDomain,
+           error.code == NSURLErrorDataNotAllowed {
+            return .failure(.offline)
+        }
         guard error == nil, let http = response as? HTTPURLResponse else { return .failure(.transient) }
 
         if http.statusCode == 401 || http.statusCode == 403 {
