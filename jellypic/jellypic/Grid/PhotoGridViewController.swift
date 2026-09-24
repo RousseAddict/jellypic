@@ -365,7 +365,7 @@ final class PhotoGridViewController: UIViewController {
 
         if state.pending > 0 {
             if state.isRunning {
-                showQueueBanner("Sending \(done + 1) of \(done + state.pending) — tap to stop")
+                showQueueBanner("Sending \(done + state.inFlight) of \(done + state.pending) — tap to stop")
             } else if let reason = state.stopReason {
                 showQueueBanner(reason.text + " Tap to retry.", busy: false)
             } else {

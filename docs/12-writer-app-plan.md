@@ -233,16 +233,17 @@ rather than from `AppDelegate` — the sweep is a writer concern and routing it 
 **A temporary file per pending upload is the binding constraint.** 20 000 × 3 MB is 60 GB;
 the queue therefore materialises a window of one to three assets, and re-arms on each
 completion. It is slower than a fat pipeline and it is the only shape that fits.
-**W4 ships that window at one**, and §12 records why it stays there until the background
-session arrives.
+**W4 shipped that window at one**, and §12 records why; **W5 widened it to three** once the
+system, rather than a begged-for background task, does the scheduling — §13.
 
 - A single background `URLSession` with a **stable identifier**, recreated at launch with
   that same identifier. Two sessions sharing an identifier is a hard failure, so the
-  instance is owned by `AppServices` and created once. **W5, not W4** — see §9.
-- `allowsCellularAccess = false` by default, overridable.
-- `isDiscretionary = true` in Automatic — the system picks charging and Wi-Fi — and
-  **never** in Manual, where the user is watching the screen. It is a property of the
-  background session, so it arrives with it in W5.
+  instance is owned by `AppServices` and created once. Built in W5, §13.
+- `allowsCellularAccess = false`. Not overridable: nothing in the UI offers it.
+- ~~`isDiscretionary = true` in Automatic, never in Manual.~~ **Reversed in W5:
+  `isDiscretionary = false` always.** A `URLSessionConfiguration` is *copied* at session
+  construction and a background session cannot be reconfigured, so one session could never
+  have carried a per-mode flag. §13.
 - Orphaned temporary files are swept at launch. A crash mid-upload otherwise leaks a file
   per attempt, forever.
 - The error taxonomy of doc 11 §10 is implemented as written: `409`/`507` stop the whole
@@ -289,7 +290,7 @@ without re-sending; then remount the library read-only and confirm the queue sto
 with the reason instead of retrying.*
 
 **W5 — automatic.** Background fetch enqueues; `handleEventsForBackgroundURLSession`
-relaunches the app to finish.
+relaunches the app to finish. Built; §13 records what it reversed on the way.
 *Device test: photograph something, lock the phone, and confirm it arrives without opening
 the app.*
 
@@ -335,12 +336,12 @@ when the SDK rises.
 - **The local hash memo of doc 11 §5** (`localIdentifier + modificationDate → sha256`) is
   not built. W2 hashes one photo on demand; the memo only pays for itself once W4 retries
   and W6 reconciles.
-- **The background `URLSession` is not in yet, and W4 deliberately did not bring it.** W2
-  and W4 both upload from a foreground session with a one-hour resource timeout, plus a
-  `beginBackgroundTask` so locking the phone mid-photo finishes that photo and nothing
-  more. **W5 owns the switch**, and it is not a drop-in: a background session forbids the
-  per-task completion handler this code uses, so `UploadClient` gains a delegate then. The
-  `upload(_:targetId:completion:)` signature is meant to survive it.
+- ~~The background `URLSession` is not in yet.~~ **Built in W5** (§13). It was not a
+  drop-in: a background session forbids the per-task completion handler, so `UploadClient`
+  became the project's first `URLSessionDataDelegate` and reports outcomes keyed by
+  `localIdentifier`. `upload(_:targetId:completion:)` survived, retargeted at the
+  foreground `uploadSession`, and now means exactly one thing — the Settings *Send my
+  latest photo* diagnostic.
 - Live Photos, bursts, albums, and deletion propagation are out of scope for v1 by doc 11
   §12; each is a contract change before it is an app change.
 
@@ -534,3 +535,236 @@ fires from `viewDidAppear`, from `didBecomeActive` and from the settings card's
 stop reason sends `resumeQueue()` through `refreshAvailability` first — doc 11 §10's
 "re-run the preflight" — so tapping a read-only refusal after remounting the library
 re-checks before it re-sends.
+
+## 13. What W5 built
+
+The app stops needing you. A photo taken with the app closed is on the server before you
+next open it, the transfer is scheduled by the system rather than by a background task we
+beg for, and the run reassembles itself after a launch it did not ask for.
+
+### One background session, and `isDiscretionary` reversed
+
+`com.rousseaddict.jellypic.uploads`, shared by Manual and Automatic,
+`allowsCellularAccess = false`, `sessionSendsLaunchEvents = true`,
+`httpMaximumConnectionsPerHost = 3`, and **`isDiscretionary = false`**, which reverses §6.
+Two reasons, and the second is decisive: a personal backup that defers for hours reads as
+broken; and a `URLSessionConfiguration` is *copied* at session construction while a
+background session cannot be reconfigured, so a per-mode flag was never implementable with
+one session — and two sessions sharing work is the failure §6 already forbids.
+
+`timeoutIntervalForRequest` is deliberately **not** set: the 7-day
+`timeoutIntervalForResource` default is what lets a transfer survive a night without Wi-Fi.
+The foreground `session` (`/Targets`) and `uploadSession` (the diagnostic) are untouched.
+
+### The delegate replaces the façade rather than hiding behind it
+
+A handler registry over a background session works in-process and cannot work after a
+relaunch, so an orphan path would have been needed either way — and that path would then
+run *only* after a process kill, the one thing you cannot exercise casually on a sideloaded
+5s. One `localIdentifier`-keyed callback means the post-relaunch path is exercised by every
+upload, forever.
+
+Exactly three delegate methods, and each is load-bearing:
+
+| Method | Why |
+|---|---|
+| `urlSession(_:dataTask:didReceive:)` | an upload task **is** a data task; the 201/200 JSON body arrives here and nowhere else. Accumulated in `bodies[taskIdentifier]`. |
+| `urlSession(_:task:didCompleteWithError:)` | terminal. Feeds the unchanged `receipt(data:response:error:)`, and is the one and only site that discards the staged file. |
+| `urlSessionDidFinishEvents(forBackgroundURLSession:)` | the only legal place to call the stored system handler. |
+
+Five traps, in descending nastiness:
+
+- **Conform to `URLSessionDataDelegate`, not `URLSessionTaskDelegate`.** Declaring only the
+  latter compiles, `didCompleteWithError` fires normally, and `didReceive data:` is never
+  called — so every 2xx has `data == nil`, `receipt` returns `.rejected("INCOMPATIBLE")`,
+  and the banner says *Update the upload plugin on your server* about a plugin that works.
+- **`delegateQueue: .main`, never `nil`.** `UploadQueue` has no locks and is correct only
+  because every mutation is main-queue serialised; a private `OperationQueue` breaks that
+  with zero compiler help. `.main` also satisfies "call the background completion handler
+  on the main thread" for free, and the bodies are ~100 bytes of JSON.
+- **`didReceive response:completionHandler:` is deliberately absent.** Its absence defaults
+  to `.allow`; its presence obliges you to call the handler and stalls every upload if you
+  forget. Same reasoning for `didSendBodyData` — the banner is per photo, not per byte.
+- **`taskIdentifier` is not a correlation key.** Unique within a session, reused across
+  launches. Fine for `bodies`, never for the route back to a queue item — that is
+  `taskDescription`.
+- **A `URLSession` retains its delegate until invalidated**, so `UploadClient` is now
+  immortal. Harmless (`AppServices.shared` owns it) but nothing may go in `deinit`.
+
+`NSURLErrorCancelled` is intercepted **before** `receipt` and routed to
+`onUploadCancelled`. Cancellation is a lifecycle event, not a network outcome: through
+`receipt` it would become `.transient` — three backoff rounds per item on every *stop*, and
+a force-quit, which cancels every task, would charge three failures against the tally.
+
+### The window widens to three, and `retire` is what makes it safe
+
+§12 shipped one because the system was not scheduling; now it is, and with a window of one
+the system can end up relaunching the app once per photo. `attempts` moved out of the queue
+and into a per-identifier `Slot`: three items backing off against one shared counter
+presents as "one photo failed and took two others with it".
+
+**An item leaves `pending` only in `retire`, only on a terminal outcome.** That single
+invariant is what makes out-of-order completion safe and what makes `.halt` free — the
+peers it cancels were never removed, so they are still pending by construction. `finish`
+bumps `runToken`, drains `inFlight` and calls `cancelUploads(for:)`, which matches through
+`getAllTasks` on `taskDescription` and **not** an in-memory `[String: URLSessionTask]`:
+that map misses tasks adopted after a relaunch, which are exactly the ones a post-relaunch
+halt must cancel.
+
+**A crash, not a wrong answer:** no start may complete synchronously, because its
+completion mutates `pending` while the pump iterates it. One path did — the
+`asset(for:)` → `.failItem` fall-through — and is now wrapped in `DispatchQueue.main.async`.
+Invariant: *no completion may be delivered on the same turn of the run loop as the call
+that started it.*
+
+The `runToken` discipline is untouched. One bump now orphans three callbacks instead of
+one; that is the whole argument for this shape over any alternative.
+
+### `isRunning` redefined, which is a bug fix
+
+```swift
+isRunning: isPumpArmed || !inFlight.isEmpty || isReconciling
+```
+
+The stored flag means "the pump is armed in *this* process". After a relaunch it is `false`
+while three uploads are genuinely in flight, so the banner would read *Paused — tap to
+resume* and — worse, without any tap — `canAutoResume` would be `true` and **opening the app
+mid-run would restart it**, double-staging live items. The redefinition fixes
+`canAutoResume` for free, with no change to its definition and none to the grid. Folding in
+`isReconciling` also removes the *Paused* flash between `viewDidAppear` and the
+`getAllTasks` callback on a cold start.
+
+### Reconciliation, and why the launch sweep moved
+
+`adoptInFlight` is `getAllTasks`: `.running` → live, `.suspended` → `resume()` + live,
+`taskDescription == nil` → `cancel()`. Its completion arrives on the delegate queue, which
+is `.main`, so it is ordered against the delegate callbacks rather than racing them.
+**Nothing may start work before that callback lands** — not the pump (`run()` guards on
+`isReconciling`), not the staging sweep, not the watermark sweep.
+
+Staged filenames became `sha256(localIdentifier)` instead of `UUID()`. Three consequences:
+the staging directory is self-describing after a cold start with nothing persisted; a retry
+overwrites its own file instead of leaking one per attempt (a real leak in W4's `.retry`
+path); and the launch sweep can be handed the live set directly.
+
+W4 ran `exporter.sweep()` in `init`, deleting *every* staged file. Under a background
+session, files staged before a kill may still back live tasks. Apple does not document
+whether `uploadTask(with:fromFile:)` copies the file for a background session — a DTS forum
+reply says it does (APFS clone), Apple's own guidance says delete the file in
+`didCompleteWithError`, and `NSInvalidArgumentException "Cannot read file at …"` proves the
+path is read at least once. So: **be correct under both answers** and never delete a file
+an outstanding task names. The sweep therefore runs inside the reconciliation callback as
+`sweep(keeping:)`.
+
+Ambiguity after a relaunch is always resolved in the **forgiving** direction, because
+`POST /Items` is idempotent (doc 11 §8): an adopted identifier missing from `pending` — the
+kill landed between `retire` and `persist` — is re-inserted at the *head*. One replay beats
+a lost photo. `taskDescription` surviving a launch is treated as an optimisation, never as a
+contract.
+
+### Persistence gains two mandatory flush points
+
+During a system-driven run the app may be woken only at the *end* of a batch, so
+`sincePersist` can go 0 → 3 and never reach 10 before suspension. The counter alone is no
+longer sufficient:
+
+| When | New in W5? |
+|---|---|
+| every 10 terminal outcomes · `willResignActive` · `finish` | no |
+| `urlSessionDidFinishEvents`, **before** the system handler | yes, mandatory |
+| the background-fetch path, **before** its completion handler | yes, mandatory |
+
+If that ever proves too coarse the fix is an append-only done-log, **not** a smaller
+interval: `queue.json` at 20 000 identifiers is ~1 MB and writing it per completion on an A7
+is not free. Said here so it does not get tuned into one.
+
+### The blocker that would have silently defeated the milestone
+
+`enqueue` opens with `guard case .ready(let target) = availability`, and `availability` is
+`.unknown` on every cold start by design (§4). **A background-fetch wake is a cold start.**
+The sweep would have run, found the photo, called `enqueue`, and done nothing — no error, no
+banner, no request. The fix is doc 11 §10's own "re-run the preflight", made strictly
+sequential: `performBackgroundSweep` guards mode and `PHPhotoLibrary.authorizationStatus()`,
+then `refreshAvailability`, then the `.ready` guard, then the enqueue.
+
+`completion(Bool)` maps to `.newData` / `.noData`. Get it wrong and iOS learns not to
+schedule us. And **never** call `requestAuthorization` from a background wake — there is no
+UI to present; check `authorizationStatus()` and bail on `.notDetermined`.
+
+### The watermark
+
+Turning Automatic on stamps the watermark at *now*: it covers photos taken from then on.
+The existing library is what the W3 picker is for, and W6's `POST /Have` is what will offer
+to catch it up properly. A switch must never silently start a 7712-photo run.
+
+The stamp is armed in `mode`'s setter, and the `mode != .automatic` guard is load-bearing:
+`backupModeChanged` writes `mode` on every `valueChanged`, so without it a stray tap on the
+already-selected segment re-stamps the watermark forward and skips photos. Accepted
+consequence: **Automatic → Manual → Automatic skips the interval.** Recorded, not reopened.
+
+Three traps in the sweep itself:
+
+- **Advance the watermark to the `creationDate` of the last asset actually enqueued, never
+  to `Date()`.** Stamping "now" drops anything created between the fetch and the stamp —
+  the classic off-by-one, and it loses photos permanently and silently.
+- **`>=` plus a remembered `watermarkIdentifier`, not `>`.** With `>` a burst pair sharing a
+  millisecond loses the second forever; with `>=` alone the last photo is re-enqueued on
+  every sweep, since `UploadQueue.enqueue` dedupes against `pending`, not against sent.
+- `UploadQueue.enqueue` zeroes the tally when `pending.isEmpty && !isRunning`, so a
+  background sweep can erase a previous run's "2 not sent" before the user saw it. Accepted;
+  named.
+
+The predicate is `mediaType == image AND creationDate >= watermark`, ascending, over the
+user library — the same predicate the W3 picker uses, so Automatic covers exactly what the
+picker offers and **videos are out of v1 automatic backup**, recorded rather than inherited.
+
+No `PHPhotoLibraryChangeObserver`: the app is not running when you press the shutter, so an
+observer cannot deliver the milestone test. It would be pure latency optimisation on top of
+the sweep that does all the work.
+
+### `beginBackgroundTask` moves from the transfer to the export
+
+A background session removes the need for it around the *upload*. It does not around the
+*export*: `PHAssetResourceManager.requestData` is app code in our process, the system
+schedules nothing on its behalf, and staging a 3 MB HEIC on an A7 takes seconds. With a
+window of three that is up to three short concurrent background tasks — legal, and ownership
+now sits where the work is.
+
+**W4's expiry handler was a W5 regression:** it did `persist()` + `finish(reason: nil)`,
+i.e. it stopped the whole queue the first time the phone was locked during an export —
+which is the milestone test verbatim. The new handler belongs to the export: close the
+stream, delete the partial file, fail *that one export* with `.write`, which `verdict(_:)`
+already maps to `.retry(limit: 1)`. The queue is not told anything.
+
+### The two system entry points, and the sweep diagnostic
+
+`AppDelegate` gains `performFetchWithCompletionHandler` and
+`handleEventsForBackgroundURLSession` (plus `setMinimumBackgroundFetchInterval`), all three
+marked `// LEGACY(ios12):` per §8. If the session identifier does not match, **call the
+handler immediately** — nobody else will. Touching `AppServices.shared` there is what
+lazily constructs the session, which must happen before events can be delivered.
+
+In `urlSessionDidFinishEvents`: nil the stored handler **before** calling it (a second batch
+must not re-call a consumed handler; not calling it at all gets the app killed by the
+watchdog), and persist before calling it (the app may be suspended the instant it returns).
+Then sweep again — every system wake is another chance to notice new photos, and it costs
+nothing.
+
+`didBecomeActive` is observed **here**, in `Writer/`, not in the grid: `UploadQueue` already
+observes `willResignActive` from inside `Writer/`, it costs zero touch points against §2's
+count of four, and it works when the grid is off screen (connect flow, picker, map). Launch
+is covered by `init`.
+
+Settings' Automatic note carries a line built from `lastSweepAt` / `lastSweepResult`. This
+is not polish: iOS 12 background fetch is entirely at the system's discretion and the gap
+can be hours, so without it the device test cannot distinguish "our code is broken" from
+"iOS never scheduled us" — on a sideloaded 5s with no debugger, that is a coin flip, not a
+test.
+
+### Testing protocol note that will otherwise waste a day
+
+**Do not force-quit the app from the switcher.** A force-quit cancels every
+background-session task with `NSURLErrorCancelled` /
+`NSURLErrorCancelledReasonUserForceQuitApplication` *and* suppresses background fetch until
+the user manually launches the app again. It looks exactly like a broken implementation.
+Background with the Home button; kill from Xcode when a kill is what you mean.

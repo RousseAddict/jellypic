@@ -4,6 +4,7 @@ import UIKit
 
 struct UploadQueueState {
     var pending = 0
+    var inFlight = 0
     var sent = 0
     var duplicates = 0
     var failed = 0
@@ -39,15 +40,22 @@ final class UploadQueue {
         let lastError: String?
     }
 
+    private struct Slot {
+        let token: Int
+        var attempts: Int
+    }
+
     private static let version = 1
     private static let backoff: [TimeInterval] = [1, 4, 15]
     private static let persistEvery = 10
+    private static let window = 3
 
     private let client: UploadClient
     private let exporter: AssetExporter
     private let fileURL: URL
 
     private var pending: [String] = []
+    private var inFlight: [String: Slot] = [:]
     private var targetId: String?
     private var sent = 0
     private var duplicates = 0
@@ -55,13 +63,11 @@ final class UploadQueue {
     private var lastErrorText: String?
     private var stopReason: BackupUploadError?
     private var isPaused = false
-    private var isRunning = false
+    private var isPumpArmed = false
+    private var isReconciling = true
 
     private var runToken = 0
-    private var attempts = 0
-    private var attemptedIdentifier: String?
     private var sincePersist = 0
-    private var backgroundTask = UIBackgroundTaskIdentifier.invalid
 
     init(client: UploadClient, exporter: AssetExporter) {
         self.client = client
@@ -72,6 +78,13 @@ final class UploadQueue {
             .appendingPathComponent("queue.json")
 
         load()
+
+        client.onUploadFinished = { [weak self] identifier, result in
+            self?.uploadFinished(identifier, result)
+        }
+        client.onUploadCancelled = { [weak self] identifier in
+            self?.uploadCancelled(identifier)
+        }
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(applicationWillResignActive),
@@ -85,17 +98,43 @@ final class UploadQueue {
 
     var state: UploadQueueState {
         return UploadQueueState(pending: pending.count,
+                                inFlight: inFlight.count,
                                 sent: sent,
                                 duplicates: duplicates,
                                 failed: failed,
-                                isRunning: isRunning,
+                                isRunning: isPumpArmed || !inFlight.isEmpty || isReconciling,
                                 isPaused: isPaused,
                                 stopReason: stopReason,
                                 lastErrorText: lastErrorText)
     }
 
+    func adopt(inFlight identifiers: Set<String>) {
+        isReconciling = false
+
+        guard !identifiers.isEmpty else {
+            notifyChanged()
+            run()
+            return
+        }
+
+        var known = Set(pending)
+        for identifier in identifiers where known.insert(identifier).inserted {
+            pending.insert(identifier, at: 0)
+        }
+
+        arm()
+        for identifier in identifiers {
+            inFlight[identifier] = Slot(token: runToken, attempts: 0)
+        }
+        pump(token: runToken)
+    }
+
+    func persistNow() {
+        persist()
+    }
+
     func enqueue(_ identifiers: [String], targetId: String) {
-        if pending.isEmpty && !isRunning {
+        if pending.isEmpty && !isPumpArmed {
             sent = 0
             duplicates = 0
             failed = 0
@@ -116,90 +155,102 @@ final class UploadQueue {
     }
 
     func resume(target: UploadTarget) {
-        guard !isRunning, !pending.isEmpty else { return }
+        guard !isPumpArmed, !pending.isEmpty else { return }
         targetId = target.id
         run()
     }
 
     func stop() {
-        guard isRunning else { return }
+        guard isPumpArmed else { return }
         isPaused = true
         finish(reason: nil)
     }
 
     func clear() {
+        let cancelled = Array(inFlight.keys)
         runToken += 1
-        isRunning = false
+        isPumpArmed = false
         isPaused = false
         stopReason = nil
         lastErrorText = nil
-        attempts = 0
-        attemptedIdentifier = nil
+        inFlight = [:]
         pending = []
         targetId = nil
         sent = 0
         duplicates = 0
         failed = 0
         persist()
-        endBackgroundTask()
+        client.cancelUploads(for: cancelled)
         notifyChanged()
     }
 
     private func run() {
-        guard !isRunning, !pending.isEmpty, let targetId = targetId else { return }
-        isRunning = true
+        guard !isReconciling, !isPumpArmed, !pending.isEmpty, targetId != nil else { return }
+        arm()
+        pump(token: runToken)
+    }
+
+    private func arm() {
+        isPumpArmed = true
         isPaused = false
         stopReason = nil
         runToken += 1
-        beginBackgroundTask()
         notifyChanged()
-        step(token: runToken, targetId: targetId)
     }
 
-    private func step(token: Int, targetId: String) {
-        guard token == runToken else { return }
-        guard let identifier = pending.first else {
+    private func pump(token: Int) {
+        guard token == runToken, isPumpArmed, let targetId = targetId else { return }
+
+        while inFlight.count < UploadQueue.window {
+            guard let identifier = pending.first(where: { inFlight[$0] == nil }) else { break }
+            inFlight[identifier] = Slot(token: token, attempts: 0)
+            start(identifier, token: token, targetId: targetId)
+        }
+
+        if inFlight.isEmpty && pending.isEmpty {
             finish(reason: nil)
-            return
         }
+    }
 
-        if attemptedIdentifier != identifier {
-            attemptedIdentifier = identifier
-            attempts = 0
-        }
-
+    private func start(_ identifier: String, token: Int, targetId: String) {
         guard let asset = UploadQueue.asset(for: identifier) else {
-            complete(.failItem(.photoUnavailable), token: token, targetId: targetId)
+            DispatchQueue.main.async { [weak self] in
+                self?.complete(.failItem(.photoUnavailable), identifier: identifier, token: token)
+            }
             return
         }
 
-        exporter.export(asset) { [weak self] result in
-            guard let self = self, token == self.runToken else { return }
+        exporter.export(asset, identifier: identifier) { [weak self] result in
+            guard let self = self else { return }
             switch result {
             case .failure(let failure):
-                self.complete(UploadQueue.verdict(failure), token: token, targetId: targetId)
+                self.complete(UploadQueue.verdict(failure), identifier: identifier, token: token)
             case .success(let export):
-                self.upload(export, token: token, targetId: targetId)
+                guard self.client.send(export, targetId: targetId, identifier: identifier) else {
+                    self.complete(.halt(.notReady), identifier: identifier, token: token)
+                    return
+                }
             }
         }
     }
 
-    private func upload(_ export: AssetExport, token: Int, targetId: String) {
-        client.upload(export, targetId: targetId) { [weak self] outcome in
-            guard let self = self else { return }
-            self.exporter.discard(export)
-            guard token == self.runToken else { return }
-            switch outcome {
-            case .success(let receipt):
-                self.complete(.stored(created: receipt.created), token: token, targetId: targetId)
-            case .failure(let failure):
-                self.complete(UploadQueue.verdict(failure), token: token, targetId: targetId)
-            }
+    private func uploadFinished(_ identifier: String, _ result: Result<UploadReceipt, UploadFailure>) {
+        exporter.discardStaged(for: identifier)
+        switch result {
+        case .success(let receipt):
+            complete(.stored(created: receipt.created), identifier: identifier, token: runToken)
+        case .failure(let failure):
+            complete(UploadQueue.verdict(failure), identifier: identifier, token: runToken)
         }
     }
 
-    private func complete(_ outcome: Outcome, token: Int, targetId: String) {
-        guard token == runToken else { return }
+    private func uploadCancelled(_ identifier: String) {
+        exporter.discardStaged(for: identifier)
+    }
+
+    private func complete(_ outcome: Outcome, identifier: String, token: Int) {
+        guard token == runToken, let slot = inFlight[identifier], slot.token == token else { return }
+
         switch outcome {
         case .stored(let created):
             if created {
@@ -207,50 +258,53 @@ final class UploadQueue {
             } else {
                 duplicates += 1
             }
-            advance(token: token, targetId: targetId)
+            retire(identifier)
         case .failItem(let error):
             failed += 1
             lastErrorText = error.text
-            advance(token: token, targetId: targetId)
+            retire(identifier)
         case .retry(let error, let limit):
-            attempts += 1
+            let attempts = slot.attempts + 1
             guard attempts <= limit, attempts <= UploadQueue.backoff.count else {
-                complete(.failItem(error), token: token, targetId: targetId)
+                complete(.failItem(error), identifier: identifier, token: token)
                 return
             }
+            inFlight[identifier] = Slot(token: token, attempts: attempts)
             DispatchQueue.main.asyncAfter(deadline: .now() + UploadQueue.backoff[attempts - 1]) { [weak self] in
-                guard let self = self, token == self.runToken else { return }
-                self.step(token: token, targetId: targetId)
+                guard let self = self, token == self.runToken, let targetId = self.targetId else { return }
+                self.start(identifier, token: token, targetId: targetId)
             }
         case .halt(let error):
             finish(reason: error)
         }
     }
 
-    private func advance(token: Int, targetId: String) {
-        pending.removeFirst()
-        attemptedIdentifier = nil
-        attempts = 0
+    private func retire(_ identifier: String) {
+        inFlight.removeValue(forKey: identifier)
+        if let index = pending.firstIndex(of: identifier) {
+            pending.remove(at: index)
+        }
         sincePersist += 1
         if sincePersist >= UploadQueue.persistEvery {
             persist()
         }
         notifyChanged()
 
+        let token = runToken
         DispatchQueue.main.async { [weak self] in
             guard let self = self, token == self.runToken else { return }
-            self.step(token: token, targetId: targetId)
+            self.pump(token: token)
         }
     }
 
     private func finish(reason: BackupUploadError?) {
+        let cancelled = Array(inFlight.keys)
         runToken += 1
-        isRunning = false
+        isPumpArmed = false
         stopReason = reason
-        attempts = 0
-        attemptedIdentifier = nil
+        inFlight = [:]
         persist()
-        endBackgroundTask()
+        client.cancelUploads(for: cancelled)
         notifyChanged()
     }
 
@@ -320,21 +374,6 @@ final class UploadQueue {
                                                  withIntermediateDirectories: true,
                                                  attributes: nil)
         try? data.write(to: fileURL, options: .atomic)
-    }
-
-    private func beginBackgroundTask() {
-        guard backgroundTask == .invalid else { return }
-        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "JellypicUploads") { [weak self] in
-            guard let self = self else { return }
-            self.persist()
-            self.finish(reason: nil)
-        }
-    }
-
-    private func endBackgroundTask() {
-        guard backgroundTask != .invalid else { return }
-        UIApplication.shared.endBackgroundTask(backgroundTask)
-        backgroundTask = .invalid
     }
 
     private func notifyChanged() {

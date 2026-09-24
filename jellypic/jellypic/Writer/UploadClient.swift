@@ -27,7 +27,9 @@ enum UploadFailure: Error {
     case offline
 }
 
-final class UploadClient {
+final class UploadClient: NSObject, URLSessionDataDelegate {
+
+    static let backgroundSessionIdentifier = "com.rousseaddict.jellypic.uploads"
 
     private struct TargetsPayload: Decodable {
         let targets: [Entry]
@@ -52,10 +54,16 @@ final class UploadClient {
 
     var credentials: JellyfinCredentials?
     var onTokenRejected: (() -> Void)?
+    var onUploadFinished: ((String, Result<UploadReceipt, UploadFailure>) -> Void)?
+    var onUploadCancelled: ((String) -> Void)?
+    var onBackgroundEventsFinished: (() -> Void)?
 
     private let identity: DeviceIdentity
     private let session: URLSession
     private let uploadSession: URLSession
+    private var backgroundSession: URLSession!
+    private var bodies: [Int: Data] = [:]
+    private var backgroundCompletion: (() -> Void)?
 
     init(identity: DeviceIdentity) {
         self.identity = identity
@@ -74,6 +82,19 @@ final class UploadClient {
         uploadConfiguration.requestCachePolicy = .reloadIgnoringLocalCacheData
         uploadConfiguration.httpAdditionalHeaders = ["Accept": "application/json"]
         self.uploadSession = URLSession(configuration: uploadConfiguration)
+
+        super.init()
+
+        let backgroundConfiguration = URLSessionConfiguration
+            .background(withIdentifier: UploadClient.backgroundSessionIdentifier)
+        backgroundConfiguration.allowsCellularAccess = false
+        backgroundConfiguration.isDiscretionary = false
+        backgroundConfiguration.sessionSendsLaunchEvents = true
+        backgroundConfiguration.httpMaximumConnectionsPerHost = 3
+        backgroundConfiguration.httpAdditionalHeaders = ["Accept": "application/json"]
+        self.backgroundSession = URLSession(configuration: backgroundConfiguration,
+                                            delegate: self,
+                                            delegateQueue: .main)
     }
 
     @discardableResult
@@ -98,17 +119,10 @@ final class UploadClient {
     func upload(_ export: AssetExport,
                 targetId: String,
                 completion: @escaping (Result<UploadReceipt, UploadFailure>) -> Void) -> URLSessionTask? {
-        guard let credentials = credentials,
-              let url = itemsURL(baseURL: credentials.baseURL, export: export, targetId: targetId) else {
+        guard let request = itemsRequest(export: export, targetId: targetId) else {
             finish(.failure(.rejected("BAD_REQUEST")), completion)
             return nil
         }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(jellyfinAuthorization(identity: identity, token: credentials.accessToken),
-                         forHTTPHeaderField: "Authorization")
-        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
 
         let task = uploadSession.uploadTask(with: request, fromFile: export.fileURL) { [weak self] data, response, error in
             guard let self = self else { return }
@@ -116,6 +130,92 @@ final class UploadClient {
         }
         task.resume()
         return task
+    }
+
+    @discardableResult
+    func send(_ export: AssetExport, targetId: String, identifier: String) -> Bool {
+        guard let request = itemsRequest(export: export, targetId: targetId) else { return false }
+        let task = backgroundSession.uploadTask(with: request, fromFile: export.fileURL)
+        task.taskDescription = identifier
+        task.resume()
+        return true
+    }
+
+    func cancelUploads(for identifiers: [String]) {
+        guard !identifiers.isEmpty else { return }
+        let wanted = Set(identifiers)
+        backgroundSession.getAllTasks { tasks in
+            for task in tasks {
+                guard let identifier = task.taskDescription, wanted.contains(identifier) else { continue }
+                task.cancel()
+            }
+        }
+    }
+
+    func adoptInFlight(_ completion: @escaping (Set<String>) -> Void) {
+        backgroundSession.getAllTasks { tasks in
+            var live: Set<String> = []
+            for task in tasks {
+                guard let identifier = task.taskDescription else {
+                    task.cancel()
+                    continue
+                }
+                switch task.state {
+                case .suspended:
+                    task.resume()
+                    live.insert(identifier)
+                case .running:
+                    live.insert(identifier)
+                default:
+                    break
+                }
+            }
+            completion(live)
+        }
+    }
+
+    func storeBackgroundCompletion(_ handler: @escaping () -> Void) {
+        backgroundCompletion = handler
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        var body = bodies[dataTask.taskIdentifier] ?? Data()
+        body.append(data)
+        bodies[dataTask.taskIdentifier] = body
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        let data = bodies.removeValue(forKey: task.taskIdentifier)
+        guard let identifier = task.taskDescription else { return }
+
+        if let error = error as NSError?,
+           error.domain == NSURLErrorDomain,
+           error.code == NSURLErrorCancelled {
+            onUploadCancelled?(identifier)
+            return
+        }
+
+        onUploadFinished?(identifier, receipt(data: data, response: task.response, error: error))
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        onBackgroundEventsFinished?()
+        let handler = backgroundCompletion
+        backgroundCompletion = nil
+        handler?()
+    }
+
+    private func itemsRequest(export: AssetExport, targetId: String) -> URLRequest? {
+        guard let credentials = credentials,
+              let url = itemsURL(baseURL: credentials.baseURL, export: export, targetId: targetId) else {
+            return nil
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(jellyfinAuthorization(identity: identity, token: credentials.accessToken),
+                         forHTTPHeaderField: "Authorization")
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        return request
     }
 
     private func itemsURL(baseURL: URL, export: AssetExport, targetId: String) -> URL? {

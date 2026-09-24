@@ -174,10 +174,25 @@ final class SettingsViewController: CardSheetViewController {
             case .manual:
                 return "Choose photos on the grid to send them"
             case .automatic:
-                return "New photos are sent in the background"
+                return "New photos are sent in the background\n" + sweepNoteText()
             }
         }
     }
+
+    private func sweepNoteText() -> String {
+        guard let at = services.upload.lastSweepAt else {
+            return "Waiting for the first background check"
+        }
+        let result = services.upload.lastSweepResult ?? "checked"
+        return "Last checked \(SettingsViewController.sweepFormatter.string(from: at)) — \(result)"
+    }
+
+    private static let sweepFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     private static func sizeText(_ bytes: Int64) -> String {
         guard bytes > 0 else { return "Empty" }

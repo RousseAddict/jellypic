@@ -1,6 +1,7 @@
 import CommonCrypto
 import Foundation
 import Photos
+import UIKit
 
 struct AssetExport {
     let fileURL: URL
@@ -26,18 +27,29 @@ final class AssetExporter {
         directory = caches.appendingPathComponent("Uploads", isDirectory: true)
     }
 
-    func sweep() {
+    static func stagedName(for identifier: String) -> String {
+        var digest = SHA256Digest()
+        digest.update(Data(identifier.utf8))
+        return digest.finalize()
+    }
+
+    func sweep(keeping names: Set<String>) {
         let manager = FileManager.default
         guard let entries = try? manager.contentsOfDirectory(at: directory,
                                                              includingPropertiesForKeys: nil,
                                                              options: []) else { return }
-        for entry in entries {
+        for entry in entries where !names.contains(entry.lastPathComponent) {
             try? manager.removeItem(at: entry)
         }
     }
 
     func discard(_ export: AssetExport) {
         try? FileManager.default.removeItem(at: export.fileURL)
+    }
+
+    func discardStaged(for identifier: String) {
+        try? FileManager.default.removeItem(at: directory
+            .appendingPathComponent(AssetExporter.stagedName(for: identifier)))
     }
 
     func exportMostRecent(completion: @escaping (Result<AssetExport, AssetExportFailure>) -> Void) {
@@ -51,16 +63,19 @@ final class AssetExporter {
                 completion(.failure(.noAsset))
                 return
             }
-            self.export(asset, completion: completion)
+            self.export(asset, identifier: asset.localIdentifier, completion: completion)
         }
     }
 
-    func export(_ asset: PHAsset, completion: @escaping (Result<AssetExport, AssetExportFailure>) -> Void) {
+    func export(_ asset: PHAsset,
+                identifier: String,
+                completion: @escaping (Result<AssetExport, AssetExportFailure>) -> Void) {
         guard let resource = AssetExporter.resource(for: asset) else {
             DispatchQueue.main.async { completion(.failure(.noResource)) }
             return
         }
-        guard let fileURL = makeFileURL(), let stream = OutputStream(url: fileURL, append: false) else {
+        guard let fileURL = makeFileURL(for: identifier),
+              let stream = OutputStream(url: fileURL, append: false) else {
             DispatchQueue.main.async { completion(.failure(.write)) }
             return
         }
@@ -70,12 +85,31 @@ final class AssetExporter {
         var digest = SHA256Digest()
         var received = 0
         var wroteEverything = true
+        var isExpired = false
+        var isDelivered = false
+        var backgroundTask = UIBackgroundTaskIdentifier.invalid
+
+        let deliver: (Result<AssetExport, AssetExportFailure>) -> Void = { outcome in
+            guard !isDelivered else { return }
+            isDelivered = true
+            if backgroundTask != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundTask)
+                backgroundTask = .invalid
+            }
+            completion(outcome)
+        }
+
+        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "JellypicExport") {
+            isExpired = true
+            try? FileManager.default.removeItem(at: fileURL)
+            deliver(.failure(.write))
+        }
 
         let options = PHAssetResourceRequestOptions()
         options.isNetworkAccessAllowed = false
 
         PHAssetResourceManager.default().requestData(for: resource, options: options, dataReceivedHandler: { data in
-            guard wroteEverything else { return }
+            guard wroteEverything, !isExpired else { return }
             digest.update(data)
             received += data.count
             wroteEverything = AssetExporter.write(data, to: stream)
@@ -87,7 +121,7 @@ final class AssetExporter {
 
             if error != nil {
                 outcome = .failure(.notLocal)
-            } else if !wroteEverything || received == 0 {
+            } else if isExpired || !wroteEverything || received == 0 {
                 outcome = .failure(.write)
             } else {
                 outcome = .success(AssetExport(fileURL: fileURL,
@@ -100,7 +134,7 @@ final class AssetExporter {
                 try? FileManager.default.removeItem(at: fileURL)
             }
 
-            DispatchQueue.main.async { completion(outcome) }
+            DispatchQueue.main.async { deliver(outcome) }
         })
     }
 
@@ -111,7 +145,7 @@ final class AssetExporter {
         }
     }
 
-    private func makeFileURL() -> URL? {
+    private func makeFileURL(for identifier: String) -> URL? {
         do {
             try FileManager.default.createDirectory(at: directory,
                                                     withIntermediateDirectories: true,
@@ -119,7 +153,7 @@ final class AssetExporter {
         } catch {
             return nil
         }
-        return directory.appendingPathComponent(UUID().uuidString)
+        return directory.appendingPathComponent(AssetExporter.stagedName(for: identifier))
     }
 
     private static func mostRecentAsset() -> PHAsset? {
