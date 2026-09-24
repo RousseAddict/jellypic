@@ -20,6 +20,7 @@ final class PhotoGridViewController: UIViewController {
     private let brandLabel = UILabel()
     private let emptyLabel = UILabel()
     private let scrubber = MonthScrubberView()
+    private let sendButton = GlyphButton(glyph: PlusGlyphView(), prominent: true)
 
     private var timeline: PhotoTimeline!
     private var pendingReload = false
@@ -79,6 +80,7 @@ final class PhotoGridViewController: UIViewController {
         super.viewDidAppear(animated)
         startSync()
         catchUp()
+        refreshSendButton()
         introduceScrubber()
     }
 
@@ -151,7 +153,15 @@ final class PhotoGridViewController: UIViewController {
         mapButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(mapButton)
 
+        sendButton.isHidden = true
+        sendButton.addTarget(self, action: #selector(showPicker), for: .touchUpInside)
+        sendButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(sendButton)
+
         NSLayoutConstraint.activate([
+            sendButton.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
+            sendButton.trailingAnchor.constraint(equalTo: mapButton.leadingAnchor),
+
             scrubber.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
                                           constant: PhotoGridViewController.scrubberInset),
             scrubber.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
@@ -177,13 +187,13 @@ final class PhotoGridViewController: UIViewController {
             brand.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
             brand.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
                                            constant: 16),
-            brand.trailingAnchor.constraint(lessThanOrEqualTo: mapButton.leadingAnchor,
+            brand.trailingAnchor.constraint(lessThanOrEqualTo: sendButton.leadingAnchor,
                                             constant: -24),
 
             banner.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
             banner.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
                                             constant: 12),
-            banner.trailingAnchor.constraint(lessThanOrEqualTo: mapButton.leadingAnchor, constant: -24)
+            banner.trailingAnchor.constraint(lessThanOrEqualTo: sendButton.leadingAnchor, constant: -24)
         ])
     }
 
@@ -372,6 +382,8 @@ final class PhotoGridViewController: UIViewController {
         settingsButton.isUserInteractionEnabled = alpha > 0
         mapButton.alpha = alpha
         mapButton.isUserInteractionEnabled = alpha > 0
+        sendButton.alpha = alpha
+        sendButton.isUserInteractionEnabled = alpha > 0
     }
 
     private func refreshEmptyState() {
@@ -412,8 +424,62 @@ final class PhotoGridViewController: UIViewController {
         let settings = SettingsViewController(services: services)
         settings.onSignedOut = { [weak self] in self?.onSignedOut?() }
         settings.onResyncRequested = { [weak self] in self?.restartSync() }
-        settings.onDismissed = { [weak self] in self?.catchUp() }
+        settings.onDismissed = { [weak self] in
+            self?.catchUp()
+            self?.refreshSendButton()
+        }
         settings.present(over: self)
+    }
+
+    private func refreshSendButton() {
+        guard services.upload.mode != .off else {
+            updateSendButton()
+            return
+        }
+        services.upload.refreshAvailability { [weak self] in
+            self?.updateSendButton()
+        }
+    }
+
+    private func updateSendButton() {
+        guard case .ready = services.upload.availability, services.upload.mode != .off else {
+            sendButton.isHidden = true
+            return
+        }
+        sendButton.isHidden = false
+    }
+
+    @objc private func showPicker() {
+        let picker = AssetPickerViewController(services: services)
+        picker.onFinished = { [weak self] summary in self?.reportSend(summary) }
+        present(picker, animated: true, completion: nil)
+    }
+
+    private func reportSend(_ summary: BackupSendSummary) {
+        var lines: [String] = []
+        if summary.sent > 0 {
+            lines.append("\(summary.sent) sent.")
+        }
+        if summary.duplicates > 0 {
+            lines.append("\(summary.duplicates) already on your server.")
+        }
+        if summary.failed > 0 {
+            lines.append("\(summary.failed) not sent.")
+            if let error = summary.lastError {
+                lines.append(error.text)
+            }
+        }
+        if summary.sent > 0 {
+            lines.append("Your server picks up new photos after about a minute; Jellypic will show them the next time you open the grid.")
+        }
+        guard !lines.isEmpty else { return }
+
+        let title = summary.sent > 0 ? "Sent" : (summary.failed > 0 ? "Not sent" : "Already there")
+        let alert = UIAlertController(title: title,
+                                      message: lines.joined(separator: "\n\n"),
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+        present(alert, animated: true, completion: nil)
     }
 
     @objc private func showMap() {

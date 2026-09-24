@@ -58,6 +58,8 @@
 		1A00000000000000000000136 /* UploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000135 /* UploadService.swift */; };
 		1A00000000000000000000138 /* UploadClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000137 /* UploadClient.swift */; };
 		1A0000000000000000000013A /* AssetExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000139 /* AssetExporter.swift */; };
+		1A0000000000000000000013C /* AssetGridCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000013B /* AssetGridCell.swift */; };
+		1A0000000000000000000013E /* AssetPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000013D /* AssetPickerViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -114,6 +116,8 @@
 		1A00000000000000000000135 /* UploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadService.swift; sourceTree = "<group>"; };
 		1A00000000000000000000137 /* UploadClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadClient.swift; sourceTree = "<group>"; };
 		1A00000000000000000000139 /* AssetExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetExporter.swift; sourceTree = "<group>"; };
+		1A0000000000000000000013B /* AssetGridCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetGridCell.swift; sourceTree = "<group>"; };
+		1A0000000000000000000013D /* AssetPickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetPickerViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -248,6 +252,8 @@
 				1A00000000000000000000135 /* UploadService.swift */,
 				1A00000000000000000000137 /* UploadClient.swift */,
 				1A00000000000000000000139 /* AssetExporter.swift */,
+				1A0000000000000000000013B /* AssetGridCell.swift */,
+				1A0000000000000000000013D /* AssetPickerViewController.swift */,
 			);
 			path = Writer;
 			sourceTree = "<group>";
@@ -408,6 +414,8 @@
 				1A00000000000000000000136 /* UploadService.swift in Sources */,
 				1A00000000000000000000138 /* UploadClient.swift in Sources */,
 				1A0000000000000000000013A /* AssetExporter.swift in Sources */,
+				1A0000000000000000000013C /* AssetGridCell.swift in Sources */,
+				1A0000000000000000000013E /* AssetPickerViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

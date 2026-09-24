@@ -209,7 +209,7 @@ final class SettingsViewController: CardSheetViewController {
                                 ? "Filed as \(receipt.path).\n\nYour server picks up new photos after about a minute; Jellypic will show it the next time you open the grid."
                                 : "Your server already had this photo, as \(receipt.path).")
             case .failure(let failure):
-                self.report(title: "Not sent", message: SettingsViewController.sendFailureText(failure))
+                self.report(title: "Not sent", message: failure.text)
             }
         }
     }
@@ -218,21 +218,6 @@ final class SettingsViewController: CardSheetViewController {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
         present(alert, animated: true, completion: nil)
-    }
-
-    private static func sendFailureText(_ failure: BackupUploadError) -> String {
-        switch failure {
-        case .notReady:
-            return "Your server is not ready to take photos yet."
-        case .permissionDenied:
-            return "Jellypic cannot read your photos. Allow access in the Settings app."
-        case .photoUnavailable:
-            return "No photo on this device could be read."
-        case .unauthorized:
-            return "Your session expired. Sign in again to continue."
-        case .refused(let reason):
-            return reason + "."
-        }
     }
 
     @objc private func themeChanged() {

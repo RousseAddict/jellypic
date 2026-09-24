@@ -260,6 +260,27 @@ final class CloseGlyphView: GlyphView {
     }
 }
 
+final class PlusGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 18, height: 18)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 1.5
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.minX, y: box.midY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.midY))
+        path.move(to: CGPoint(x: box.midX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.midX, y: box.maxY))
+        return path
+    }
+}
+
 final class PlayGlyphView: GlyphView {
 
     override var glyphSize: CGSize {

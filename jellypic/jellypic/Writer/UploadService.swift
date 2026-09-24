@@ -1,4 +1,5 @@
 import Foundation
+import Photos
 
 enum BackupMode: Int {
     case off = 0
@@ -29,6 +30,28 @@ enum BackupUploadError: Error {
     case photoUnavailable
     case unauthorized
     case refused(String)
+
+    var text: String {
+        switch self {
+        case .notReady:
+            return "Your server is not ready to take photos yet."
+        case .permissionDenied:
+            return "Jellypic cannot read your photos. Allow access in the Settings app."
+        case .photoUnavailable:
+            return "No photo on this device could be read."
+        case .unauthorized:
+            return "Your session expired. Sign in again to continue."
+        case .refused(let reason):
+            return reason + "."
+        }
+    }
+}
+
+struct BackupSendSummary {
+    var sent = 0
+    var duplicates = 0
+    var failed = 0
+    var lastError: BackupUploadError?
 }
 
 protocol UploadService: AnyObject {
@@ -41,6 +64,10 @@ protocol UploadService: AnyObject {
 
     func refreshAvailability(completion: @escaping () -> Void)
     func uploadMostRecentPhoto(completion: @escaping (Result<UploadReceipt, BackupUploadError>) -> Void)
+    func send(_ assets: [PHAsset],
+              progress: @escaping (Int) -> Void,
+              completion: @escaping (BackupSendSummary) -> Void)
+    func cancelSend()
     func reset()
 }
 
@@ -55,6 +82,9 @@ final class JellyfinUploadService: UploadService {
     private let defaults = UserDefaults.standard
 
     private(set) var availability: BackupAvailability = .unknown
+
+    private var sendToken = 0
+    private var isSending = false
 
     init(identity: DeviceIdentity) {
         client = UploadClient(identity: identity)
@@ -120,9 +150,83 @@ final class JellyfinUploadService: UploadService {
         }
     }
 
+    func send(_ assets: [PHAsset],
+              progress: @escaping (Int) -> Void,
+              completion: @escaping (BackupSendSummary) -> Void) {
+        guard case .ready(let target) = availability, !isSending else {
+            var refused = BackupSendSummary()
+            refused.failed = assets.count
+            refused.lastError = .notReady
+            completion(refused)
+            return
+        }
+
+        isSending = true
+        sendToken += 1
+        sendNext(assets,
+                 index: 0,
+                 target: target,
+                 token: sendToken,
+                 tally: BackupSendSummary(),
+                 progress: progress,
+                 completion: completion)
+    }
+
+    func cancelSend() {
+        guard isSending else { return }
+        sendToken += 1
+    }
+
     func reset() {
+        cancelSend()
         mode = .off
         availability = .unknown
+    }
+
+    private func sendNext(_ assets: [PHAsset],
+                          index: Int,
+                          target: UploadTarget,
+                          token: Int,
+                          tally: BackupSendSummary,
+                          progress: @escaping (Int) -> Void,
+                          completion: @escaping (BackupSendSummary) -> Void) {
+        guard token == sendToken, index < assets.count else {
+            isSending = false
+            completion(tally)
+            return
+        }
+
+        progress(index)
+
+        exporter.export(assets[index]) { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .failure(let failure):
+                var next = tally
+                next.failed += 1
+                next.lastError = JellyfinUploadService.translate(failure)
+                self.sendNext(assets, index: index + 1, target: target, token: token,
+                              tally: next, progress: progress, completion: completion)
+            case .success(let export):
+                self.client.upload(export, targetId: target.id) { outcome in
+                    self.exporter.discard(export)
+                    var next = tally
+                    switch outcome {
+                    case .success(let receipt):
+                        if receipt.created {
+                            next.sent += 1
+                        } else {
+                            next.duplicates += 1
+                        }
+                    case .failure(let failure):
+                        next.failed += 1
+                        next.lastError = JellyfinUploadService.translate(failure)
+                    }
+                    self.sendNext(assets, index: index + 1, target: target, token: token,
+                                  tally: next, progress: progress, completion: completion)
+                }
+            }
+        }
     }
 
     private static func translate(_ failure: AssetExportFailure) -> BackupUploadError {

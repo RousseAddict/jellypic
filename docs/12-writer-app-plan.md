@@ -274,7 +274,8 @@ no client-side trick beats it. This is a top-up, not a proof of the library — 
 does not have.**
 
 **W3 — the picker.** The biggest piece of UI in the writer: a `PHFetchResult`-backed grid
-with multi-selection. Design ratified in chat, §10 below.
+with multi-selection. Design ratified in chat, §10 below; built, §11 records where the
+build departs from §10 and why.
 
 **W4 — the queue.** The window, resumption, the error taxonomy, the Wi-Fi and discretionary
 policy, the pause on token expiry, the launch sweep.
@@ -321,12 +322,11 @@ when the SDK rises.
 
 ## 9. Still open
 
-- **How the grid learns about a photo it just sent.** The plugin returns no item id (§1) and
-  the reader has no incremental sync, so today the answer is "at the next resync". The
-  options, none chosen: a single targeted `/Items` query after a run, keyed on the 16 hex
-  characters the filename carries, once the debounced scan has had time to fire; or
-  `POST /Library/Media/Updated` to skip the debounce and then query. Both cost a round trip
-  and a delay, and neither is worth designing before W4 makes "a run" a thing that ends.
+- ~~How the grid learns about a photo it just sent.~~ Answered by the `minDateLastSaved`
+  catch-up (docs/06 §5.4). What is still open is only the *delay*: the server's
+  `LibraryMonitorDelay` is 60 s, so the catch-up that runs the instant the picker closes
+  finds nothing and the one after it does. `POST /Library/Media/Updated` would skip the
+  debounce; not worth a second contract before W4 makes "a run" a thing that ends.
 - **The local hash memo of doc 11 §5** (`localIdentifier + modificationDate → sha256`) is
   not built. W2 hashes one photo on demand; the memo only pays for itself once W4 retries
   and W6 reconciles.
@@ -391,3 +391,50 @@ when the SDK rises.
   token exactly as `PhotoCell` already does.
 - **The 6 pt inset is a `transform`, not a layout change.** Re-laying out a cell per tap
   is work the A7 does not need to do.
+
+## 11. What W3 built, and the four places it departs from §10
+
+`Writer/AssetPickerViewController.swift` + `Writer/AssetGridCell.swift`, reached from a
+`GlyphButton(glyph: PlusGlyphView(), prominent: true)` in the grid's top band, left of the
+map and settings glyphs. The button is **hidden unless `mode != .off` and
+`availability == .ready`** — an entry point that opens onto a refusal is worse than no
+entry point. Availability is re-probed in `viewDidAppear` and in the settings card's
+`onDismissed`, the two moments it can have changed.
+
+The band was a reversal: a floating `+` bottom-right, level with the scrubber, was built
+first and rejected on sight — a second floating control beside the scrubber crowds the
+corner the scrubber already owns. Living in the band costs the action the **40 pt scroll
+fade** the other two glyphs have, which is why the bottom was chosen in the first place.
+It fades with them rather than against them: three glyphs on one row that behave
+differently read as a bug, and `isUserInteractionEnabled` follows the alpha so a
+transparent 44 pt target cannot eat taps on the photo beneath. The `+` is 18 pt at 1.5 pt
+stroke, not 20 at 2 — a cross reaching the corners of its box outweighs a ring of the
+same box, which is empty at the corners.
+
+**No `POST /Have`.** §10 said the confirm step hashes the selection and asks the server
+what it already holds. It does not, and the reason is that `/Have` buys nothing here: a
+SHA-256 needs a full byte-for-byte read of the asset, which is the *same read* the export
+already performs, so a `Have` pass costs a second pass over every selected photo to save
+a request that `UploadWriter.WriteAsync` already answers for free — it returns
+`created:false` on an existing hash without ever touching the request body. Duplicates are
+therefore correct, just not free. `/Have` remains W6's, where it reconciles 20 000 photos
+the app never selected and the hash memo of doc 11 §5 makes the read amortise.
+
+**No new `CheckGlyphView`.** `Design/Icons.swift` already had `SelectionIndicatorView` —
+a 22 pt accent ring with an animating `CheckmarkView` and an `applyTheme`. Reused as-is.
+
+**The month key is local time, not UTC.** `MonthKey` (`Index/PhotoItem.swift`) formats in
+UTC because it keys server items whose `PremiereDate` is wall-clock EXIF. Applying it to
+`PHAsset.creationDate`, which is a real instant, would file a photo taken at 21:00 on 30
+September under October. The picker carries its own `"yyyy-MM"` formatter in the device's
+timezone. `MonthHeaderView` renders either key identically, so nothing else changes.
+
+**The picker stays up during the send, and the grid owns the alert.** The `Send n` pill
+becomes `Sending 3 of 12`, the collection view stops taking touches, and `Cancel` becomes
+`Stop`. `UploadService.send` is sequential — export, `POST /Items`, discard, next — driven
+by a self-tail-calling `sendNext` that is not recursion in any costly sense: every
+completion hops to the main queue, so the stack never grows. `cancelSend()` bumps the same
+`sendToken` the run captured, so the in-flight callback takes the guard exit, clears
+`isSending` and fires the completion with the tally so far — a stop can never hang the
+picker. On completion the picker dismisses and the *grid* presents the summary, because an
+alert on a view controller that is disappearing is an alert nobody sees.
