@@ -295,7 +295,7 @@ relaunches the app to finish. Built; §13 records what it reversed on the way.
 the app.*
 
 **W6 — reconciliation.** `POST /Have` in batches of 500, and a full-library pass that finds
-everything never sent.
+everything never sent. Built; §14 records what it costs and where it stops.
 *Device test: 20 000 photos reconciled in ~40 requests and no iCloud traffic.*
 
 ## 8. What is legacy, and what only looks like it
@@ -768,3 +768,193 @@ background-session task with `NSURLErrorCancelled` /
 `NSURLErrorCancelledReasonUserForceQuitApplication` *and* suppresses background fetch until
 the user manually launches the app again. It looks exactly like a broken implementation.
 Background with the Home button; kill from Xcode when a kill is what you mean.
+
+## 14. What W6 built
+
+### `/Have` saves requests, not reads
+
+The milestone's headline — 20 000 photos in ~40 requests — is a **network** figure and
+nothing else. `/Have` is keyed by the sha256 of the bytes, and a sha256 needs every byte, so
+the local read of the entire camera roll is unavoidable and is the real cost of this
+milestone. What the batching buys is one round trip per 500 photos instead of one upload per
+photo, which is the difference between a reconciliation and a re-upload of the library.
+
+The other half of the test was already paid for in W2: `AssetExporter` sets
+`isNetworkAccessAllowed = false`, so an iCloud-only photo fails locally rather than being
+downloaded. W6 inherits that by construction, because it reuses the same read.
+
+### One month function, one timezone
+
+`AssetPickerViewController.monthKey(for:)` was already exactly the function `/Have` needs, so
+it moved to `AssetExporter` rather than being copied. The server does
+`DateTimeOffset.TryParse(capturedAt).DateTime` — it drops the offset and files by wall clock
+— then buckets on `yyyy-MM`. `UploadClient.capturedAtFormatter` has no explicit `timeZone`,
+so it already emits device-local wall clock plus offset, and the two agree. **A second,
+differently-configured formatter is how they would stop agreeing**, which is the whole reason
+the function was promoted instead of duplicated.
+
+Empty month is not a stub: `UploadWriter.Bucket` maps null-or-empty to `undated/`, exactly
+where an upload with no `capturedAt` goes. `monthKey(for: nil) == ""` is the right answer.
+
+### Hashing reuses the export path, minus the write
+
+`AssetExporter.read(_:into:isAborted:completion:)` is now the single `requestData` call site;
+`export` passes an `OutputStream` and `hash` passes `nil`. There is deliberately no second
+call site, because `isNetworkAccessAllowed = false` and the resource-preference order
+(`[.fullSizePhoto, .photo]`) must not get two owners.
+
+No `beginBackgroundTask` around the hash pass. The scan is foreground-only, so an in-flight
+hash at the moment of backgrounding is simply abandoned, the cursor does not advance, and
+that one photo is re-hashed on resume. The background task stays on the export, where W5 put
+it, because an export has a partial file to clean up and a queue slot waiting on it.
+
+### The cursor is a date plus a set of identifiers, never an index
+
+W5's watermark rule, inverted. The scan walks `creationDate <= cursor` descending and
+remembers the identifiers of the assets it consumed *at that exact date*, so they are not
+re-consumed.
+
+**An index into the fetch result cannot work.** Photos are added and deleted between batches,
+so the roll shifts under you and an index silently skips or repeats — the same class of bug
+as stamping the watermark at `Date()`.
+
+**A single identifier does not work either, and the failure is a scan that never ends.** The
+predicate has to be `<=`, not `<`, or anything sharing the cursor asset's date is skipped
+unseen. So when the oldest remaining photos share a `creationDate` — a burst, a bulk import,
+anything saved in one go — skipping only the last one consumed lets the others come back on
+the next fetch, where one of them becomes the new "last one" and readmits the first. The
+batch is never empty, `.finished` is never reached, and the scan re-hashes the same handful
+forever while `scanned` keeps climbing, which reads on screen as healthy progress.
+
+The fix is to skip the whole tied set, and to **union it with the previous set whenever the
+cursor date does not move**. That makes the skip list grow monotonically until the fetch
+finally comes back empty, and bounds it by the number of assets sharing one timestamp rather
+than by the library size.
+
+**The boundary is the watermark.** The scan owns everything older than it; the W5 sweep owns
+everything newer. The initial cursor *is* the watermark, so the two meet exactly once and
+never overlap. That is also why the offer is seeded inside `mode`'s setter, in the same
+`newValue == .automatic && mode != .automatic` branch that stamps the watermark.
+
+### Undated photos need a second pass, and it is capped
+
+`creationDate <= cursor` never matches a nil `creationDate` — SQL comparison semantics, not a
+Photos quirk — so the date walk cannot reach an undated asset at all, and no sort descriptor
+rescues it: Photos will not sort on `localIdentifier`, and where nils land in a
+`creationDate` sort is undocumented. Relying on that order would risk the first batch being
+all nils and the entire dated library being declared finished behind it.
+
+So undated assets get their own pass, run **first**, over `creationDate == nil`, and
+`catchUpUndatedDone` records that it happened. It is **capped at one batch of 500**: within
+the nil-dated set there is no cursor to advance, because the only stable ordering key is the
+one that is nil. A roll with more than 500 undated photos is not covered by W6. Named and
+accepted rather than half-built.
+
+### Each missing photo is read twice
+
+Once to hash it, once to export and send it. `docs/11` §5's
+`localIdentifier + modificationDate → sha256` memo would remove the second read and is
+deliberately out of v1: the cursor already makes this a one-time run, and the memo only pays
+for a repeat one.
+
+### 25 then 500
+
+500 is what buys the milestone's "~40 requests" at 20 000 photos and it is the plugin's
+`MaxKeys` (over → 400, enforced rather than trimmed). But 500 hashes is **minutes** of
+reading on an A7 before a single upload starts, and per decision 2 the grid shows nothing new
+— the W4 queue banner is the whole story. So the first batch is 25, purely so the banner
+appears within seconds of tapping *Back up*. Every batch after it is 500.
+
+Hashing inside a batch is **serial**. Three concurrent `requestData` reads on an A7 with 1 GB
+is how this becomes a jetsam rather than a slow scan. An asset that fails to hash is counted
+as scanned and skipped — it would fail to export too.
+
+The shas come back from `/Have` in ask order, but the batch keeps its own sha→identifier
+dictionary and maps through that. Convenient is not the same as relied upon.
+
+### Availability is `.unknown` on every cold start
+
+The same blocker W5 hit. A resume must `refreshAvailability` first and take the target id
+from the resolved `.ready`, never from a remembered value. `LibraryCatchUp` therefore does
+not own availability at all: `JellyfinUploadService` hands it a `resolveTarget` closure, the
+same wiring pattern `UploadQueue` uses for `UploadClient`'s callbacks.
+
+### Where the scan stops, and what restarts it
+
+| Condition | Phase | Restarted by |
+|---|---|---|
+| fetch returns nothing | `.finished` | nothing; a new flip to Automatic re-offers |
+| `.unauthorized` | `.paused` | W5's re-auth card |
+| `.transient` / unreachable server | `.paused` | the next `didBecomeActive` |
+| `.rejected` | `.paused`, reason recorded | nothing this app session |
+| library access not granted | `.paused` | the next `didBecomeActive` |
+| `willResignActive` | `.paused`, cursor not advanced | the next `didBecomeActive`, silently |
+| backup leaves Automatic | `.paused`, cursor not advanced | a new flip to Automatic, which re-offers |
+
+`.rejected` is the one that must not auto-retry: retrying a malformed batch just loops. It is
+held by an **in-memory** `isHalted` flag rather than a seventh persisted key, so a relaunch
+does retry once — which is what you want after updating the plugin, and is not a loop.
+
+**Leaving Automatic has to stop the scan, and the phase alone cannot express that.** Nothing
+in `LibraryCatchUp` knows the mode, so a scan left `.running` when the switch goes to Off
+would be resumed by the very next `didBecomeActive` and quietly keep feeding the queue after
+the user asked the app to stop sending photos. The mode setter therefore calls `suspend()` on
+the way out — the same body `willResignActive` uses — and both resume points go through
+`resumeCatchUpIfAllowed()`, which is `guard mode == .automatic`. The switch stays the single
+place the mode is decided; the engine stays ignorant of it.
+
+`didBecomeActive` is already observed in `UploadService`; the resume is a line inside the
+existing handler, no new observer. **`resumeQueue()` also resumes the scan**, because that is
+the method `sessionDidResume` calls after a re-auth and no `didBecomeActive` fires when the
+app never left the foreground — without it, verification 7 stalls until the next lock/unlock.
+
+`runToken` is the same defence as `SyncEngine`'s and `UploadQueue`'s: `willResignActive`
+bumps it, so the completion of a hash or a `/Have` that lands afterwards is dropped instead
+of advancing a cursor for a dead run.
+
+### Progress lives only in the Settings note
+
+Per decision 2 the grid shows nothing new, which makes the note load-bearing rather than
+polish: without it a scan paused on a `.transient` is indistinguishable from one that
+finished. **Departure from the plan:** the change notification fires per *photo*, not per
+batch. A batch is minutes on an A7, and a counter frozen for minutes on the only progress
+surface is the same failure the note exists to prevent. One `NotificationCenter.post` setting
+one label string is free against a multi-megabyte SHA-256.
+
+For the same reason `.paused` never prints the bare word "paused". `lastErrorText` is
+in-memory only, so it is nil after a relaunch **and** on the ordinary path where the app was
+simply backgrounded — the most common pause there is. With no reason to give, the note shows
+the count reached instead, and keeps the alarming wording for the cases that earned it.
+
+### The entry point is an offer, not a control
+
+Ratified in chat **against the recommendation**: the catch-up is offered by a one-shot alert
+on the Off/Manual → Automatic transition, not by a permanent *Back up everything* row in
+Settings. The reasoning is that a backfill is a decision you make once, not a control you
+live with. What a permanent row would have bought is a way to re-run it after the phone has
+been restored from a backup, or to restart a `.rejected` run without toggling the mode; both
+are reachable today by flipping to Manual and back.
+
+Declined is re-offered on every flip into Automatic. Re-selecting the already-selected
+segment does not ask, and does not re-stamp the watermark — the `mode != .automatic` guard
+that W5 added for the watermark gives that for free.
+
+**The alert closes a real W5 gap.** Nothing in the app asked for photo-library access when
+you flipped to Automatic, so until you happened to open the picker the sweep silently found
+nothing. *Back up* calls `PHPhotoLibrary.requestAuthorization` and starts on `.authorized`.
+The count in the message is included only when access is already granted: without it the
+count is 0, and a wrong number is worse than none.
+
+### Accepted, and named
+
+`UploadQueue.enqueue` zeroes the tally when `pending.isEmpty && !isRunning`, so if the queue
+drains between two batches the banner's counts restart. In practice uploading 500 photos
+outlasts hashing the next 500, so this only shows when almost nothing is missing — the case
+where the banner has nothing to say anyway. The fix would be a cumulative run counter; not in
+W6.
+
+### Videos are out
+
+The scan's predicate is `mediaType == image`, the same predicate family as the picker and the
+W5 sweep. **Videos are out of the catch-up exactly as they are out of Automatic** — recorded,
+not inherited.

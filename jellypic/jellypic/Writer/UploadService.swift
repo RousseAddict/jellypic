@@ -114,7 +114,10 @@ protocol UploadService: AnyObject {
     var queueState: UploadQueueState { get }
     var lastSweepAt: Date? { get }
     var lastSweepResult: String? { get }
+    var catchUp: CatchUpState { get }
 
+    func beginCatchUp()
+    func declineCatchUp()
     func refreshAvailability(completion: @escaping () -> Void)
     func uploadMostRecentPhoto(completion: @escaping (Result<UploadReceipt, BackupUploadError>) -> Void)
     func enqueue(_ assets: [PHAsset])
@@ -139,6 +142,7 @@ final class JellyfinUploadService: UploadService {
     private let client: UploadClient
     private let exporter: AssetExporter
     private let queue: UploadQueue
+    private let catchUpEngine: LibraryCatchUp
     private let defaults = UserDefaults.standard
 
     private(set) var availability: BackupAvailability = .unknown
@@ -146,10 +150,26 @@ final class JellyfinUploadService: UploadService {
     init(identity: DeviceIdentity) {
         let client = UploadClient(identity: identity)
         let exporter = AssetExporter()
+        let queue = UploadQueue(client: client, exporter: exporter)
 
         self.client = client
         self.exporter = exporter
-        self.queue = UploadQueue(client: client, exporter: exporter)
+        self.queue = queue
+        self.catchUpEngine = LibraryCatchUp(client: client, exporter: exporter, queue: queue)
+
+        catchUpEngine.resolveTarget = { [weak self] completion in
+            guard let self = self else {
+                completion(nil)
+                return
+            }
+            self.refreshAvailability {
+                guard case .ready(let target) = self.availability else {
+                    completion(nil)
+                    return
+                }
+                completion(target.id)
+            }
+        }
 
         client.onBackgroundEventsFinished = { [weak self] in
             guard let self = self else { return }
@@ -187,8 +207,12 @@ final class JellyfinUploadService: UploadService {
         get { return BackupMode(rawValue: defaults.integer(forKey: Key.mode)) ?? .off }
         set {
             if newValue == .automatic && mode != .automatic {
-                defaults.set(Date(), forKey: Key.watermark)
+                let watermark = Date()
+                defaults.set(watermark, forKey: Key.watermark)
                 defaults.removeObject(forKey: Key.watermarkIdentifier)
+                catchUpEngine.offer(from: watermark)
+            } else if newValue != .automatic {
+                catchUpEngine.suspend()
             }
             defaults.set(newValue.rawValue, forKey: Key.mode)
         }
@@ -204,6 +228,18 @@ final class JellyfinUploadService: UploadService {
 
     var lastSweepResult: String? {
         return defaults.string(forKey: Key.lastSweepResult)
+    }
+
+    var catchUp: CatchUpState {
+        return catchUpEngine.state
+    }
+
+    func beginCatchUp() {
+        catchUpEngine.begin()
+    }
+
+    func declineCatchUp() {
+        catchUpEngine.decline()
     }
 
     func refreshAvailability(completion: @escaping () -> Void) {
@@ -254,6 +290,8 @@ final class JellyfinUploadService: UploadService {
     }
 
     func resumeQueue() {
+        resumeCatchUpIfAllowed()
+
         let state = queue.state
         guard state.pending > 0, !state.isRunning else { return }
         guard state.stopReason != nil else {
@@ -305,6 +343,7 @@ final class JellyfinUploadService: UploadService {
 
     func reset() {
         queue.clear()
+        catchUpEngine.reset()
         mode = .off
         availability = .unknown
         defaults.removeObject(forKey: Key.watermark)
@@ -314,7 +353,14 @@ final class JellyfinUploadService: UploadService {
     }
 
     @objc private func applicationDidBecomeActive() {
-        performBackgroundSweep { _ in }
+        performBackgroundSweep { [weak self] _ in
+            self?.resumeCatchUpIfAllowed()
+        }
+    }
+
+    private func resumeCatchUpIfAllowed() {
+        guard mode == .automatic else { return }
+        catchUpEngine.resumeIfNeeded()
     }
 
     private func enqueueNewAssets() -> Int {

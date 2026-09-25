@@ -52,6 +52,10 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         let code: String
     }
 
+    private struct MissingPayload: Decodable {
+        let missing: [String]
+    }
+
     var credentials: JellyfinCredentials?
     var onTokenRejected: (() -> Void)?
     var onUploadFinished: ((String, Result<UploadReceipt, UploadFailure>) -> Void)?
@@ -110,6 +114,38 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             self.finish(self.outcome(data: data, response: response, error: error), completion)
+        }
+        task.resume()
+        return task
+    }
+
+    @discardableResult
+    func have(_ keys: [(sha: String, month: String)],
+              targetId: String,
+              completion: @escaping (Result<[String], UploadFailure>) -> Void) -> URLSessionTask? {
+        guard let credentials = credentials else {
+            finish(.failure(.transient), completion)
+            return nil
+        }
+
+        let payload: [String: Any] = ["targetId": targetId,
+                                      "keys": keys.map { ["sha": $0.sha, "month": $0.month] }]
+        guard let body = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
+            finish(.failure(.rejected("BAD_REQUEST")), completion)
+            return nil
+        }
+
+        var request = URLRequest(url: credentials.baseURL.appendingPathComponent("UploadForJelly/Have"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+        request.httpBody = body
+        request.setValue(jellyfinAuthorization(identity: identity, token: credentials.accessToken),
+                         forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
+            self.finish(self.missing(data: data, response: response, error: error), completion)
         }
         task.resume()
         return task
@@ -271,6 +307,31 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         default:
             return .failure(.rejected(code))
         }
+    }
+
+    private func missing(data: Data?,
+                         response: URLResponse?,
+                         error: Error?) -> Result<[String], UploadFailure> {
+        guard error == nil, let http = response as? HTTPURLResponse else { return .failure(.transient) }
+
+        if http.statusCode == 401 || http.statusCode == 403 {
+            DispatchQueue.main.async { self.onTokenRejected?() }
+            return .failure(.unauthorized)
+        }
+
+        if (200..<300).contains(http.statusCode) {
+            guard let data = data,
+                  let payload = try? JSONDecoder().decode(MissingPayload.self, from: data) else {
+                return .failure(.rejected("INCOMPATIBLE"))
+            }
+            return .success(payload.missing)
+        }
+
+        guard (400..<500).contains(http.statusCode) else { return .failure(.transient) }
+
+        let code = data.flatMap { try? JSONDecoder().decode(ErrorPayload.self, from: $0) }?.code
+            ?? UploadClient.fallbackCode(for: http.statusCode)
+        return .failure(.rejected(code))
     }
 
     private static func fallbackCode(for status: Int) -> String {

@@ -180,7 +180,7 @@ final class AssetPickerViewController: UIViewController {
 
         var built: [MonthSection] = []
         assets.enumerateObjects { asset, index, _ in
-            let key = AssetPickerViewController.monthKey(for: asset.creationDate)
+            let key = AssetExporter.monthKey(for: asset.creationDate)
             if let last = built.last, last.monthKey == key {
                 built[built.count - 1].count += 1
             } else {
@@ -400,22 +400,6 @@ extension AssetPickerViewController: UICollectionViewDelegate {
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         scrubber.scheduleFade()
-    }
-}
-
-extension AssetPickerViewController {
-
-    private static let monthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy-MM"
-        return formatter
-    }()
-
-    private static func monthKey(for date: Date?) -> String {
-        guard let date = date else { return "" }
-        return monthFormatter.string(from: date)
     }
 }
 

@@ -70,10 +70,6 @@ final class AssetExporter {
     func export(_ asset: PHAsset,
                 identifier: String,
                 completion: @escaping (Result<AssetExport, AssetExportFailure>) -> Void) {
-        guard let resource = AssetExporter.resource(for: asset) else {
-            DispatchQueue.main.async { completion(.failure(.noResource)) }
-            return
-        }
         guard let fileURL = makeFileURL(for: identifier),
               let stream = OutputStream(url: fileURL, append: false) else {
             DispatchQueue.main.async { completion(.failure(.write)) }
@@ -82,9 +78,6 @@ final class AssetExporter {
 
         stream.open()
 
-        var digest = SHA256Digest()
-        var received = 0
-        var wroteEverything = true
         var isExpired = false
         var isDelivered = false
         var backgroundTask = UIBackgroundTaskIdentifier.invalid
@@ -96,45 +89,80 @@ final class AssetExporter {
                 UIApplication.shared.endBackgroundTask(backgroundTask)
                 backgroundTask = .invalid
             }
+            if case .failure = outcome {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
             completion(outcome)
         }
 
         backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "JellypicExport") {
             isExpired = true
-            try? FileManager.default.removeItem(at: fileURL)
             deliver(.failure(.write))
         }
+
+        read(asset, into: stream, isAborted: { isExpired }) { result in
+            switch result {
+            case .failure(let failure):
+                deliver(.failure(failure))
+            case .success(let bytes):
+                deliver(.success(AssetExport(fileURL: fileURL,
+                                             sha256: bytes.sha256,
+                                             fileName: bytes.fileName,
+                                             capturedAt: asset.creationDate)))
+            }
+        }
+    }
+
+    func hash(_ asset: PHAsset, completion: @escaping (Result<String, AssetExportFailure>) -> Void) {
+        read(asset, into: nil, isAborted: { false }) { result in
+            completion(result.map { $0.sha256 })
+        }
+    }
+
+    static func monthKey(for date: Date?) -> String {
+        guard let date = date else { return "" }
+        return monthFormatter.string(from: date)
+    }
+
+    private func read(_ asset: PHAsset,
+                      into stream: OutputStream?,
+                      isAborted: @escaping () -> Bool,
+                      completion: @escaping (Result<(sha256: String, fileName: String), AssetExportFailure>) -> Void) {
+        guard let resource = AssetExporter.resource(for: asset) else {
+            stream?.close()
+            DispatchQueue.main.async { completion(.failure(.noResource)) }
+            return
+        }
+
+        var digest = SHA256Digest()
+        var received = 0
+        var wroteEverything = true
 
         let options = PHAssetResourceRequestOptions()
         options.isNetworkAccessAllowed = false
 
         PHAssetResourceManager.default().requestData(for: resource, options: options, dataReceivedHandler: { data in
-            guard wroteEverything, !isExpired else { return }
+            guard wroteEverything, !isAborted() else { return }
             digest.update(data)
             received += data.count
-            wroteEverything = AssetExporter.write(data, to: stream)
+            if let stream = stream {
+                wroteEverything = AssetExporter.write(data, to: stream)
+            }
         }, completionHandler: { error in
-            stream.close()
+            stream?.close()
 
             let sha256 = digest.finalize()
-            let outcome: Result<AssetExport, AssetExportFailure>
+            let outcome: Result<(sha256: String, fileName: String), AssetExportFailure>
 
             if error != nil {
                 outcome = .failure(.notLocal)
-            } else if isExpired || !wroteEverything || received == 0 {
+            } else if isAborted() || !wroteEverything || received == 0 {
                 outcome = .failure(.write)
             } else {
-                outcome = .success(AssetExport(fileURL: fileURL,
-                                               sha256: sha256,
-                                               fileName: resource.originalFilename,
-                                               capturedAt: asset.creationDate))
+                outcome = .success((sha256: sha256, fileName: resource.originalFilename))
             }
 
-            if case .failure = outcome {
-                try? FileManager.default.removeItem(at: fileURL)
-            }
-
-            DispatchQueue.main.async { deliver(outcome) }
+            DispatchQueue.main.async { completion(outcome) }
         })
     }
 
@@ -168,6 +196,14 @@ final class AssetExporter {
         options.fetchLimit = 1
         return PHAsset.fetchAssets(in: library, options: options).firstObject
     }
+
+    private static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM"
+        return formatter
+    }()
 
     private static func resource(for asset: PHAsset) -> PHAssetResource? {
         let resources = PHAssetResource.assetResources(for: asset)

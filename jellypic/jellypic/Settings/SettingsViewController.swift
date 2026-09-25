@@ -1,3 +1,4 @@
+import Photos
 import UIKit
 
 final class SettingsViewController: CardSheetViewController {
@@ -43,6 +44,18 @@ final class SettingsViewController: CardSheetViewController {
         applyPalette()
         render()
         services.upload.refreshAvailability { [weak self] in self?.renderBackup() }
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(catchUpChanged),
+                                               name: LibraryCatchUp.didChangeNotification,
+                                               object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func catchUpChanged() {
+        renderBackup()
     }
 
     private func buildHierarchy() {
@@ -174,8 +187,25 @@ final class SettingsViewController: CardSheetViewController {
             case .manual:
                 return "Choose photos on the grid to send them"
             case .automatic:
-                return "New photos are sent in the background\n" + sweepNoteText()
+                return "New photos are sent in the background\n" + sweepNoteText() + catchUpNoteText()
             }
+        }
+    }
+
+    private func catchUpNoteText() -> String {
+        let state = services.upload.catchUp
+        switch state.phase {
+        case .idle, .offered, .declined:
+            return ""
+        case .running:
+            return "\nChecking older photos — \(state.scanned) of \(max(state.total, state.scanned))"
+        case .paused:
+            guard let text = state.lastErrorText else {
+                return "\nOlder photos — \(state.scanned) of \(max(state.total, state.scanned)) checked"
+            }
+            return "\nOlder photos — " + text
+        case .finished:
+            return "\nOlder photos checked"
         }
     }
 
@@ -206,6 +236,46 @@ final class SettingsViewController: CardSheetViewController {
         guard index >= 0, index < backupModes.count else { return }
         services.upload.mode = backupModes[index]
         renderBackup()
+        if services.upload.catchUp.phase == .offered {
+            offerCatchUp()
+        }
+    }
+
+    private func offerCatchUp() {
+        let alert = UIAlertController(title: "Back up everything?",
+                                      message: catchUpOfferText(),
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Not now", style: .cancel) { [weak self] _ in
+            self?.services.upload.declineCatchUp()
+            self?.renderBackup()
+        })
+        alert.addAction(UIAlertAction(title: "Back up", style: .default) { [weak self] _ in
+            self?.startCatchUp()
+        })
+        present(alert, animated: true, completion: nil)
+    }
+
+    private func catchUpOfferText() -> String {
+        let total = services.upload.catchUp.total
+        let scope = PHPhotoLibrary.authorizationStatus() == .authorized && total > 0
+            ? "the \(total) photos"
+            : "the photos"
+        return "Jellypic can check \(scope) already on this device and send the ones your server does not have."
+    }
+
+    private func startCatchUp() {
+        // LEGACY(ios12): no .limited branch, PHAuthorizationStatus gains it at iOS 14
+        PHPhotoLibrary.requestAuthorization { [weak self] status in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                guard status == .authorized else {
+                    self.report(title: "Not started", message: BackupUploadError.permissionDenied.text)
+                    return
+                }
+                self.services.upload.beginCatchUp()
+                self.renderBackup()
+            }
+        }
     }
 
     @objc private func sendLatestPhoto() {
