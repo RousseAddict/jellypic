@@ -96,6 +96,10 @@ jailbroken 5s — so the bundle id alone is used. When the CI `sign: true` path
 runs with a real certificate, the profile's entitlements take over and this file
 should be bypassed (the signing step picks it up only if it exists).
 
+The nested Swift dylibs are signed **without** entitlements. They are libraries;
+only the main executable gets a blob. (They exist only on the Xcode 13 path —
+see §5.2.)
+
 ## 5.2 Why the floor is 12.2 and not 12.0
 
 It was 12.0 until 2026-09-25. The Swift ABI became part of the OS at exactly
@@ -168,8 +172,53 @@ third-party SDKs means no third-party manifests to merge either.
 The CI asserts the file is present in the built `.app`. A pbxproj wiring mistake
 is otherwise invisible until an upload fails.
 
-The nested Swift dylibs are signed **without** entitlements. They are libraries;
-only the main executable gets a blob.
+## 5.5 App Transport Security stays wide open, deliberately
+
+`NSAllowsArbitraryLoads` is `true` and nothing else is declared. That is the
+decision, not an oversight to tidy up later — settled 2026-09-26, once the
+deployment reality was known: **the server is plain HTTP on a LAN.**
+
+A client cannot author `NSExceptionDomains`, because the only host it ever
+contacts is the one the user types at runtime. There is no domain to list.
+
+Narrowing to `NSAllowsLocalNetworking` looks like the tidy answer and is a
+functional regression, because ATS's notion of "local" is **narrower** than
+`ServerURL.isPrivate`:
+
+| Address | `isPrivate` | ATS local |
+|---|---|---|
+| `10/8`, `172.16/12`, `192.168/16`, link-local | yes | yes |
+| single-label host, `.local` | yes | yes |
+| `.lan`, `.home.arpa`, `.internal` | **yes** | **no** |
+| Tailscale `100.64/10`, DDNS name, public IP | no | no |
+
+So the rows the app already accepts would start failing, and every remote-access
+setup with them. There is no belt-and-braces version either: since iOS 10,
+declaring `NSAllowsLocalNetworking` makes `NSAllowsArbitraryLoads` **ignored**,
+so at a 12.2 floor the two keys cannot coexist — adding the narrow one silently
+deletes the broad one.
+
+Precedent, read from source rather than assumed: **Swiftfin**
+(`jellyfin/Swiftfin`, `Swiftfin/Resources/Info.plist`) ships on the App Store
+with exactly this block and no exception domains.
+
+An arbitrary-loads declaration is not auto-rejected, but review may ask, so the
+justification belongs in the review notes:
+
+> Jellypic connects only to a Jellyfin server whose address the user enters at
+> runtime. Those addresses cannot be known in advance, and self-hosted Jellyfin
+> servers are commonly plain HTTP on a local network, so no `NSExceptionDomains`
+> list can be authored. The app warns the user before sending credentials in
+> cleartext to a non-private host.
+
+That last sentence is backed by `ServerURL.isPlaintextToPublicHost`. **If that
+warning ever goes away, the claim goes with it.**
+
+Out of scope, and worth knowing why: **no ATS key rescues a self-signed
+certificate.** TLS trust evaluation is a separate axis and would need a
+`URLSessionDelegate` override that review scrutinises hard. Plain HTTP never
+raises the question. Accepted trade: on an HTTP LAN the token and the password
+cross the wire in cleartext.
 
 ## 6. `RootViewController` is a placeholder
 
