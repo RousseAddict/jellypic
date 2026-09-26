@@ -55,9 +55,9 @@ every iOS through 26. Marked `LEGACY(ios12)`.
 
 | Setting | Value | Why |
 |---|---|---|
-| `IPHONEOS_DEPLOYMENT_TARGET` | 12.0 | iPhone 5s test device |
+| `IPHONEOS_DEPLOYMENT_TARGET` | 12.2 | iPhone 5s test device (12.5.7); see §5.2 |
 | `ARCHS` | arm64 | iOS 11 dropped 32-bit; every iOS 12 device is arm64 |
-| `TARGETED_DEVICE_FAMILY` | 1,2 | iPhone + iPad |
+| `TARGETED_DEVICE_FAMILY` | 1 | iPhone only; see §5.3 |
 | `ENABLE_BITCODE` | NO | removed entirely in Xcode 14; NO is forward-compatible |
 | `CODE_SIGN_STYLE` | Manual, empty identity | signing happens ad-hoc in `build.sh`, not in Xcode |
 | `PRODUCT_BUNDLE_IDENTIFIER` | `com.rousseaddict.jellypic` | provisional |
@@ -65,12 +65,6 @@ every iOS through 26. Marked `LEGACY(ios12)`.
 
 `VALID_ARCHS` is deliberately absent everywhere: deprecated since Xcode 12 and
 rejected by modern Xcode. `ARCHS` alone is authoritative.
-
-Because the floor is below iOS 12.2 (where the Swift ABI became part of the OS),
-Xcode embeds the Swift runtime into `jellypic.app/Frameworks/`. That is automatic
-and needs no patching — unlike the iOS 6 apps, which swap in a Swift 5.1.5 runtime
-by hand. It inflates the IPA and is why `build.sh` signs the nested dylibs before
-the enclosing bundle. Raising the floor to 12.2 would make `Frameworks/` disappear.
 
 ## 5.1 Entitlements are not optional, even ad-hoc
 
@@ -101,6 +95,69 @@ profile. There is no team here — the IPA is ad-hoc signed and installed on a
 jailbroken 5s — so the bundle id alone is used. When the CI `sign: true` path
 runs with a real certificate, the profile's entitlements take over and this file
 should be bypassed (the signing step picks it up only if it exists).
+
+## 5.2 Why the floor is 12.2 and not 12.0
+
+It was 12.0 until 2026-09-25. The Swift ABI became part of the OS at exactly
+12.2, so 12.2 is the lowest floor that can ever be free of an embedded Swift
+runtime. The move costs zero devices — the 5s test device is on 12.5.7, and
+12.0/12.1 only ever ran on hardware that also takes 12.5.x — and no
+`LEGACY(ios12)` marker is affected, since they all guard APIs added at 13+.
+
+Why it matters: an App Store IPA carrying embedded Swift dylibs must also
+contain a top-level `SwiftSupport/` directory of Apple-signed copies of those
+libraries. Only `xcodebuild -exportArchive` emits it; the CI builds its IPA with
+`zip -qr jellypic.ipa Payload`, so such an upload fails
+`ITMS-90426 Invalid Swift Support`.
+
+**Raising the floor to 12.2 is necessary but NOT sufficient — measured, not
+assumed.** A SERV2 build at 12.2 (Xcode 13.2.1, 2026-09-25) still emitted 20
+dylibs into `Frameworks/`. `ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES` is set
+nowhere in the pbxproj, so Xcode 13 embeds by its own default regardless of the
+12.2 threshold. Removing `Frameworks/` therefore needs that setting stated
+explicitly — and then a launch test on the 5s, because getting it wrong is a
+crash at startup, not a warning. Whether Xcode 26 behaves the same is the open
+question; the CI reports `Frameworks/` on every run precisely so this stays
+measured.
+
+(The "12 dylibs" figure recorded at the top of this file predates Map, video and
+Writer. The count grew with MapKit/AVFoundation/Photos usage, not with the
+floor.)
+
+## 5.3 iPhone only
+
+`TARGETED_DEVICE_FAMILY` was `1,2` — universal — by default rather than by
+intent. Nothing in the app was ever designed, laid out or tested on an iPad;
+the popover branches exist for correctness, not because iPad is a target.
+
+Shipping universal would oblige App Store Connect iPad screenshots and put the
+app in front of a reviewer on a device it has never run on. `1` removes both.
+`UISupportedInterfaceOrientations~ipad` was dropped from `Info.plist` at the
+same time — with family 1 it is dead weight that reads as an iPad promise.
+
+## 5.4 Privacy manifest
+
+`jellypic/PrivacyInfo.xcprivacy`, a bundle resource (wired into the pbxproj by
+hand like every other file here). Required since 2024-05-01: an app that calls a
+"required reason" API without declaring it is rejected at upload with
+`ITMS-91053`.
+
+Exactly one category applies. `UserDefaults` is used in `Auth/Preferences.swift`,
+`Writer/UploadService.swift` and `Writer/LibraryCatchUp.swift`, declared as
+`NSPrivacyAccessedAPICategoryUserDefaults` with reason `CA92.1` ("access info
+from the app itself"), which is what those three do — app preferences, upload
+mode, catch-up cursor. Nothing else on Apple's list is touched: no file
+timestamps, no disk space, no system boot time, no active keyboard. Verify with
+a grep before assuming that is still true.
+
+The other three keys are all negative and that is the honest answer, not a
+shortcut: `NSPrivacyTracking` false, no tracking domains, and an empty
+`NSPrivacyCollectedDataTypes` because the developer collects nothing — photos
+and credentials go to the user's own Jellyfin server and nowhere else. Zero
+third-party SDKs means no third-party manifests to merge either.
+
+The CI asserts the file is present in the built `.app`. A pbxproj wiring mistake
+is otherwise invisible until an upload fails.
 
 The nested Swift dylibs are signed **without** entitlements. They are libraries;
 only the main executable gets a blob.

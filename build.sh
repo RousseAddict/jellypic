@@ -6,10 +6,15 @@
 # Those steps only ever wrote inside their own app bundle, so dropping them here
 # changes nothing for the apps that still use them.
 #
-# Default target: iOS 12.0 minimum, arm64 only.
+# Default target: iOS 12.2 minimum, arm64 only.
 #   - iOS 11 dropped 32-bit, so every iOS 12 device is arm64. No fat binary.
-#   - Swift ABI ships in the OS since iOS 12.2; below that Xcode embeds the
-#     runtime into Frameworks/ by itself. Nothing to patch either way.
+#   - 12.2 and not 12.0 because that is exactly where the Swift ABI enters the
+#     OS, making it the lowest floor that can ever ship without an embedded
+#     runtime. The test device runs 12.5.7, so the floor costs nothing.
+#     NOTE: 12.2 alone is not enough — measured 2026-09-25, Xcode 13.2.1 still
+#     embeds 20 dylibs into Frameworks/ because ALWAYS_EMBED_SWIFT_STANDARD_-
+#     LIBRARIES is unset. Matters only for App Store (SwiftSupport/), not for
+#     sideloading. See docs/03 section 5.2.
 #
 # Everything is overridable by environment variable so the same script runs on
 # SERV2 today (Xcode 13.2.1 / SDK 15.2) and on a modern CI runner later.
@@ -29,7 +34,7 @@
 #   SYNC=0 ./build.sh                           # build what is already on SERV2
 #   BUILD_HOST= ./build.sh                      # build locally (CI runner)
 #   BUILD_HOST= DEVELOPER_DIR=/Applications/Xcode-26.app/Contents/Developer \
-#     DEPLOYMENT_TARGET=12.0 ./build.sh         # local build, pinned Xcode
+#     DEPLOYMENT_TARGET=12.2 ./build.sh         # local build, pinned Xcode
 
 set -e
 
@@ -37,7 +42,7 @@ set -e
 PROJECT_NAME="${PROJECT_NAME:-jellypic}"
 SCHEME="${SCHEME:-$PROJECT_NAME}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
-DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-12.0}"
+DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-12.2}"
 ARCHS="${ARCHS:-arm64}"
 SDK="${SDK:-iphoneos}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"        # "-" = ad-hoc

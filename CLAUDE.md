@@ -75,7 +75,7 @@ out of the provisioning profile itself, so they cannot drift from it.
 |---|---|
 | Build machines | SERV2 + this Mac, both **macOS 11** |
 | Xcode | **13.2.1**, SDK ceiling **iOS 15.2** |
-| Deployment floor | **iOS 12.0** (iPhone 5s, test device) |
+| Deployment floor | **iOS 12.2** (iPhone 5s test device runs 12.5.7) |
 | Daily devices | iOS 15, 18, soon 26 |
 
 Xcode 26 requires macOS 15+, so **CI is the only route to a modern SDK**. Until then
@@ -83,12 +83,26 @@ no API above iOS 15 exists, whatever device the app runs on.
 
 Deployment-target floors, verified 2026-09-16: Xcode 13 → iOS 9 · Xcode 26 → **iOS 12
 still allowed** (type it manually, the UI only offers 15+) · Xcode 27 → **iOS 15, below
-is rejected outright**. So the 12.0 floor survives the move to Xcode 26 and only dies
+is rejected outright**. So the floor survives the move to Xcode 26 and only dies
 at Xcode 27 — by which point the 5s is out of scope anyway.
 
 No Swift-runtime patching here (unlike the iOS 6 apps in `~/Documents/ios6-app/`):
 no `-toolchain`, no dylib swap, no `vtool -set-version-min`. The Swift ABI ships in
 the OS since iOS 12.2; below that Xcode embeds the runtime itself.
+
+**The floor is 12.2, not 12.0, and that digit is load-bearing.** 12.2 is where
+the Swift ABI enters the OS, so it is the lowest floor that can ever ship
+without an embedded runtime — and an App Store IPA carrying embedded Swift
+dylibs must also ship a `SwiftSupport/` directory, which only
+`xcodebuild -exportArchive` emits, not the `zip -r Payload` the CI does. The 5s
+runs 12.5.7, so 12.2 loses no device. **Do not lower it back to 12.0 for
+tidiness.** `LEGACY(ios12)` markers are unaffected — every one is about an API
+added at 13 or later.
+
+**But 12.2 alone does not empty `Frameworks/` — measured 2026-09-25, Xcode
+13.2.1 still embedded 20 dylibs at that floor.** `ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES`
+is unset, so Xcode embeds by default whatever the target. See `docs/03` §5.2;
+the CI reports `Frameworks/` on every run so this stays a measurement.
 
 ## Legacy plumbing
 
@@ -126,7 +140,7 @@ moves only when a toolchain forces it.
 ## Migration checklist
 
 1. **CI on Xcode 26** — `BUILD_HOST= DEVELOPER_DIR=…/Xcode-26.app/… ./build.sh`.
-   Keep `DEPLOYMENT_TARGET=12.0`. Nothing in the legacy table changes yet; the win is
+   Keep `DEPLOYMENT_TARGET=12.2`. Nothing in the legacy table changes yet; the win is
    SDK 26, so `if #available` enhancements become possible for the iOS 18/26 devices.
    Expect the legacy (non-Liquid-Glass) appearance on iOS 26 — that is the SDK link
    version talking, and is fine for a sideload.

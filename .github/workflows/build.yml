@@ -33,7 +33,7 @@ on:
         description: 'Minimum iOS version'
         type: string
         required: false
-        default: '12.0'
+        default: '12.2'
       configuration:
         description: 'Debug or Release'
         type: choice
@@ -54,7 +54,7 @@ jobs:
     timeout-minutes: 30
     env:
       XCODE_VERSION: '26.6'
-      DEPLOYMENT_TARGET: ${{ inputs.deployment_target || '12.0' }}
+      DEPLOYMENT_TARGET: ${{ inputs.deployment_target || '12.2' }}
       CONFIGURATION: ${{ inputs.configuration || 'Release' }}
 
     steps:
@@ -106,6 +106,22 @@ jobs:
           if [ "$MINOS" != "$DEPLOYMENT_TARGET" ]; then
             echo "::error::minos is $MINOS, expected $DEPLOYMENT_TARGET"
             exit 1
+          fi
+
+          # A missing privacy manifest is not a build failure, it is an
+          # ITMS-91053 rejection one upload later. Assert it here instead.
+          if [ ! -f "$APP/PrivacyInfo.xcprivacy" ]; then
+            echo "::error::PrivacyInfo.xcprivacy is not in the bundle"
+            exit 1
+          fi
+
+          # Reported, not asserted: at 12.2+ the Swift runtime comes from the
+          # OS, so Frameworks/ should be absent and a plain zip of Payload/ is
+          # a valid IPA. Confirm that over a green run before trusting it.
+          if [ -d "$APP/Frameworks" ]; then
+            echo "Frameworks/: $(ls "$APP/Frameworks")"
+          else
+            echo "Frameworks/: absent (no embedded Swift runtime)"
           fi
 
       # ── Everything below this line is the only part that touches the cert ──
@@ -195,7 +211,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: jellypic-${{ inputs.sign && 'signed' || 'adhoc' }}-ios${{ inputs.deployment_target || '12.0' }}-${{ github.run_number }}
+          name: jellypic-${{ inputs.sign && 'signed' || 'adhoc' }}-ios${{ inputs.deployment_target || '12.2' }}-${{ github.run_number }}
           path: artifacts/jellypic.ipa
           retention-days: 30
           if-no-files-found: error

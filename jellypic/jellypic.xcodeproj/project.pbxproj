@@ -11,6 +11,7 @@
 		1A00000000000000000000B6 /* RootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000B1 /* RootViewController.swift */; };
 		1A00000000000000000000B7 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000B2 /* LaunchScreen.storyboard */; };
 		1A00000000000000000000B8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000B3 /* Assets.xcassets */; };
+		1A00000000000000000001A5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000001A4 /* PrivacyInfo.xcprivacy */; };
 		1A00000000000000000000D0 /* JellyfinError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C0 /* JellyfinError.swift */; };
 		1A00000000000000000000D1 /* JellyfinModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C1 /* JellyfinModels.swift */; };
 		1A00000000000000000000D2 /* JellyfinDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C2 /* JellyfinDate.swift */; };
@@ -71,6 +72,7 @@
 		1A00000000000000000000B2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		1A00000000000000000000B3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A00000000000000000000B4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1A00000000000000000001A4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		1A00000000000000000000C0 /* JellyfinError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinError.swift; sourceTree = "<group>"; };
 		1A00000000000000000000C1 /* JellyfinModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinModels.swift; sourceTree = "<group>"; };
 		1A00000000000000000000C2 /* JellyfinDate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinDate.swift; sourceTree = "<group>"; };
@@ -171,6 +173,7 @@
 				1A00000000000000000000B2 /* LaunchScreen.storyboard */,
 				1A00000000000000000000B3 /* Assets.xcassets */,
 				1A00000000000000000000B4 /* Info.plist */,
+				1A00000000000000000001A4 /* PrivacyInfo.xcprivacy */,
 			);
 			path = jellypic;
 			sourceTree = "<group>";
@@ -361,6 +364,7 @@
 			files = (
 				1A00000000000000000000B8 /* Assets.xcassets in Resources */,
 				1A00000000000000000000B7 /* LaunchScreen.storyboard in Resources */,
+				1A00000000000000000001A5 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -502,7 +506,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -524,7 +528,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
