@@ -310,7 +310,7 @@ final class JellyfinUploadService: UploadService {
     }
 
     func performBackgroundSweep(completion: @escaping (Bool) -> Void) {
-        guard mode == .automatic, PHPhotoLibrary.authorizationStatus() == .authorized else {
+        guard mode == .automatic, PhotoAccess.current.allowsAutomaticBackup else {
             completion(false)
             return
         }

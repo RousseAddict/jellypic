@@ -37,6 +37,8 @@
 	<string>Jellypic saves the photos you choose to share into your camera roll.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Jellypic reads your photo library so it can back your photos up to your Jellyfin server.</string>
+	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

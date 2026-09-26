@@ -17,6 +17,7 @@ final class AssetPickerViewController: UIViewController {
     private let layout = UICollectionViewFlowLayout()
     private var collectionView: UICollectionView!
     private let cancelButton = BandTextButton()
+    private let addMoreButton = BandTextButton()
     private let countLabel = UILabel()
     private let noticeLabel = UILabel()
     private let pill = SendPillButton()
@@ -33,6 +34,8 @@ final class AssetPickerViewController: UIViewController {
     private var thumbnailPixels = 0
     private var horizontalInset: CGFloat = 0
     private var isPillVisible = false
+    private var access = PhotoAccess.denied
+    private var isObservingLibrary = false
 
     init(services: AppServices) {
         self.services = services
@@ -46,6 +49,9 @@ final class AssetPickerViewController: UIViewController {
 
     deinit {
         imageManager.stopCachingImagesForAllAssets()
+        if isObservingLibrary {
+            PHPhotoLibrary.shared().unregisterChangeObserver(self)
+        }
     }
 
     override func viewDidLoad() {
@@ -104,6 +110,12 @@ final class AssetPickerViewController: UIViewController {
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(cancelButton)
 
+        addMoreButton.title = "Add More"
+        addMoreButton.isHidden = true
+        addMoreButton.addTarget(self, action: #selector(addMore), for: .touchUpInside)
+        addMoreButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(addMoreButton)
+
         countLabel.font = Typography.headline
         countLabel.adjustsFontForContentSizeCategory = true
         countLabel.textAlignment = .center
@@ -119,10 +131,15 @@ final class AssetPickerViewController: UIViewController {
             cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             cancelButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
 
+            addMoreButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            addMoreButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+
             countLabel.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
             countLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             countLabel.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor,
                                                 constant: 8),
+            countLabel.trailingAnchor.constraint(lessThanOrEqualTo: addMoreButton.leadingAnchor,
+                                                 constant: -8),
 
             noticeLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             noticeLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -150,26 +167,34 @@ final class AssetPickerViewController: UIViewController {
         view.applyThemeRecursively(palette)
     }
 
-    // LEGACY(ios12): no .limited branch, PHAuthorizationStatus gains it at iOS 14. Freed at iOS 14.
     private func requestAccess() {
-        PHPhotoLibrary.requestAuthorization { [weak self] status in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                guard status == .authorized else {
-                    self.showNotice(BackupUploadError.permissionDenied.text)
-                    return
-                }
-                self.loadAssets()
+        PhotoAccess.request { [weak self] access in
+            guard let self = self else { return }
+            self.access = access
+            guard access.allowsLibraryRead else {
+                self.showNotice(BackupUploadError.permissionDenied.text)
+                return
             }
+            self.addMoreButton.isHidden = access != .limited
+            self.observeLibraryIfLimited()
+            self.loadAssets()
         }
     }
 
+    private func observeLibraryIfLimited() {
+        guard access == .limited, !isObservingLibrary else { return }
+        isObservingLibrary = true
+        PHPhotoLibrary.shared().register(self)
+    }
+
     private func loadAssets() {
+        hideNotice()
+
         let collections = PHAssetCollection.fetchAssetCollections(with: .smartAlbum,
                                                                   subtype: .smartAlbumUserLibrary,
                                                                   options: nil)
         guard let library = collections.firstObject else {
-            showNotice("No photos on this device.")
+            showNotice(emptyNoticeText())
             return
         }
 
@@ -188,15 +213,32 @@ final class AssetPickerViewController: UIViewController {
             }
         }
         sections = built
+        pruneSelection()
+        updateCount()
+        updatePill()
 
         guard !sections.isEmpty else {
-            showNotice("No photos on this device.")
+            showNotice(emptyNoticeText())
             return
         }
         collectionView.reloadData()
-        updateCount()
         scrubber.reveal()
         scrubber.scheduleFade()
+    }
+
+    private func pruneSelection() {
+        guard !order.isEmpty else { return }
+        var present = Set<String>()
+        assets.enumerateObjects { asset, _, _ in present.insert(asset.localIdentifier) }
+        guard !chosen.isSubset(of: present) else { return }
+        chosen.formIntersection(present)
+        order.removeAll { !present.contains($0) }
+    }
+
+    private func emptyNoticeText() -> String {
+        return access == .limited
+            ? "Jellypic can only see the photos you gave it access to. Tap Add More to choose some."
+            : "No photos on this device."
     }
 
     private func showNotice(_ text: String) {
@@ -204,6 +246,12 @@ final class AssetPickerViewController: UIViewController {
         noticeLabel.isHidden = false
         collectionView.isHidden = true
         scrubber.isHidden = true
+    }
+
+    private func hideNotice() {
+        noticeLabel.isHidden = true
+        collectionView.isHidden = false
+        scrubber.isHidden = false
     }
 
     private func updateItemSize() {
@@ -296,6 +344,10 @@ final class AssetPickerViewController: UIViewController {
         dismiss(animated: true, completion: nil)
     }
 
+    @objc private func addMore() {
+        PhotoAccess.presentLimitedPicker(from: self)
+    }
+
     @objc private func send() {
         guard !order.isEmpty else { return }
 
@@ -306,6 +358,16 @@ final class AssetPickerViewController: UIViewController {
 
         services.upload.enqueue(selected)
         dismiss(animated: true, completion: nil)
+    }
+}
+
+extension AssetPickerViewController: PHPhotoLibraryChangeObserver {
+
+    func photoLibraryDidChange(_ changeInstance: PHChange) {
+        DispatchQueue.main.async { [weak self] in
+            self?.imageManager.stopCachingImagesForAllAssets()
+            self?.loadAssets()
+        }
     }
 }
 

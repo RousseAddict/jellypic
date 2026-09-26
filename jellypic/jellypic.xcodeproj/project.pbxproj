@@ -63,6 +63,7 @@
 		1A0000000000000000000013E /* AssetPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000013D /* AssetPickerViewController.swift */; };
 		1A00000000000000000000140 /* UploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000013F /* UploadQueue.swift */; };
 		1A00000000000000000000142 /* LibraryCatchUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000141 /* LibraryCatchUp.swift */; };
+		1A00000000000000000000144 /* PhotoAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000143 /* PhotoAccess.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -124,6 +125,7 @@
 		1A0000000000000000000013D /* AssetPickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetPickerViewController.swift; sourceTree = "<group>"; };
 		1A0000000000000000000013F /* UploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueue.swift; sourceTree = "<group>"; };
 		1A00000000000000000000141 /* LibraryCatchUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCatchUp.swift; sourceTree = "<group>"; };
+		1A00000000000000000000143 /* PhotoAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAccess.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -263,6 +265,7 @@
 				1A0000000000000000000013D /* AssetPickerViewController.swift */,
 				1A0000000000000000000013F /* UploadQueue.swift */,
 				1A00000000000000000000141 /* LibraryCatchUp.swift */,
+				1A00000000000000000000143 /* PhotoAccess.swift */,
 			);
 			path = Writer;
 			sourceTree = "<group>";
@@ -428,6 +431,7 @@
 				1A0000000000000000000013E /* AssetPickerViewController.swift in Sources */,
 				1A00000000000000000000140 /* UploadQueue.swift in Sources */,
 				1A00000000000000000000142 /* LibraryCatchUp.swift in Sources */,
+				1A00000000000000000000144 /* PhotoAccess.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

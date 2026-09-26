@@ -107,7 +107,7 @@ final class LibraryCatchUp {
     }
 
     func remainingCount() -> Int {
-        guard PHPhotoLibrary.authorizationStatus() == .authorized else { return 0 }
+        guard PhotoAccess.current.allowsLibraryRead else { return 0 }
 
         var count = defaults.bool(forKey: Key.undatedDone)
             ? 0
@@ -136,7 +136,7 @@ final class LibraryCatchUp {
 
     private func scan() {
         guard !isScanning, let resolveTarget = resolveTarget else { return }
-        guard PHPhotoLibrary.authorizationStatus() == .authorized else {
+        guard PhotoAccess.current.allowsLibraryRead else {
             pause(BackupUploadError.permissionDenied.text)
             return
         }

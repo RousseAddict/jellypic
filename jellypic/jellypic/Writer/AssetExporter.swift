@@ -166,11 +166,8 @@ final class AssetExporter {
         })
     }
 
-    // LEGACY(ios12): no .limited branch, PHAuthorizationStatus gains it at iOS 14
     private func requestAuthorization(completion: @escaping (Bool) -> Void) {
-        PHPhotoLibrary.requestAuthorization { status in
-            DispatchQueue.main.async { completion(status == .authorized) }
-        }
+        PhotoAccess.request { completion($0.allowsLibraryRead) }
     }
 
     private func makeFileURL(for identifier: String) -> URL? {

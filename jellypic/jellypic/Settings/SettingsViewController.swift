@@ -1,4 +1,3 @@
-import Photos
 import UIKit
 
 final class SettingsViewController: CardSheetViewController {
@@ -14,9 +13,11 @@ final class SettingsViewController: CardSheetViewController {
     private let backupControl = UISegmentedControl()
     private let backupNote = SettingsNoteView()
     private let sendRow = SettingsRowView()
+    private let photoAccessRow = SettingsRowView()
     private let backupModes: [BackupMode] = [.off, .manual, .automatic]
 
     private lazy var sendGroup = SettingsGroupView(rows: [sendRow], padding: 0)
+    private lazy var photoAccessGroup = SettingsGroupView(rows: [photoAccessRow], padding: 0)
 
     private let themeControl = UISegmentedControl()
     private let cacheRow = SettingsRowView()
@@ -45,8 +46,12 @@ final class SettingsViewController: CardSheetViewController {
         render()
         services.upload.refreshAvailability { [weak self] in self?.renderBackup() }
         NotificationCenter.default.addObserver(self,
-                                               selector: #selector(catchUpChanged),
+                                               selector: #selector(reloadBackup),
                                                name: LibraryCatchUp.didChangeNotification,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(reloadBackup),
+                                               name: UIApplication.didBecomeActiveNotification,
                                                object: nil)
     }
 
@@ -54,7 +59,7 @@ final class SettingsViewController: CardSheetViewController {
         NotificationCenter.default.removeObserver(self)
     }
 
-    @objc private func catchUpChanged() {
+    @objc private func reloadBackup() {
         renderBackup()
     }
 
@@ -65,6 +70,9 @@ final class SettingsViewController: CardSheetViewController {
 
         sendRow.title = "Send my latest photo"
         sendRow.addTarget(self, action: #selector(sendLatestPhoto), for: .touchUpInside)
+
+        photoAccessRow.title = "Allow access to all photos"
+        photoAccessRow.addTarget(self, action: #selector(openPhotoSettings), for: .touchUpInside)
 
         cacheRow.title = "Image cache"
         cacheRow.addTarget(self, action: #selector(resetCache), for: .touchUpInside)
@@ -78,6 +86,7 @@ final class SettingsViewController: CardSheetViewController {
 
         body.addArrangedSubview(section("Backup",
                                         [SettingsGroupView(rows: [backupControl, backupNote], padding: 8),
+                                         photoAccessGroup,
                                          sendGroup]))
         body.addArrangedSubview(section("Appearance",
                                         [SettingsGroupView(rows: [themeControl], padding: 8)]))
@@ -162,7 +171,12 @@ final class SettingsViewController: CardSheetViewController {
     }
 
     private func renderBackup() {
+        let access = PhotoAccess.current
         backupControl.isEnabled = services.upload.availability.allowsChanges
+        if let automatic = backupModes.firstIndex(of: .automatic) {
+            backupControl.setEnabled(access != .limited, forSegmentAt: automatic)
+        }
+        photoAccessGroup.isHidden = access != .limited
         backupNote.text = backupNoteText()
         sendGroup.isHidden = services.upload.mode == .off
         if case .ready = services.upload.availability {
@@ -181,12 +195,18 @@ final class SettingsViewController: CardSheetViewController {
         case .blocked(let reason):
             return reason
         case .unknown, .ready:
+            let isLimited = PhotoAccess.current == .limited
             switch services.upload.mode {
             case .off:
                 return "Photos taken on this device stay on this device"
             case .manual:
-                return "Choose photos on the grid to send them"
+                return isLimited
+                    ? "Choose photos on the grid to send them\nJellypic only sees the photos you allowed"
+                    : "Choose photos on the grid to send them"
             case .automatic:
+                if isLimited {
+                    return "Automatic backup needs all photos — a photo taken later never joins a limited selection"
+                }
                 return "New photos are sent in the background\n" + sweepNoteText() + catchUpNoteText()
             }
         }
@@ -257,25 +277,26 @@ final class SettingsViewController: CardSheetViewController {
 
     private func catchUpOfferText() -> String {
         let total = services.upload.catchUp.total
-        let scope = PHPhotoLibrary.authorizationStatus() == .authorized && total > 0
+        let scope = PhotoAccess.current.allowsLibraryRead && total > 0
             ? "the \(total) photos"
             : "the photos"
         return "Jellypic can check \(scope) already on this device and send the ones your server does not have."
     }
 
     private func startCatchUp() {
-        // LEGACY(ios12): no .limited branch, PHAuthorizationStatus gains it at iOS 14
-        PHPhotoLibrary.requestAuthorization { [weak self] status in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                guard status == .authorized else {
-                    self.report(title: "Not started", message: BackupUploadError.permissionDenied.text)
-                    return
-                }
-                self.services.upload.beginCatchUp()
-                self.renderBackup()
+        PhotoAccess.request { [weak self] access in
+            guard let self = self else { return }
+            guard access.allowsLibraryRead else {
+                self.report(title: "Not started", message: BackupUploadError.permissionDenied.text)
+                return
             }
+            self.services.upload.beginCatchUp()
+            self.renderBackup()
         }
+    }
+
+    @objc private func openPhotoSettings() {
+        PhotoAccess.openSystemSettings()
     }
 
     @objc private func sendLatestPhoto() {

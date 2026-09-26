@@ -958,3 +958,72 @@ W6.
 The scan's predicate is `mediaType == image`, the same predicate family as the picker and the
 W5 sweep. **Videos are out of the catch-up exactly as they are out of Automatic** — recorded,
 not inherited.
+
+## 15. Limited photo access
+
+Built 2026-09-26. An App Store compliance item on paper, a live bug in practice: the
+legacy `PHPhotoLibrary.requestAuthorization(_:)` **already returns `.limited` on
+iOS 14+**, so the daily-driver phones could land in a state every one of the app's
+seven `== .authorized` tests read as "denied".
+
+**An app cannot ask for limited access.** There is no such request. The user picks
+*Limited Access → Select Photos…* from the system sheet, and the app is told after
+the fact. So this is not a permission to request differently, it is a state to
+survive.
+
+### The rule: limited means manual-only
+
+The one thing `.limited` genuinely cannot do is **automatic backup**. A photo taken
+later is *never* added to the selection, so a sweep would find nothing, forever.
+Accepting `.limited` everywhere would swap a visible dead end for a silent lie.
+
+| Path | `.limited` |
+|---|---|
+| Picker, exporter, catch-up scan | accepted — `allowsLibraryRead` |
+| Background sweep (`performBackgroundSweep`) | refused — `allowsAutomaticBackup` |
+
+The mode is **not** forced back to Manual behind the user's back. The Automatic
+segment is disabled, the note under it says why, and a new *Allow access to all
+photos* row opens Settings. Explaining beats silently rewriting a setting the user
+chose.
+
+### `PhotoAccess` is the seam
+
+`Writer/PhotoAccess.swift`, a three-case enum with `allowsLibraryRead` /
+`allowsAutomaticBackup`. Seven scattered `PHPhotoLibrary.authorizationStatus() ==
+.authorized` tests across five files became one place where the mapping lives —
+which is also the only place the `#available(iOS 14)` split exists. `.denied`,
+`.restricted` and `.notDetermined` all still collapse to `.denied`; only `.limited`
+changed meaning.
+
+**`presentLimitedLibraryPicker(from:)` is declared in `PhotosUI`, not `Photos`.**
+Nothing in the compiler error says so — it reads as "`PHPhotoLibrary` has no member",
+which looks like an availability problem and is not. `import PhotosUI` is the whole
+fix; autolinking handles the framework, as with MapKit and AVKit (see docs/10).
+
+### The picker, when limited
+
+- An *Add More* `BandTextButton` takes the free trailing slot of the 56 pt band, at
+  the same 16 pt ink inset as *Cancel*. Hidden under full access.
+- `PHPhotoLibraryChangeObserver` is registered **only when access is `.limited`**.
+  It is the first one in the app, and deliberately not a general-purpose feature: on
+  a 7712-item library under full access, waking a full reload on every library
+  change is a cost with no payer.
+- After a selection change, `pruneSelection()` drops identifiers that are gone. Both
+  `chosen` and `order` must be pruned — `order` feeds `fetchAssets(withLocalIdentifiers:)`
+  in `send()`, so a stale id there is a photo silently missing from the batch.
+- `loadAssets()` gained `hideNotice()` at its head: it used to be a one-shot path, and
+  the re-load can now arrive with the notice on screen.
+- The empty state is worded for the case: "Jellypic can only see the photos you gave
+  it access to" is actionable, "No photos on this device" is a lie.
+
+`PHPhotoLibraryPreventAutomaticLimitedAccessAlert` is `true` in `Info.plist`. The
+system's own per-launch "review selected photos?" alert would fire before the app has
+said anything, and *Add More* is the same action under the app's own words.
+
+### Not measured
+
+Whether `fetchAssets(in: smartAlbumUserLibrary)` returns the limited subset or an
+empty result is **assumed, not verified on device**. If it comes back empty, all four
+fetch sites need re-pointing at `PHAsset.fetchAssets(with:options:)`. That is the
+first thing to check when testing this.
