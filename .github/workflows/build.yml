@@ -115,14 +115,17 @@ jobs:
             exit 1
           fi
 
-          # Reported, not asserted: at 12.2+ the Swift runtime comes from the
-          # OS, so Frameworks/ should be absent and a plain zip of Payload/ is
-          # a valid IPA. Confirm that over a green run before trusting it.
+          # At 12.2+ the Swift runtime comes from the OS, so Frameworks/ must be
+          # empty and `zip -r Payload` is a structurally valid App Store IPA.
+          # Embedded dylibs without a SwiftSupport/ directory are ITMS-90426,
+          # and only `xcodebuild -exportArchive` emits one. Verified absent on
+          # Xcode 26.6 at 12.2; asserted so a toolchain change says so loudly.
+          # (Xcode 13 embeds them even at 12.2 — that path is sideload-only.)
           if [ -d "$APP/Frameworks" ]; then
-            echo "Frameworks/: $(ls "$APP/Frameworks")"
-          else
-            echo "Frameworks/: absent (no embedded Swift runtime)"
+            echo "::error::Embedded Swift runtime at target $DEPLOYMENT_TARGET: $(ls "$APP/Frameworks" | tr '\n' ' ')"
+            exit 1
           fi
+          echo "Frameworks/: absent (Swift runtime comes from the OS)"
 
       # ── Everything below this line is the only part that touches the cert ──
 

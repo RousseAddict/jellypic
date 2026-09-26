@@ -11,10 +11,10 @@
 #   - 12.2 and not 12.0 because that is exactly where the Swift ABI enters the
 #     OS, making it the lowest floor that can ever ship without an embedded
 #     runtime. The test device runs 12.5.7, so the floor costs nothing.
-#     NOTE: 12.2 alone is not enough — measured 2026-09-25, Xcode 13.2.1 still
-#     embeds 20 dylibs into Frameworks/ because ALWAYS_EMBED_SWIFT_STANDARD_-
-#     LIBRARIES is unset. Matters only for App Store (SwiftSupport/), not for
-#     sideloading. See docs/03 section 5.2.
+#     NOTE: at 12.2 Xcode 26 embeds nothing, but Xcode 13 still embeds 20
+#     dylibs (ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES is unset, so each Xcode
+#     applies its own default). Harmless: only CI can build a submission, and
+#     it asserts Frameworks/ is absent. See docs/03 section 5.2.
 #
 # Everything is overridable by environment variable so the same script runs on
 # SERV2 today (Xcode 13.2.1 / SDK 15.2) and on a modern CI runner later.

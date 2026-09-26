@@ -110,15 +110,24 @@ libraries. Only `xcodebuild -exportArchive` emits it; the CI builds its IPA with
 `zip -qr jellypic.ipa Payload`, so such an upload fails
 `ITMS-90426 Invalid Swift Support`.
 
-**Raising the floor to 12.2 is necessary but NOT sufficient — measured, not
-assumed.** A SERV2 build at 12.2 (Xcode 13.2.1, 2026-09-25) still emitted 20
-dylibs into `Frameworks/`. `ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES` is set
-nowhere in the pbxproj, so Xcode 13 embeds by its own default regardless of the
-12.2 threshold. Removing `Frameworks/` therefore needs that setting stated
-explicitly — and then a launch test on the 5s, because getting it wrong is a
-crash at startup, not a warning. Whether Xcode 26 behaves the same is the open
-question; the CI reports `Frameworks/` on every run precisely so this stays
-measured.
+**The two toolchains disagree, and only one of them matters here. Measured
+2026-09-25/26, same commit, same 12.2 target:**
+
+| Toolchain | `Frameworks/` at 12.2 | IPA |
+|---|---|---|
+| Xcode 13.2.1 (SERV2) | **20 dylibs, still embedded** | 66 MB |
+| Xcode 26.6 (CI) | **absent** | 1.0 MB |
+
+`ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES` is set nowhere in the pbxproj, so each
+Xcode applies its own default: 13 embeds regardless of the 12.2 threshold, 26
+honours it. Nothing needs to be set explicitly, and no 5s launch test is at
+risk, because **the store binary can only ever come from CI** (Xcode 13 cannot
+build against a current SDK anyway). The SERV2 path keeps its embedded runtime
+and stays what it always was: sideload-only.
+
+So `zip -r Payload` is a structurally valid App Store IPA, and the CI now
+*asserts* `Frameworks/` is absent rather than reporting it — a toolchain that
+regresses this should fail the build, not print a line nobody reads.
 
 (The "12 dylibs" figure recorded at the top of this file predates Map, video and
 Writer. The count grew with MapKit/AVFoundation/Photos usage, not with the

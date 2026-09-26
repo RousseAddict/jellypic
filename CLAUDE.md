@@ -99,10 +99,12 @@ runs 12.5.7, so 12.2 loses no device. **Do not lower it back to 12.0 for
 tidiness.** `LEGACY(ios12)` markers are unaffected — every one is about an API
 added at 13 or later.
 
-**But 12.2 alone does not empty `Frameworks/` — measured 2026-09-25, Xcode
-13.2.1 still embedded 20 dylibs at that floor.** `ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES`
-is unset, so Xcode embeds by default whatever the target. See `docs/03` §5.2;
-the CI reports `Frameworks/` on every run so this stays a measurement.
+**The two build machines disagree at 12.2 and that is expected**, measured on
+one commit: Xcode 13.2.1 still embeds 20 dylibs (66 MB IPA), Xcode 26.6 embeds
+none (1.0 MB). `ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES` is unset, so each Xcode
+applies its own default. Only CI can build a submission, so the store path is
+clean and SERV2 stays sideload-only. CI **asserts** `Frameworks/` is absent.
+See `docs/03` §5.2.
 
 ## Legacy plumbing
 
