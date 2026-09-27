@@ -78,7 +78,9 @@ final class PhotoViewerViewController: UIViewController {
         super.viewDidLayoutSubviews()
 
         let gap = ZoomablePhotoCell.gap
-        collectionView.frame = view.bounds.insetBy(dx: -gap / 2, dy: 0)
+        if collectionView.transform.isIdentity {
+            collectionView.frame = view.bounds.insetBy(dx: -gap / 2, dy: 0)
+        }
 
         let size = collectionView.bounds.size
         guard size.width > 0, size != laidOutSize else { return }

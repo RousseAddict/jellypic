@@ -153,6 +153,43 @@ card that demands a password for an account it cannot name.
 
 ---
 
+## 3.1 Reads are checked too
+
+Everything above is about writes. The read side collapsed *absent* and
+*unreadable* into the same `nil`, which is the same mistake by the other end:
+`SecItemCopyMatching` returning `errSecInteractionNotAllowed` or the `-34018` of
+doc 03 §5.1 was indistinguishable from a key that was never written.
+
+`Keychain.read(_:)` returns `KeychainRead` — `.found(Data)` / `.absent` /
+`.failed(OSStatus)` — and `data(for:)` / `string(for:)` are written on top of it,
+so every existing caller is unchanged. Only the two decisions that cannot survive
+the ambiguity read the enum.
+
+**`AuthStore.init` no longer mints a new `deviceId` on a read failure.** It used
+to fall into the `else` branch of `if let existing = keychain.string(…)`, so a
+transient failure rotated the device identity — the one value the whole design
+keeps stable across reinstalls (§3 above), and the one carried in every
+`Authorization` header. The server would have shown a second jellypic and
+orphaned the session entry of the first. A failure now yields an in-memory UUID
+for this launch only and records the status; `.absent` is still the one case that
+writes.
+
+**`AppServices.signIn` treats an unreadable previous session as a different
+account.** The audit predicted a spurious wipe; the code did the opposite. The
+guard was `if let previous = previous, previous.userId != …`, so a `nil` from an
+unreadable Keychain meant **no** wipe — account A's 20 000 rows would have
+survived under account B, which is a privacy defect, not a performance one. The
+decision is now `authStore.isSessionUnreadable || (previous userId differs)`,
+computed before `save` overwrites the keys, exactly like `previous` itself.
+Resyncing a cache that is reconstructible by definition is the cheap side of that
+trade.
+
+What is deliberately *not* done here is telling the user. A refusing Keychain
+still presents itself as a first launch or as an account switch, and saying so is
+a wording decision, which is a chat decision.
+
+---
+
 ## 4. Info.plist additions
 
 - ~~`NSAppTransportSecurity` / `NSAllowsLocalNetworking`~~ — **superseded, see doc 05 §6.1.** The reasoning was that a LAN-only exemption is the tight, correct one. It is too tight for a server whose address the user types, and the key silently cancels `NSAllowsArbitraryLoads` when both are present. The plist now carries `NSAllowsArbitraryLoads` alone.
@@ -330,3 +367,19 @@ grinding through the whole roll.
 One claim in the audit was already stale: a 401 on the original-file download
 *does* reach `onTokenRejected`, because `downloadOriginal` calls
 `reportIfTokenRejected` on its own completion rather than relying on `perform`.
+
+### 6.6 Screens that read `credentials` when they mean `session`
+
+The two accessors are not interchangeable and the distinction is the entire
+mechanism of §6.2: `credentials` requires `accessToken`, and `expireSession`
+removes exactly that key. Anything an expired session is still supposed to
+display must therefore read `session`.
+
+Settings read `authStore.credentials?.baseURL` for its server row, so opening
+Settings while expired showed a blank address — in the one state where the
+address is the only thing that explains what is going on, and one tap away from
+the Sign out button. `session?.baseURL` survives `clearToken()` because that is
+what it was written for.
+
+The general rule, cheap to apply: **`credentials` is for making a request,
+`session` is for describing one.**

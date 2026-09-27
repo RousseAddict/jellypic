@@ -521,6 +521,24 @@ is called only from `scrollViewDidEndDecelerating` and from
 timer inside `scrollViewDidScroll` instead would allocate and invalidate a
 `Timer` on every frame of every scroll, on an A7.
 
+**The consequence: a programmatic scroll must re-arm the fade itself.**
+`setContentOffset(animated: false)` and `scrollToItem(animated: false)` emit
+`scrollViewDidScroll` — so `reveal()` runs and kills the timer — but they never
+emit `didEndDragging` or `didEndDecelerating`, so nothing re-arms it. The thumb
+then stays lit forever. `prepareForReturn(to:)` hit exactly that: returning from
+the viewer onto an off-screen cell scrolls to it programmatically. It now calls
+`scheduleFade()` after the scroll, and the `guard cellForItem != nil` already at
+the top sorts the two cases for free — an early return means no scroll happened,
+so there is nothing to re-arm. The scrubber's own drag was never affected;
+`handlePan`'s `.ended` completion calls `scheduleFade()`.
+
+Making `reveal()` arm the fade itself would turn "visible ⇒ a fade is pending"
+into an invariant rather than a convention, and it was rejected for the reason in
+the paragraph above: `reveal()` is called from `scrollViewDidScroll`, so that is
+60 timers a second during a fling, in the one code path the whole project
+hardens for A7. **The next programmatic scroll added to this file has to
+remember this by hand.**
+
 **It introduces itself once.** On 20 000 photos the scrubber *is* the navigation,
 and a control that starts at `alpha = 0` and only ever appears while you are
 already scrolling never teaches itself. `introduceScrubber()` runs from

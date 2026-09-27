@@ -20,14 +20,30 @@ final class AuthStore {
     init(keychain: Keychain = Keychain()) {
         self.keychain = keychain
 
-        if let existing = keychain.string(for: Key.deviceId), !existing.isEmpty {
-            self.deviceId = existing
-            self.deviceIdStatus = errSecSuccess
-        } else {
-            let generated = UUID().uuidString
-            self.deviceId = generated
-            self.deviceIdStatus = keychain.set(generated, for: Key.deviceId)
+        switch keychain.read(Key.deviceId) {
+        case .found(let data):
+            if let existing = String(data: data, encoding: .utf8), !existing.isEmpty {
+                self.deviceId = existing
+                self.deviceIdStatus = errSecSuccess
+            } else {
+                (self.deviceId, self.deviceIdStatus) = AuthStore.mintDeviceId(in: keychain)
+            }
+        case .absent:
+            (self.deviceId, self.deviceIdStatus) = AuthStore.mintDeviceId(in: keychain)
+        case .failed(let status):
+            self.deviceId = UUID().uuidString
+            self.deviceIdStatus = status
         }
+    }
+
+    private static func mintDeviceId(in keychain: Keychain) -> (String, OSStatus) {
+        let generated = UUID().uuidString
+        return (generated, keychain.set(generated, for: Key.deviceId))
+    }
+
+    var isSessionUnreadable: Bool {
+        if case .failed = keychain.read(Key.userId) { return true }
+        return false
     }
 
     var session: JellyfinSession? {

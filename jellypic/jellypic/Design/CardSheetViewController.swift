@@ -9,6 +9,8 @@ class CardSheetViewController: UIViewController {
 
     var onDismissed: (() -> Void)?
 
+    private(set) var isDismissing = false
+
     var isFullSheet: Bool {
         return traitCollection.verticalSizeClass == .compact
     }
@@ -72,6 +74,10 @@ class CardSheetViewController: UIViewController {
     }
 
     @objc func dismissCard() {
+        guard !isDismissing else { return }
+        isDismissing = true
+        view.endEditing(true)
+
         UIView.animate(withDuration: 0.26,
                        delay: 0,
                        options: [.beginFromCurrentState],

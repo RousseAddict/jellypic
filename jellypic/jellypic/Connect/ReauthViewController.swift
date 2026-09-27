@@ -15,7 +15,6 @@ final class ReauthViewController: CardSheetViewController {
     private let signInButton = ActionButton()
 
     private var keyboardOverlap: CGFloat = 0
-    private var isDismissing = false
 
     var onSignedIn: (() -> Void)?
 
@@ -42,12 +41,6 @@ final class ReauthViewController: CardSheetViewController {
                                                selector: #selector(keyboardWillChangeFrame(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification,
                                                object: nil)
-    }
-
-    override func dismissCard() {
-        isDismissing = true
-        view.endEditing(true)
-        super.dismissCard()
     }
 
     private func buildHierarchy() {

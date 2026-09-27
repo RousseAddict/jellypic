@@ -52,6 +52,8 @@ final class AppServices {
 
     func signIn(with result: AuthenticationResult, baseURL: URL) -> OSStatus {
         let previous = authStore.session
+        let wipesLocalIndex = authStore.isSessionUnreadable
+            || (previous.map { $0.userId != result.user.id } ?? false)
         let credentials = JellyfinCredentials(baseURL: baseURL,
                                               accessToken: result.accessToken,
                                               userId: result.user.id,
@@ -60,7 +62,7 @@ final class AppServices {
         let status = authStore.save(credentials, username: result.user.name)
         guard status == errSecSuccess else { return status }
 
-        if let previous = previous, previous.userId != credentials.userId {
+        if wipesLocalIndex {
             store.reset()
             images.clearCaches()
             Preferences.clearLibrary()

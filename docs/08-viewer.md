@@ -263,6 +263,25 @@ The same stale index path fed the date pill and the details card, so both were
 showing the wrong photo after a swipe — one arithmetic error with three symptoms,
 two of which nobody had noticed. Fixed by asking for `bounds.midX` alone.
 
+### The transform and the frame
+
+`viewDidLayoutSubviews` opened with an unconditional
+`collectionView.frame = view.bounds.insetBy(dx: -gap / 2, dy: 0)`, on the very
+view the drag puts a non-identity `CGAffineTransform` on. UIKit's contract is
+that `frame` is undefined under a transform, so that assignment is meaningless
+the instant the gesture is live. It is now guarded by
+`if collectionView.transform.isIdentity`.
+
+No reproducer was ever found, and the guard needs no new state, which is why it
+is worth having: during the drag `view.bounds` does not change, so the frame had
+nothing to track, and the gesture always ends on `transform = .identity`, after
+which the next layout pass writes the frame normally. The rest of the method —
+the `laidOutSize` comparison that reflows the item size — runs unconditionally,
+because it reads `bounds`, which stays honest under a transform.
+
+Same family as the `isAdjustingLayout` lesson (§1): a flag or a frame touched by
+two owners on overlapping intervals is read, not assumed.
+
 ## 7. Chrome
 
 Ratified in chat: nothing over the photo by default, a tap reveals the chrome,

@@ -160,7 +160,7 @@ final class SettingsViewController: CardSheetViewController {
 
     private func render() {
         libraryLabel.text = Preferences.libraryName ?? "Library"
-        serverLabel.text = services.authStore.credentials?.baseURL.absoluteString
+        serverLabel.text = services.authStore.session?.baseURL.absoluteString
         let total = Preferences.syncTotal
         let indexed = services.store.count()
         indexLabel.text = Preferences.syncCompleted

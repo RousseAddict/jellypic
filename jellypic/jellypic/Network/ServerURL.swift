@@ -39,18 +39,18 @@ enum ServerURL {
     }
 
     private static func isPrivate(_ host: String) -> Bool {
-        if host == "localhost" || !host.contains(".") {
-            return !host.isEmpty
-        }
-        for suffix in [".local", ".lan", ".home.arpa", ".internal"] where host.hasSuffix(suffix) {
-            return true
-        }
-
         if host.contains(":") {
             if host == "::1" { return true }
             if host.hasPrefix("fc") || host.hasPrefix("fd") { return true }
             return host.hasPrefix("fe8") || host.hasPrefix("fe9")
                 || host.hasPrefix("fea") || host.hasPrefix("feb")
+        }
+
+        if host == "localhost" || !host.contains(".") {
+            return !host.isEmpty
+        }
+        for suffix in [".local", ".lan", ".home.arpa", ".internal"] where host.hasSuffix(suffix) {
+            return true
         }
 
         let octets = host.split(separator: ".").compactMap { UInt8($0) }

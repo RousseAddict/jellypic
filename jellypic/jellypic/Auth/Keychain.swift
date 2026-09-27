@@ -1,6 +1,12 @@
 import Foundation
 import Security
 
+enum KeychainRead {
+    case found(Data)
+    case absent
+    case failed(OSStatus)
+}
+
 struct Keychain {
 
     let service: String
@@ -15,13 +21,22 @@ struct Keychain {
     }
 
     func data(for key: String) -> Data? {
+        guard case .found(let data) = read(key) else { return nil }
+        return data
+    }
+
+    func read(_ key: String) -> KeychainRead {
         var query = baseQuery(for: key)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
-        return item as? Data
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return .absent }
+        guard status == errSecSuccess, let data = item as? Data else {
+            return .failed(status == errSecSuccess ? errSecDecode : status)
+        }
+        return .found(data)
     }
 
     @discardableResult

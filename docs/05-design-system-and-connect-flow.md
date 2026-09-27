@@ -261,6 +261,22 @@ while `dismissCard` starts its own 0.26 s animation pushing it down. Two
 animations, same property, and only the ordering saves it. An `isDismissing` flag
 makes the dismissal the sole owner of `card.transform`.
 
+**That flag lives in the base class and does two jobs.** It started as a private
+property of `ReauthViewController`, with an override that set it and then called
+`super`. Meanwhile the base class had a second, unrelated defect: three triggers
+aim at `dismissCard` (tap on the dimming, swipe-down on the card, the X) and the
+card stays interactive for the whole 0.26 s of the animation, so
+`detachFromParent()` and `onDismissed?()` could fire twice. In Settings,
+`onDismissed` is `onSignedOut` — rebuilding the app's root, twice.
+
+Both are the same question, "has dismissal begun", so there is one answer:
+`private(set) var isDismissing`, `guard !isDismissing` at the top of
+`dismissCard`, and `endEditing` moved up into the base. The override and the
+duplicate property are gone. **The order inside `dismissCard` is load-bearing**:
+the flag is set *before* `endEditing`, otherwise the keyboard notification is
+posted while it is still false and the subclass re-lays the card out mid-retreat
+— which is the exact bug the override existed to prevent.
+
 ## 5. The connect flow
 
 Three steps, **one card that morphs in place** — no pushes, no modals:
@@ -461,6 +477,15 @@ RFC1918 (`10/8`, `172.16/12`, `192.168/16`), loopback `127/8`, link-local
 
 A DDNS hostname resolves as public because it does not match any of those, which
 is the desired answer — the traffic really is leaving the house.
+
+**The order of those tests is not cosmetic.** "Any unqualified name" was written
+as `!host.contains(".")`, and `URL.host` strips the brackets from an IPv6
+literal, so `http://[2001:db8::1]:8096` arrives as `2001:db8::1` — no dot, hence
+"private", hence no warning, on the one address family where the traffic is most
+likely to be genuinely routable. The IPv6 branch underneath it was correct all
+along and simply never reached. The fix is to test `host.contains(":")` first;
+the unqualified-name shortcut keeps its real job, which is names like `nas` or
+`jellyfin` that only a LAN resolver can answer.
 
 The warning lives on the **credentials** step, not under the server field, in
 danger red appended to the subtitle. Two reasons: the flow advances the moment

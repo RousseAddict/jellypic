@@ -623,6 +623,7 @@ extension PhotoGridViewController: UICollectionViewDelegate {
         guard collectionView.cellForItem(at: indexPath) == nil else { return }
         collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: false)
         collectionView.layoutIfNeeded()
+        scrubber.scheduleFade()
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
