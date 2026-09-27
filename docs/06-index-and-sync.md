@@ -171,8 +171,8 @@ matches, insert the rest. Replaying a page is a no-op.
 
 Known limit: if the library changed between two runs, resuming mid-way can miss
 items, because `startIndex` addresses a server-side ordering that has shifted.
-The fix is a manual resync (`refresh(libraryId:)` restarts from 0 without
-wiping), not a more clever cursor — Jellyfin has no opaque pagination token.
+The fix is a manual resync (§5.5), not a more clever cursor — Jellyfin has no
+opaque pagination token.
 
 A run ends when a page comes back shorter than the page size; `syncCompleted` is
 then set and `start` becomes a no-op until something calls `refresh`. Changing
@@ -393,6 +393,36 @@ alone: docs/07 §4.2 gives the banner to the expired session, and a routine
 refresh must not compete for that corner. A failed refresh just ends the
 spinner. `cancel()` fires the pending completion as well, so a sign-out mid-pull
 cannot strand it.
+
+## 5.5 *Resync* empties the index first
+
+`refresh(libraryId:)` used to reset only `syncStartIndex` and `syncCompleted`.
+Every page being an upsert by `id` (§5), that made a resync **purely
+additive**: a photo deleted on the server stayed in the grid forever, and only
+signing out removed it — while the confirmation promised to "re-read all N
+photos from the server". The promise and the code disagreed, and the code was
+wrong.
+
+It now calls `Preferences.clearSync()` and hands over to `start`, whose existing
+`syncLibraryId != libraryId` branch already wipes the store. That is deliberate:
+one reset path rather than two, and it is the path that already goes through
+`PhotoStore.didResetNotification` — §5.1 explains why a live grid left fetching
+a store it no longer has rows for is a crash, not a glitch.
+
+The cost is real and is now named in the alert rather than denied by it: the
+grid empties and fills back up over the length of a full sync. The alternative —
+keeping rows visible and sweeping only the ones the run did not touch — needs a
+per-run marker on every row, therefore a schema bump, therefore a full resync
+anyway (§5.2). There is no cheap version of this.
+
+Second half of the same defect: the last page used to write
+`Preferences.syncTotal = next`, overwriting the count the **server declared**
+with the count we happened to index. A short run — a page cut off, a server-side
+filter, a library that shrank mid-sync — then became indistinguishable from a
+complete one after the fact, and Settings displayed it as complete. The server's
+total is left alone now. Nothing downstream needed the overwrite: `onProgress`
+already guards with `max(syncTotal, next)`, and the "N photos indexed" line
+reads `store.count()`.
 
 ## 6. Not `NSBatchInsertRequest`
 

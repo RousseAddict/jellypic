@@ -1,6 +1,12 @@
 import Foundation
 import Security
 
+enum HTTPStatus {
+    static func rejectsToken(_ code: Int) -> Bool {
+        return code == 401
+    }
+}
+
 enum JellyfinError: Error {
     case invalidServerURL
     case notAJellyfinServer

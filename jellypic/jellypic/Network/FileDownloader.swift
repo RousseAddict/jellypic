@@ -58,7 +58,7 @@ extension FileDownloader: URLSessionDownloadDelegate {
 
         if let response = downloadTask.response as? HTTPURLResponse,
            !(200..<300).contains(response.statusCode) {
-            handlers.completion(.failure(response.statusCode == 401
+            handlers.completion(.failure(HTTPStatus.rejectsToken(response.statusCode)
                 ? .unauthorized
                 : .httpStatus(response.statusCode)))
             return

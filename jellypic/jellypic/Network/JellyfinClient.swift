@@ -24,18 +24,7 @@ final class JellyfinClient: JellyfinAPI {
          configuration: URLSessionConfiguration = JellyfinClient.defaultConfiguration()) {
         self.identity = identity
         self.session = URLSession(configuration: configuration)
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            guard let date = JellyfinDate.parse(raw) else {
-                throw DecodingError.dataCorruptedError(in: container,
-                                                       debugDescription: "Unrecognised date: \(raw)")
-            }
-            return date
-        }
-        self.decoder = decoder
+        self.decoder = JSONDecoder()
     }
 
     func publicSystemInfo(baseURL: URL,
@@ -441,7 +430,7 @@ final class JellyfinClient: JellyfinAPI {
         guard let http = response as? HTTPURLResponse else {
             return .emptyResponse
         }
-        if http.statusCode == 401 || http.statusCode == 403 {
+        if HTTPStatus.rejectsToken(http.statusCode) {
             return .unauthorized
         }
         guard (200..<300).contains(http.statusCode) else {

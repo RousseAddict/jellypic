@@ -135,7 +135,7 @@ final class ImageLoader {
 
     private func reportIfUnauthorized(_ response: URLResponse?) {
         guard let http = response as? HTTPURLResponse,
-              http.statusCode == 401 || http.statusCode == 403 else { return }
+              HTTPStatus.rejectsToken(http.statusCode) else { return }
         DispatchQueue.main.async { self.onUnauthorized?() }
     }
 

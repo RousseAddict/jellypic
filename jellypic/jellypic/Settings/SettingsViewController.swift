@@ -345,7 +345,7 @@ final class SettingsViewController: CardSheetViewController {
         let known = max(Preferences.syncTotal, services.store.count())
         let scope = known > 0 ? "all \(known) photos" : "the whole library"
         let alert = UIAlertController(title: "Resync the library?",
-                                      message: "jellypic will re-read \(scope) from the server. That takes a while on this device, and the photos you already have stay visible while it runs.",
+                                      message: "jellypic empties its index and re-reads \(scope) from the server. That takes a while on this device, and the grid fills back up as they arrive.",
                                       preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
         alert.addAction(UIAlertAction(title: "Resync", style: .default) { [weak self] _ in

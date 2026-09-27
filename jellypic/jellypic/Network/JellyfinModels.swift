@@ -1,5 +1,18 @@
 import Foundation
 
+struct LenientDate: Decodable {
+    let value: Date?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        guard let raw = try? container.decode(String.self) else {
+            value = nil
+            return
+        }
+        value = JellyfinDate.parse(raw)
+    }
+}
+
 struct PublicSystemInfo: Decodable {
     let id: String?
     let serverName: String?
@@ -63,8 +76,8 @@ struct PhotoDTO: Decodable {
     let id: String
     let name: String?
     let type: String?
-    let premiereDate: Date?
-    let dateCreated: Date?
+    let premiereDate: LenientDate?
+    let dateCreated: LenientDate?
     let runTimeTicks: Int64?
     let width: Int?
     let height: Int?
@@ -87,7 +100,7 @@ struct PhotoDTO: Decodable {
     }
 
     var captureDate: Date? {
-        return premiereDate ?? dateCreated
+        return premiereDate?.value ?? dateCreated?.value
     }
 
     var isVideo: Bool {
@@ -114,8 +127,8 @@ struct PhotoDetailsDTO: Decodable {
     let name: String?
     let path: String?
     let container: String?
-    let premiereDate: Date?
-    let dateCreated: Date?
+    let premiereDate: LenientDate?
+    let dateCreated: LenientDate?
     let width: Int?
     let height: Int?
     let cameraMake: String?
@@ -152,7 +165,7 @@ struct PhotoDetailsDTO: Decodable {
     }
 
     var captureDate: Date? {
-        return premiereDate ?? dateCreated
+        return premiereDate?.value ?? dateCreated?.value
     }
 
     var fileName: String? {

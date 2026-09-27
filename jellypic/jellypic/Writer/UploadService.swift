@@ -84,6 +84,8 @@ enum BackupUploadError: Error {
             return "The photo folder is missing on your server"
         case "NOT_CONFIGURED"?, "UNKNOWN_TARGET"?:
             return "No library on your server is open for upload"
+        case "FORBIDDEN"?:
+            return "Your Jellyfin account is not allowed to upload here"
         case "TARGET_NOT_WRITABLE"?:
             return "Your server could not write to the photo folder"
         case "INSUFFICIENT_STORAGE"?:

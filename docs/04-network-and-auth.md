@@ -49,6 +49,10 @@ Two independent problems, both fatal to `ISO8601DateFormatter` used naively.
 
 **Consequence for L1.2: `monthKey` must be formatted with a UTC calendar and an `en_US_POSIX` locale.** Using the device timezone there would re-introduce the shift this parser exists to avoid.
 
+**A date that still fails to parse must not fail the page.** `normalize` covers the two known .NET shapes, but "a shape nobody predicted" stays a live possibility, and the first design threw on it. Since `PremiereDate` is decoded *inside* the `Items` array, one unreadable date failed the whole page, `SyncEngine` stopped, `Preferences.syncStartIndex` did not advance, and every later launch and every *Resync* restarted at the same offset — a single exotic photo froze the index permanently, with nothing naming the culprit (doc 06 §5.5).
+
+A `dateDecodingStrategy` cannot fix that. The closure's return type is `Date`, so its only way to signal failure is to throw, and a throw is *not* absorbed by `decodeIfPresent` — that only returns `nil` for a missing key or an explicit JSON null. So the tolerance has to live in a type: `LenientDate` is a one-field `Decodable` that pulls the raw `String` and maps a parse failure to `nil`. The schema already models an absent date (optional `captureDate`, the `undated` bucket of doc 06 §4), so `nil` is a value the rest of the app handles. `JellyfinClient`'s custom strategy is deleted with it: `LenientDate` is the only path a date takes now, and it cannot throw.
+
 ### 2.3 The Authorization header is sanitised, and that is a safety measure
 
 Only the `Authorization: MediaBrowser …` form is sent — never `X-Emby-Authorization` or `X-Emby-Token`, which 10.11 lets an admin disable (doc 02 §2.1).
@@ -295,3 +299,34 @@ produce a 401 — which is also why `ImageLoader.reportIfUnauthorized` needs no
 property that caps the "20 000 chances" of §6.2: once expired, the thumbnails
 stop reaching the network entirely, so at most one scroll's worth of in-flight
 requests can report the 401 that caused the expiry.
+
+### 6.5 A 403 is not an expired session
+
+Three places decided independently what "the server rejected our token" meant,
+and they disagreed. `ImageLoader.reportIfUnauthorized` and
+`JellyfinClient.failure(response:error:)` both read `401 || 403`;
+`FileDownloader` read only 401.
+
+The 403 is the defect. Jellyfin answers **401 when authentication fails and 403
+when an authenticated user lacks the right** — that is the difference between
+`CustomAuthenticationHandler` failing and an `[Authorize(Policy…)]` refusing.
+Calling the second one an expiry produces a loop with no exit: revalidate,
+expire, show the re-auth card, sign in successfully, hit the same 403, expire
+again. The card cannot fix a permission, so it can only be shown forever.
+
+The predicate now exists once, as `HTTPStatus.rejectsToken` in
+`JellyfinError.swift`, and it is `== 401`. A 403 falls through to
+`.httpStatus(403)`, which at least says what happened. One named function for a
+one-line test is worth it here precisely because the drift *is* the bug — six
+call sites each deciding for themselves is how the three detectors stopped
+agreeing.
+
+The writer's `UploadClient` carried the same `401 || 403` three times. There a
+403 means the Jellyfin account may not write to the target, so it is not a
+per-photo rejection worth retrying: it maps to `.stopQueue("FORBIDDEN")`,
+beside 409's `TARGET_NOT_WRITABLE`, and the queue halts with a reason instead of
+grinding through the whole roll.
+
+One claim in the audit was already stale: a 401 on the original-file download
+*does* reach `onTokenRejected`, because `downloadOriginal` calls
+`reportIfTokenRejected` on its own completion rather than relying on `perform`.

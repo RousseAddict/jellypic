@@ -282,7 +282,7 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         }
         guard error == nil, let http = response as? HTTPURLResponse else { return .failure(.transient) }
 
-        if http.statusCode == 401 || http.statusCode == 403 {
+        if HTTPStatus.rejectsToken(http.statusCode) {
             DispatchQueue.main.async { self.onTokenRejected?() }
             return .failure(.unauthorized)
         }
@@ -302,7 +302,7 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
             ?? UploadClient.fallbackCode(for: http.statusCode)
 
         switch http.statusCode {
-        case 404, 409, 507:
+        case 403, 404, 409, 507:
             return .failure(.stopQueue(code))
         default:
             return .failure(.rejected(code))
@@ -314,7 +314,7 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
                          error: Error?) -> Result<[String], UploadFailure> {
         guard error == nil, let http = response as? HTTPURLResponse else { return .failure(.transient) }
 
-        if http.statusCode == 401 || http.statusCode == 403 {
+        if HTTPStatus.rejectsToken(http.statusCode) {
             DispatchQueue.main.async { self.onTokenRejected?() }
             return .failure(.unauthorized)
         }
@@ -336,6 +336,8 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
 
     private static func fallbackCode(for status: Int) -> String {
         switch status {
+        case 403:
+            return "FORBIDDEN"
         case 404:
             return "UNKNOWN_TARGET"
         case 409:
@@ -372,7 +374,7 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
                          error: Error?) -> Result<[UploadTarget], UploadProbeFailure> {
         guard error == nil, let http = response as? HTTPURLResponse else { return .failure(.unknown) }
 
-        if http.statusCode == 401 || http.statusCode == 403 {
+        if HTTPStatus.rejectsToken(http.statusCode) {
             DispatchQueue.main.async { self.onTokenRejected?() }
             return .failure(.unknown)
         }

@@ -50,8 +50,7 @@ final class SyncEngine {
 
     func refresh(libraryId: String) {
         guard !isRunning else { return }
-        Preferences.syncStartIndex = 0
-        Preferences.syncCompleted = false
+        Preferences.clearSync()
         start(libraryId: libraryId)
     }
 
@@ -202,7 +201,6 @@ final class SyncEngine {
         guard token == runToken else { return }
         guard page.items.count == SyncEngine.pageSize else {
             Preferences.syncCompleted = true
-            Preferences.syncTotal = next
             SyncEngine.raiseWatermark(to: syncRunStart)
             stop(with: nil)
             return
