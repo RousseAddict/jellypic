@@ -50,7 +50,12 @@ struct JellyfinLibrary: Decodable {
     }
 
     var holdsPhotos: Bool {
-        return collectionType?.lowercased() == "homevideos"
+        switch collectionType?.lowercased() {
+        case "photos", "homevideos":
+            return true
+        default:
+            return false
+        }
     }
 }
 

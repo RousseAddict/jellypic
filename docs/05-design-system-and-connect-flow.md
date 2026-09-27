@@ -273,11 +273,9 @@ Three steps, **one card that morphs in place** — no pushes, no modals:
 2. **Credentials** — username + password, submitted to
    `/Users/AuthenticateByName`. On success the token goes to the Keychain via
    `AppServices.signIn`.
-3. **Library** — the result of `/Users/{id}/Views`, filtered to
-   `holdsPhotos` (`CollectionType == "homevideos"`, which is what a Jellyfin
-   photo library actually reports). If the filter empties the list we show
-   every view rather than a dead end. The pick is stored in
-   `Preferences.libraryId` / `libraryName`.
+3. **Library** — the result of `/Users/{id}/Views`, filtered to `holdsPhotos`.
+   The pick is stored in `Preferences.libraryId` / `libraryName`. See §5.2 for
+   what that filter has to match and why there is no fallback behind it.
 
 Mechanics worth remembering:
 
@@ -346,6 +344,46 @@ lock safe to be a plain drop: a programmatic `move(to:)` only ever follows a
 response, a response only ever follows a request, and a request cannot begin
 while the lock is held. Every `move` the lock can refuse is one a finger asked
 for, and the finger can ask again.
+
+## 5.2 Which libraries hold photos
+
+`PhotoResolver.Resolve` (v10.11.0) resolves a file to a `Photo` under exactly
+one condition:
+
+```csharp
+if (collectionType == CollectionType.photos
+    || (collectionType == CollectionType.homevideos && args.LibraryOptions.EnablePhotos))
+```
+
+`CollectionType` (`Jellyfin.Data/Enums/CollectionType.cs`) is serialised
+lowercase, so `holdsPhotos` matches `"photos"` and `"homevideos"` and nothing
+else. A `null` or mixed-content library resolves **no photos at all** — it is
+not a degraded case, it is an empty one.
+
+`holdsPhotos` used to match `homevideos` only, and the step compensated with a
+`photos.isEmpty ? libraries : photos` fallback. Two bugs cancelling out: a user
+whose library is typed *Photos* — the obvious choice, and the type our own demo
+library will use — fell through the filter, hit the fallback, and was shown
+Movies and Music alongside it. **The fallback was hiding the predicate bug**,
+which is why both had to move in the same change. Fixing the filter alone would
+have swapped a wrong list for "No library on this server holds photos" in front
+of a user looking straight at their photo library.
+
+With the predicate right, the fallback is worse than nothing. It offers a
+Movies library as if picking it would work; it cannot, and the reward for
+picking it is a permanently empty grid with no explanation. `LibraryStepView`
+already had the honest ending — an empty label reading *"No library on this
+server holds photos."*, the list hidden, no selection — and
+`actionButton.isEnabled` is already gated on `libraryStep.selected != nil`, so
+the button goes dead instead of leading somewhere. It is not a dead end either:
+the step dots and the swipe still reach any step already validated, so the user
+can walk back to the server address.
+
+One case stays invisible to the client: `LibraryOptions.EnablePhotos` can be
+false on a `homevideos` library, and `/UserViews` does not report it. Such a
+library is offered, accepted, and indexes empty. Detecting it would cost a
+`/Items` probe per candidate library during the connect flow; not worth it for
+a non-default server setting.
 
 ## 6. Routing
 

@@ -441,8 +441,7 @@ final class ConnectViewController: UIViewController {
 
             switch result {
             case .success(let libraries):
-                let photos = libraries.filter { $0.holdsPhotos }
-                self.libraryStep.setLibraries(photos.isEmpty ? libraries : photos)
+                self.libraryStep.setLibraries(libraries.filter { $0.holdsPhotos })
                 self.reachedStep = .library
                 self.move(to: .library)
             case .failure(let error):
