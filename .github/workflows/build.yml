@@ -1,14 +1,21 @@
 name: Build
 
-# One pipeline, three entry points:
-#   - push to main            -> ad-hoc signed, automatic
-#   - manual on any branch    -> ad-hoc signed (this is how you build a PR:
-#                                dispatch on that PR's head branch)
-#   - manual on main + sign   -> same build, re-signed with the real certificate
+# One pipeline, four entry points:
+#   - push to main                  -> ad-hoc signed, automatic
+#   - manual on any branch          -> ad-hoc signed (this is how you build a PR:
+#                                      dispatch on that PR's head branch)
+#   - manual on main + sign         -> same build, re-signed with the real cert
+#   - manual on main + sign +
+#     testflight                    -> same signed IPA, validated and uploaded
 #
-# The build is identical in all three cases. Signing is a single trailing step,
+# The build is identical in all four cases. Signing is a single trailing step,
 # so the certificate is exposed to exactly one step and the signed artifact comes
-# from the very binary that was built and verified above it.
+# from the very binary that was built and verified above it. The upload runs
+# after the keychain is destroyed: altool needs the IPA, not the certificate.
+#
+# `testflight` is a separate input from `sign` on purpose: an App Store Connect
+# upload is irreversible (the build number is consumed and the build appears in
+# ASC), so the store signing path must be exercisable without sending anything.
 #
 # No third-party actions: importing a signing certificate through unaudited
 # third-party code is not acceptable. Only actions/checkout and
@@ -26,6 +33,11 @@ on:
     inputs:
       sign:
         description: 'Re-sign with the Apple certificate (main only)'
+        type: boolean
+        required: false
+        default: false
+      testflight:
+        description: 'Upload to TestFlight (requires sign, Release, main)'
         type: boolean
         required: false
         default: false
@@ -60,11 +72,28 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Reject signing outside main
-        if: inputs.sign && github.ref != 'refs/heads/main'
+      # Guards read their inputs through env, never through ${{ }} interpolated
+      # into the script body: github.ref carries a branch name, which an author
+      # controls, and a branch called `$(…)` would otherwise execute here.
+      - name: Validate signing inputs
+        env:
+          SIGN: ${{ inputs.sign }}
+          TESTFLIGHT: ${{ inputs.testflight }}
+          REF: ${{ github.ref }}
         run: |
-          echo "::error::Signed builds are restricted to main (got ${{ github.ref }})."
-          exit 1
+          if [ "$TESTFLIGHT" = "true" ] && [ "$SIGN" != "true" ]; then
+            echo "::error::testflight requires sign: App Store Connect rejects an ad-hoc signed IPA."
+            exit 1
+          fi
+          # An upload is irreversible, and a Debug build is not what ships.
+          if [ "$TESTFLIGHT" = "true" ] && [ "$CONFIGURATION" != "Release" ]; then
+            echo "::error::testflight requires configuration Release (got $CONFIGURATION)."
+            exit 1
+          fi
+          if { [ "$SIGN" = "true" ] || [ "$TESTFLIGHT" = "true" ]; } && [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Signed builds are restricted to main (got $REF)."
+            exit 1
+          fi
 
       - name: Select Xcode
         run: |
@@ -77,6 +106,18 @@ jobs:
           sudo xcode-select -s "$APP"
           xcodebuild -version
           echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
+      # App Store Connect refuses a second upload at the same CFBundleVersion,
+      # so the tracked value of 1 is good for exactly one submission ever.
+      # Stamped BEFORE the build: patching Info.plist inside the built bundle
+      # would invalidate the signature build.sh just applied.
+      # Every path is stamped, not just the signed one, so an artifact's build
+      # number always identifies the run that produced it.
+      - name: Stamp build number
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" \
+            "$GITHUB_WORKSPACE/jellypic/jellypic/Info.plist"
+          echo "CFBundleVersion = $GITHUB_RUN_NUMBER"
 
       # Reuses the same build.sh as local development. BUILD_HOST= switches it
       # from "ssh to SERV2" to "build right here", and REMOTE_BASE=workspace
@@ -135,6 +176,7 @@ jobs:
           CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
           CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
           PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          TESTFLIGHT: ${{ inputs.testflight }}
         run: |
           set -euo pipefail
           WORK="$RUNNER_TEMP/signing"
@@ -157,13 +199,17 @@ jobs:
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
           security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
 
-          # Match only lines carrying a 40-hex SHA-1. Taking field 2 of line 1
-          # blindly would yield the word "valid" from "0 valid identities found"
-          # and fail much later with an unreadable codesign error.
+          # Two filters, both load-bearing. The 40-hex match rejects the summary
+          # line ("0 valid identities found"), whose field 2 is the word "valid"
+          # and which would fail much later as an unreadable codesign error.
+          # The Distribution match is what makes the choice deterministic: a
+          # .p12 holding both a development and a distribution certificate would
+          # otherwise sign with whichever the keychain happens to list first,
+          # and a development-signed IPA is rejected only at upload time.
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" \
-            | awk '/[0-9A-F]{40}/ {print $2; exit}')
+            | awk '/[0-9A-F]{40}/ && /"(Apple|iPhone) Distribution/ {print $2; exit}')
           if [ -z "$IDENTITY" ]; then
-            echo "::error::No codesigning identity found in the imported .p12"
+            echo "::error::No Apple Distribution identity in the imported .p12"
             security find-identity -v -p codesigning "$KEYCHAIN" || true
             exit 1
           fi
@@ -187,17 +233,33 @@ jobs:
             exit 1
           fi
 
+          # Only an App Store profile omits ProvisionedDevices; Development and
+          # Ad Hoc both carry it. That key is the discriminator, not the
+          # profile's name, which is free text. Checked here rather than at
+          # upload because $WORK does not outlive the keychain step, and
+          # because the alternative is discovering it from an ASC email.
+          if [ "$TESTFLIGHT" = "true" ] \
+             && /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$WORK/profile.plist" >/dev/null 2>&1; then
+            echo "::error::Profile lists ProvisionedDevices, so it is Development or Ad Hoc. TestFlight needs an App Store profile."
+            exit 1
+          fi
+
           cp "$WORK/profile.mobileprovision" "$APP_PATH/embedded.mobileprovision"
 
           # Nested code first, enclosing bundle last. Frameworks/ only exists
           # while the floor is below iOS 12.2 (embedded Swift runtime).
+          #
+          # No --timestamp=none: whether an iOS store submission requires a
+          # secure timestamp is not something this project has measured, and a
+          # CI runner has the network access the default timestamp needs, so
+          # the flag would only be buying an unverified risk.
           if [ -d "$APP_PATH/Frameworks" ]; then
             for f in "$APP_PATH/Frameworks"/*.dylib; do
-              [ -f "$f" ] && codesign --force --sign "$IDENTITY" --timestamp=none "$f"
+              [ -f "$f" ] && codesign --force --sign "$IDENTITY" "$f"
             done
           fi
           codesign --force --sign "$IDENTITY" \
-            --entitlements "$WORK/entitlements.plist" --timestamp=none "$APP_PATH"
+            --entitlements "$WORK/entitlements.plist" "$APP_PATH"
 
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
@@ -211,6 +273,50 @@ jobs:
           security list-keychain -d user -s login.keychain-db || true
           security delete-keychain "$RUNNER_TEMP/signing/build.keychain-db" || true
           rm -rf "$RUNNER_TEMP/signing"
+
+      # Runs after the keychain is gone: altool uploads a finished IPA and has
+      # no use for the signing certificate.
+      #
+      # An App Store Connect API key, not an Apple ID and app-specific
+      # password: it is revocable on its own, scoped to a role, and carries no
+      # 2FA. altool insists on finding it as a file named AuthKey_<id>.p8 under
+      # a directory it recognises, so API_PRIVATE_KEYS_DIR is how a CI runner
+      # avoids writing into $HOME.
+      #
+      # Validate first. It is the same server-side check the upload runs, minus
+      # the irreversible part, so a rejection costs nothing instead of consuming
+      # the build number.
+      - name: Upload to TestFlight
+        if: inputs.testflight
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          for v in ASC_API_KEY_ID ASC_API_ISSUER_ID ASC_API_KEY_P8_BASE64; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Secret $v is empty"
+              exit 1
+            fi
+          done
+
+          KEYS_DIR="$RUNNER_TEMP/private_keys"
+          mkdir -p "$KEYS_DIR"
+          chmod 700 "$KEYS_DIR"
+          echo "$ASC_API_KEY_P8_BASE64" | base64 --decode \
+            > "$KEYS_DIR/AuthKey_${ASC_API_KEY_ID}.p8"
+          export API_PRIVATE_KEYS_DIR="$KEYS_DIR"
+
+          IPA="$GITHUB_WORKSPACE/artifacts/jellypic.ipa"
+          xcrun altool --validate-app -f "$IPA" -t ios \
+            --api-key "$ASC_API_KEY_ID" --api-issuer "$ASC_API_ISSUER_ID"
+          xcrun altool --upload-app -f "$IPA" -t ios \
+            --api-key "$ASC_API_KEY_ID" --api-issuer "$ASC_API_ISSUER_ID"
+
+      - name: Destroy API key
+        if: always() && inputs.testflight
+        run: rm -rf "$RUNNER_TEMP/private_keys"
 
       - uses: actions/upload-artifact@v5
         with:

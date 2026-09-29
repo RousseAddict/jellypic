@@ -220,6 +220,66 @@ certificate.** TLS trust evaluation is a separate axis and would need a
 raises the question. Accepted trade: on an HTTP LAN the token and the password
 cross the wire in cleartext.
 
+## 5.6 The TestFlight path
+
+The one-time Apple setup — App ID, certificate, profile, API key, the six
+secrets — is a runbook in `14-testflight-setup.md`. This section is the *why*.
+
+Added 2026-09-28. The `sign` branch already produced a correctly structured
+store IPA — `Frameworks/` absent, privacy manifest present, `CFBundleIconName`
+set, export compliance answered — but it had never been *run*: the provisioning
+profile secret was empty, so store signing was untested, not merely unverified.
+Four things stood between that branch and an upload.
+
+**An upload is irreversible, so `testflight` is its own input.** App Store
+Connect consumes the build number and shows the build the moment it processes
+one. Folding the upload into `sign` would have meant every attempt to exercise
+store signing was also a submission — no dry run, ever. Three guards refuse the
+combination that cannot work: `testflight` without `sign` (ASC rejects an ad-hoc
+signature), `testflight` in Debug, and either one off `main`.
+
+**A profile's kind is read from `ProvisionedDevices`, not from its name.**
+Development and Ad Hoc profiles both list the devices they cover; an App Store
+profile has no such key. The name is free text and proves nothing. Without this
+check a Development profile signs cleanly and fails ten minutes later in an
+email, which is the worst place to learn it.
+
+**`CFBundleVersion` had to stop being a constant.** ASC refuses a second upload
+at a version it has already seen, so the tracked `1` was good for one submission
+in the project's lifetime. It is stamped from `github.run_number` in a step
+*before* the build: the built bundle is already ad-hoc signed by `build.sh`, and
+editing its `Info.plist` afterwards would break that signature. Every path is
+stamped, not only the signed one, so the number in an artifact identifies the run
+that produced it — and it already matches the run number in the artifact's name.
+
+**Identity selection was non-deterministic.** `security find-identity | awk
+'{print $2; exit}'` takes whichever identity the keychain lists first. A `.p12`
+carrying both a development and a distribution certificate — the normal state of
+a developer's export — would sign with either, silently. The match now requires
+`"Apple Distribution` (or the older `"iPhone Distribution`) on the same line as
+the 40-hex SHA-1.
+
+`--timestamp=none` was dropped from both `codesign` calls. Whether an iOS store
+submission requires a secure timestamp has not been measured here; a CI runner
+has the network the default needs, so the flag was buying an unverified risk for
+nothing.
+
+Authentication is an App Store Connect API key (`.p8` + key id + issuer id),
+not an Apple ID with an app-specific password: revocable on its own, scoped to a
+role, and free of 2FA. `altool` will only read the key as a file named
+`AuthKey_<id>.p8` inside a directory it recognises, which is why the step sets
+`API_PRIVATE_KEYS_DIR` rather than writing into `$HOME`.
+
+`--validate-app` runs before `--upload-app`. It is the same server-side check
+without the irreversible half, so a rejection costs a minute instead of a build
+number.
+
+What this does *not* solve: external TestFlight testers go through Beta App
+Review, which brings back the demo server and the ASC metadata. **Internal
+testers do not** — that is the whole point of doing this before the rest of the
+App Store backlog, since it is what first puts the app on the iOS 15/18/26
+devices the ad-hoc path can never reach.
+
 ## 6. `RootViewController` is a placeholder
 
 It exists so the pipeline has something to compile, and prints the OS actually

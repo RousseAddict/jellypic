@@ -51,12 +51,25 @@ refuses to run rather than fall back to a default. `sshpass` is invoked as
 |---|---|
 | push to `main` | ad-hoc signed, automatic |
 | manual, any branch | ad-hoc signed — dispatch on a PR's head branch to build that PR |
-| manual on `main` + `sign: true` | same build, re-signed with the Apple certificate |
+| manual on `main` + `sign` | same build, re-signed with the Apple certificate |
+| manual on `main` + `sign` + `testflight` | same signed IPA, validated then uploaded to ASC |
 
-**The build is identical in all three cases; signing is a single trailing step.**
+**The build is identical in all four cases; signing is a single trailing step.**
 The certificate is therefore exposed to exactly one step, and the signed IPA comes
 from the very binary verified in the step above it. Never move signing earlier or
-split it across steps.
+split it across steps. The upload runs *after* the keychain is destroyed —
+`altool` needs the IPA, not the certificate.
+
+`testflight` is a **separate input from `sign`**, not a mode of it: an upload is
+irreversible (build number consumed, build visible in ASC), so the store signing
+path has to be exercisable without sending anything. It is refused unless `sign`
+is on, the configuration is `Release`, and the profile omits `ProvisionedDevices`
+— the only reliable discriminator of an App Store profile from an Ad Hoc or a
+Development one, the profile's *name* being free text.
+
+`CFBundleVersion` is stamped from `github.run_number` **before** the build; after
+it, the patch would invalidate the signature `build.sh` just applied. The tracked
+value of `1` is good for exactly one upload ever.
 
 CI reuses `build.sh` with `BUILD_HOST=` and `REMOTE_BASE=$GITHUB_WORKSPACE` — the
 same script as local development, no duplicated build logic.
@@ -66,8 +79,12 @@ third-party code is not acceptable; the keychain work is plain `security` calls.
 Only `actions/checkout` and `actions/upload-artifact` (first-party) are allowed.
 
 Secrets: `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`,
-`APPLE_PROVISIONING_PROFILE_BASE64`. Entitlements, team id and bundle id are read
-out of the provisioning profile itself, so they cannot drift from it.
+`APPLE_PROVISIONING_PROFILE_BASE64`, plus `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`,
+`ASC_API_KEY_P8_BASE64` for the upload. Entitlements, team id and bundle id are
+read out of the provisioning profile itself, so they cannot drift from it. The
+upload authenticates with an App Store Connect API key, never an Apple ID and an
+app-specific password: it is independently revocable, role-scoped, and carries
+no 2FA.
 
 ## Toolchain reality
 
