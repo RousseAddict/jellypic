@@ -148,7 +148,7 @@ extension PhotoBucketViewController: UICollectionViewDataSource {
                        tag: photo.imageTag,
                        pixels: thumbnailPixels,
                        duration: photo.isVideo ? photo.duration : nil,
-                       placeholder: Theme.palette.field,
+                       palette: Theme.palette,
                        loader: services.images)
         return cell
     }

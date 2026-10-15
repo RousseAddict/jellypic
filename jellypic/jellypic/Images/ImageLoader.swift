@@ -1,7 +1,17 @@
 import UIKit
 import ImageIO
 
+enum ImageLoadResult {
+    case image(UIImage)
+    case deferred
+    case failed(String)
+}
+
 final class ImageLoader {
+
+    static let unreachableMessage = "The server is unreachable."
+    static let missingMessage = "This photo is no longer on the server."
+    static let genericMessage = "This photo could not be loaded."
 
     static func defaultConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
@@ -46,37 +56,41 @@ final class ImageLoader {
     func load(itemId: String,
               tag: String?,
               pixels: Int,
-              completion: @escaping (UIImage?) -> Void) -> URLSessionTask? {
+              completion: @escaping (ImageLoadResult) -> Void) -> URLSessionTask? {
         let cacheKey = key(itemId: itemId, tag: tag, pixels: pixels)
         if let hit = memory.object(forKey: cacheKey as NSString) {
-            completion(hit)
+            completion(.image(hit))
             return nil
         }
         guard !isSuspended else {
-            completion(nil)
+            completion(.deferred)
             return nil
         }
         guard let request = client.imageRequest(itemId: itemId, tag: tag, fillPixels: pixels) else {
-            completion(nil)
+            completion(.failed(ImageLoader.genericMessage))
             return nil
         }
 
-        let task = session.dataTask(with: request) { [weak self] data, response, _ in
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else {
-                DispatchQueue.main.async { completion(nil) }
+                DispatchQueue.main.async { completion(.deferred) }
                 return
             }
             self.reportIfUnauthorized(response)
-            guard let data = data else {
-                DispatchQueue.main.async { completion(nil) }
-                return
-            }
-            self.decodeQueue.async {
-                let image = ImageLoader.decode(data, pixels: pixels)
-                if let image = image {
-                    self.memory.setObject(image, forKey: cacheKey as NSString, cost: ImageLoader.cost(of: image))
+            switch ImageLoader.payload(data: data, response: response, error: error) {
+            case .outcome(let outcome):
+                DispatchQueue.main.async { completion(outcome) }
+            case .body(let body):
+                self.decodeQueue.async {
+                    guard let image = ImageLoader.decode(body, pixels: pixels) else {
+                        DispatchQueue.main.async { completion(.failed(ImageLoader.genericMessage)) }
+                        return
+                    }
+                    self.memory.setObject(image,
+                                          forKey: cacheKey as NSString,
+                                          cost: ImageLoader.cost(of: image))
+                    DispatchQueue.main.async { completion(.image(image)) }
                 }
-                DispatchQueue.main.async { completion(image) }
             }
         }
         task.resume()
@@ -86,33 +100,35 @@ final class ImageLoader {
     func loadFull(itemId: String,
                   tag: String?,
                   maxPixels: Int,
-                  completion: @escaping (UIImage?) -> Void) -> URLSessionTask? {
+                  completion: @escaping (ImageLoadResult) -> Void) -> URLSessionTask? {
         let cacheKey = key(itemId: itemId, tag: tag, pixels: maxPixels)
         if let hit = fullSize.object(forKey: cacheKey as NSString) {
-            completion(hit)
+            completion(.image(hit))
             return nil
         }
         guard let request = client.fullImageRequest(itemId: itemId, tag: tag, maxPixels: maxPixels) else {
-            completion(nil)
+            completion(.failed(ImageLoader.genericMessage))
             return nil
         }
 
-        let task = session.dataTask(with: request) { [weak self] data, response, _ in
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else {
-                DispatchQueue.main.async { completion(nil) }
+                DispatchQueue.main.async { completion(.deferred) }
                 return
             }
             self.reportIfUnauthorized(response)
-            guard let data = data else {
-                DispatchQueue.main.async { completion(nil) }
-                return
-            }
-            self.decodeQueue.async {
-                let image = ImageLoader.decode(data, pixels: maxPixels)
-                if let image = image {
+            switch ImageLoader.payload(data: data, response: response, error: error) {
+            case .outcome(let outcome):
+                DispatchQueue.main.async { completion(outcome) }
+            case .body(let body):
+                self.decodeQueue.async {
+                    guard let image = ImageLoader.decode(body, pixels: maxPixels) else {
+                        DispatchQueue.main.async { completion(.failed(ImageLoader.genericMessage)) }
+                        return
+                    }
                     self.fullSize.setObject(image, forKey: cacheKey as NSString)
+                    DispatchQueue.main.async { completion(.image(image)) }
                 }
-                DispatchQueue.main.async { completion(image) }
             }
         }
         task.resume()
@@ -146,6 +162,23 @@ final class ImageLoader {
 
     private func key(itemId: String, tag: String?, pixels: Int) -> String {
         return "\(itemId)|\(tag ?? "-")|\(pixels)"
+    }
+
+    private enum Payload {
+        case body(Data)
+        case outcome(ImageLoadResult)
+    }
+
+    private static func payload(data: Data?, response: URLResponse?, error: Error?) -> Payload {
+        if let error = error {
+            guard (error as? URLError)?.code != .cancelled else { return .outcome(.deferred) }
+            return .outcome(.failed(error is URLError ? unreachableMessage : genericMessage))
+        }
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            return .outcome(.failed(http.statusCode == 404 ? missingMessage : genericMessage))
+        }
+        guard let data = data, !data.isEmpty else { return .outcome(.failed(genericMessage)) }
+        return .body(data)
     }
 
     private static func decode(_ data: Data, pixels: Int) -> UIImage? {

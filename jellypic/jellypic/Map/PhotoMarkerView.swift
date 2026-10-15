@@ -78,8 +78,8 @@ final class PhotoMarkerView: MKAnnotationView {
 
         task = loader.load(itemId: photo.id,
                            tag: photo.imageTag,
-                           pixels: PhotoMarkerView.thumbnailPixels) { [weak self] image in
-            guard let self = self, self.token == photo.id, let image = image else { return }
+                           pixels: PhotoMarkerView.thumbnailPixels) { [weak self] result in
+            guard let self = self, self.token == photo.id, case .image(let image) = result else { return }
             self.imageView.image = image
             self.imageView.alpha = 0
             UIView.animate(withDuration: 0.18) { self.imageView.alpha = 1 }

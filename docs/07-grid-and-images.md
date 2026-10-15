@@ -279,6 +279,44 @@ is loading when it is not.
 transition, and that is exactly the case where the cell can be recycled before
 anyone unhides it — see below.
 
+### The four meanings of `nil`
+
+`ImageLoader` used to answer `UIImage?`, and a thumbnail that failed stayed a grey
+square for the life of the app — no glyph, no retry, no way to tell a dead server
+from a slow one. The obvious fix, and the one the audit prescribed, was to answer
+`(UIImage?, Error?)`. **It is not sufficient**, because `nil` already meant four
+different things:
+
+1. the loader is **suspended** (the month scrubber is being dragged);
+2. the task was **cancelled** by `prepareForReuse`;
+3. the request **failed** — network, HTTP status, empty body;
+4. the bytes arrived but **would not decode**.
+
+Only 3 and 4 are failures. Painting a glyph on every `nil` would cover the grid in
+broken-image marks during every single scrub, which is the one moment the loader
+is deliberately answering nothing. And a tuple cannot express the distinction that
+matters — "not yet" versus "never" — without a convention about which field is
+populated, which is exactly the kind of thing that rots.
+
+So the loader answers a three-case `ImageLoadResult`: `.image`, `.deferred`,
+`.failed(String)`. `.deferred` is the honest name for "ask again later" and covers
+both the scrub and the cancel; the UI draws nothing for it. The message is built at
+the loader, where the `URLResponse` is, and is one of three plain sentences — a
+404 is "no longer on the server", a `URLError` is "server is unreachable",
+everything else is generic. Callers never see an `Error`.
+
+**The cancellation trap**: a cancelled `URLSessionTask` still delivers its
+completion, with `URLError.cancelled`. Mapped to `.failed`, it would paint a glyph
+over a photo that is in fact loading — the token check does not catch this, because
+a cell reconfigured for the *same* itemId still matches. `URLError.cancelled` is
+therefore mapped to `.deferred` explicitly.
+
+Three call sites consume the result, and they do not agree, deliberately:
+`PhotoCell` shows a centred glyph tinted `palette.textSecondary`;
+`ZoomablePhotoCell` shows glyph + message + Retry (`docs/08` §3);
+`PhotoMarkerView` ignores failure entirely — a broken-image glyph on a map pin is
+noise, and the pin is still a valid, tappable location.
+
 ### The cell the transition hides must be the cell it unhides
 
 The zoom transition hides the source tile while the photo flies out of it, and

@@ -281,6 +281,25 @@ final class PlusGlyphView: GlyphView {
     }
 }
 
+final class BrokenImageGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 24, height: 24)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 1.5
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let path = UIBezierPath(roundedRect: box, cornerRadius: box.width * 0.18)
+        path.move(to: CGPoint(x: box.minX, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.minY))
+        return path
+    }
+}
+
 final class PlayGlyphView: GlyphView {
 
     override var glyphSize: CGSize {

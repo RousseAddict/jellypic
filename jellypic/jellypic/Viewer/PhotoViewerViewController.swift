@@ -23,6 +23,7 @@ final class PhotoViewerViewController: UIViewController {
     private lazy var playback = VideoPlaybackController(services: services, presenter: self)
 
     private var isChromeVisible = false
+    private var wasChromeVisibleBeforeDrag = false
     private var laidOutSize = CGSize.zero
     private var isAdjustingLayout = false
     private var detailsCard: PhotoDetailsViewController?
@@ -71,7 +72,7 @@ final class PhotoViewerViewController: UIViewController {
         super.viewDidLoad()
         buildHierarchy()
         updateForCurrentPhoto()
-        setChrome(visible: false, animated: false)
+        setChrome(visible: true, animated: false)
     }
 
     override func viewDidLayoutSubviews() {
@@ -332,6 +333,7 @@ final class PhotoViewerViewController: UIViewController {
         switch gesture.state {
         case .began:
             collectionView.isScrollEnabled = false
+            wasChromeVisibleBeforeDrag = isChromeVisible
             setChrome(visible: false, animated: true)
             UIView.animate(withDuration: 0.2) { self.setVideoOverlayAlpha(0) }
 
@@ -349,6 +351,9 @@ final class PhotoViewerViewController: UIViewController {
             if translation.y > view.bounds.height * 0.16 || velocity.y > 900 {
                 dismiss(animated: true, completion: nil)
                 return
+            }
+            if wasChromeVisibleBeforeDrag {
+                setChrome(visible: true, animated: true)
             }
             UIView.animate(withDuration: 0.25,
                            delay: 0,

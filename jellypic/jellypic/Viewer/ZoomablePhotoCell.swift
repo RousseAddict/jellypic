@@ -1,16 +1,89 @@
 import UIKit
 
+private final class RetryPillButton: UIControl {
+
+    private let surface = SquircleView()
+    private let titleLabel = UILabel()
+
+    init(title: String) {
+        super.init(frame: .zero)
+
+        surface.isUserInteractionEnabled = false
+        surface.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(surface)
+
+        titleLabel.text = title
+        titleLabel.font = Typography.button
+        titleLabel.adjustsFontForContentSizeCategory = true
+        titleLabel.isUserInteractionEnabled = false
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(titleLabel)
+
+        NSLayoutConstraint.activate([
+            surface.topAnchor.constraint(equalTo: topAnchor),
+            surface.leadingAnchor.constraint(equalTo: leadingAnchor),
+            surface.trailingAnchor.constraint(equalTo: trailingAnchor),
+            surface.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+            titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            titleLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        surface.cornerRadius = bounds.height / 2
+    }
+
+    override var isHighlighted: Bool {
+        didSet {
+            guard isHighlighted != oldValue else { return }
+            UIView.animate(withDuration: 0.12) {
+                self.transform = self.isHighlighted
+                    ? CGAffineTransform(scaleX: 0.94, y: 0.94)
+                    : .identity
+            }
+        }
+    }
+
+    func apply(_ palette: ThemePalette) {
+        surface.fillColor = palette.surface
+        surface.applyShadow(palette)
+        titleLabel.textColor = palette.textPrimary
+    }
+}
+
 final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
 
     static let reuseIdentifier = "ZoomablePhotoCell"
     static let gap: CGFloat = 20
 
+    private static let glyphInk = UIColor(white: 1, alpha: 0.45)
+    private static let messageInk = UIColor(white: 1, alpha: 0.75)
+    private static let failureGlyphSide: CGFloat = 44
+
     let imageView = UIImageView()
 
     private let scrollView = UIScrollView()
+    private let failureStack = UIStackView()
+    private let failureGlyph = BrokenImageGlyphView()
+    private let failureLabel = UILabel()
+    private let retryButton = RetryPillButton(title: "Retry")
+
     private var task: URLSessionTask?
     private var token = ""
     private var laidOutSize = CGSize.zero
+
+    private var imageTag: String?
+    private var thumbnailPixels = 0
+    private var fullPixels = 0
+    private weak var loader: ImageLoader?
 
     var onSingleTap: (() -> Void)?
 
@@ -39,6 +112,40 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
         let single = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
         single.require(toFail: double)
         scrollView.addGestureRecognizer(single)
+
+        failureGlyph.color = ZoomablePhotoCell.glyphInk
+        failureGlyph.translatesAutoresizingMaskIntoConstraints = false
+
+        failureLabel.font = Typography.caption
+        failureLabel.adjustsFontForContentSizeCategory = true
+        failureLabel.textColor = ZoomablePhotoCell.messageInk
+        failureLabel.textAlignment = .center
+        failureLabel.numberOfLines = 0
+
+        retryButton.addTarget(self, action: #selector(retry), for: .touchUpInside)
+
+        failureStack.axis = .vertical
+        failureStack.alignment = .center
+        failureStack.spacing = 16
+        failureStack.isHidden = true
+        failureStack.translatesAutoresizingMaskIntoConstraints = false
+        failureStack.addArrangedSubview(failureGlyph)
+        failureStack.addArrangedSubview(failureLabel)
+        failureStack.addArrangedSubview(retryButton)
+        failureStack.setCustomSpacing(12, after: failureGlyph)
+        contentView.addSubview(failureStack)
+
+        NSLayoutConstraint.activate([
+            failureGlyph.widthAnchor.constraint(equalToConstant: ZoomablePhotoCell.failureGlyphSide),
+            failureGlyph.heightAnchor.constraint(equalToConstant: ZoomablePhotoCell.failureGlyphSide),
+
+            failureStack.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            failureStack.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            failureStack.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor,
+                                                  constant: 40),
+            failureStack.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor,
+                                                   constant: -40)
+        ])
     }
 
     required init?(coder: NSCoder) {
@@ -61,6 +168,11 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
         scrollView.zoomScale = 1
         imageView.image = nil
         laidOutSize = .zero
+        failureStack.isHidden = true
+        imageTag = nil
+        thumbnailPixels = 0
+        fullPixels = 0
+        loader = nil
     }
 
     func configure(itemId: String,
@@ -69,19 +181,44 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
                    fullPixels: Int,
                    loader: ImageLoader) {
         token = itemId
+        imageTag = tag
+        self.thumbnailPixels = thumbnailPixels
+        self.fullPixels = fullPixels
+        self.loader = loader
+
+        failureStack.isHidden = true
+        retryButton.apply(Theme.palette)
 
         if let thumbnail = loader.cached(itemId: itemId, tag: tag, pixels: thumbnailPixels) {
             imageView.image = thumbnail
             layoutImage()
         }
 
-        task = loader.loadFull(itemId: itemId, tag: tag, maxPixels: fullPixels) { [weak self] image in
-            guard let self = self, self.token == itemId, let image = image else { return }
-            let wasZoomed = self.isZoomed
-            self.imageView.image = image
-            guard !wasZoomed else { return }
-            self.layoutImage()
+        task = loader.loadFull(itemId: itemId, tag: tag, maxPixels: fullPixels) { [weak self] result in
+            guard let self = self, self.token == itemId else { return }
+            switch result {
+            case .image(let image):
+                let wasZoomed = self.isZoomed
+                self.imageView.image = image
+                guard !wasZoomed else { return }
+                self.layoutImage()
+            case .failed(let message):
+                guard self.imageView.image == nil else { return }
+                self.failureLabel.text = message
+                self.failureStack.isHidden = false
+            case .deferred:
+                break
+            }
         }
+    }
+
+    @objc private func retry() {
+        guard let loader = loader, !token.isEmpty else { return }
+        configure(itemId: token,
+                  tag: imageTag,
+                  thumbnailPixels: thumbnailPixels,
+                  fullPixels: fullPixels,
+                  loader: loader)
     }
 
     private func layoutImage() {

@@ -44,6 +44,7 @@ final class PhotoCell: UICollectionViewCell {
     private let imageView = UIImageView()
     private let scrim = CAGradientLayer()
     private let durationLabel = UILabel()
+    private let failureGlyph = BrokenImageGlyphView()
     private var task: URLSessionTask?
     private var token: String = ""
 
@@ -72,6 +73,9 @@ final class PhotoCell: UICollectionViewCell {
         durationLabel.textAlignment = .right
         durationLabel.isHidden = true
         contentView.addSubview(durationLabel)
+
+        failureGlyph.isHidden = true
+        contentView.addSubview(failureGlyph)
     }
 
     required init?(coder: NSCoder) {
@@ -90,6 +94,11 @@ final class PhotoCell: UICollectionViewCell {
                                      y: bounds.height - lineHeight - PhotoCell.badgeInset,
                                      width: max(0, bounds.width - PhotoCell.badgeInset * 2),
                                      height: lineHeight)
+        let glyph = failureGlyph.glyphSize
+        failureGlyph.frame = CGRect(x: ((bounds.width - glyph.width) / 2).rounded(),
+                                    y: ((bounds.height - glyph.height) / 2).rounded(),
+                                    width: glyph.width,
+                                    height: glyph.height)
     }
 
     override var isHighlighted: Bool {
@@ -105,6 +114,7 @@ final class PhotoCell: UICollectionViewCell {
         imageView.alpha = 1
         durationLabel.isHidden = true
         scrim.isHidden = true
+        failureGlyph.isHidden = true
         isHidden = false
     }
 
@@ -112,9 +122,11 @@ final class PhotoCell: UICollectionViewCell {
                    tag: String?,
                    pixels: Int,
                    duration: Double?,
-                   placeholder: UIColor,
+                   palette: ThemePalette,
                    loader: ImageLoader) {
-        contentView.backgroundColor = placeholder
+        contentView.backgroundColor = palette.field
+        failureGlyph.color = palette.textSecondary
+        failureGlyph.isHidden = true
         token = itemId
 
         if let duration = duration {
@@ -128,11 +140,18 @@ final class PhotoCell: UICollectionViewCell {
             return
         }
 
-        task = loader.load(itemId: itemId, tag: tag, pixels: pixels) { [weak self] image in
-            guard let self = self, self.token == itemId, let image = image else { return }
-            self.imageView.image = image
-            self.imageView.alpha = 0
-            UIView.animate(withDuration: 0.18) { self.imageView.alpha = 1 }
+        task = loader.load(itemId: itemId, tag: tag, pixels: pixels) { [weak self] result in
+            guard let self = self, self.token == itemId else { return }
+            switch result {
+            case .image(let image):
+                self.imageView.image = image
+                self.imageView.alpha = 0
+                UIView.animate(withDuration: 0.18) { self.imageView.alpha = 1 }
+            case .failed:
+                self.failureGlyph.isHidden = false
+            case .deferred:
+                break
+            }
         }
     }
 }

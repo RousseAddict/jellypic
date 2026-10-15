@@ -129,7 +129,31 @@ If the user has already zoomed by the time the full image lands, the swap skips
 the re-fit: the aspect ratio is identical, so the picture just gets sharper in
 place instead of jumping back to 1×.
 
-## 4. Resolution and memory
+### When it fails
+
+A failed full-size load used to leave a black screen that looked exactly like a
+viewer still loading, forever. The cell now shows a broken-image glyph, one line
+of plain text, and a **Retry** pill. The three `ImageLoadResult` cases are
+distinguished at the loader, not here (`docs/07` §2): `.deferred` draws nothing,
+only `.failed` surfaces.
+
+**The overlay is suppressed when `imageView.image != nil`.** The grid thumbnail is
+already on screen in the common case, and a visible — if soft — photo is not a
+failure; it is a degraded success. Covering it with an error would be a regression
+over doing nothing. The black screen was the bug, not the missing full resolution.
+
+Retry lives in the cell, not the view controller: `configure`'s parameters are
+stored and the method is re-invoked. The alternative, `reloadItems` on the
+currently visible cell of a paging layout, risks a visual jump for no gain.
+
+The glyph and the message are **hard-coded white-alpha inks** (`0.45` and `0.75`),
+not palette tokens, for the same reason the backdrop is hard-coded black (§7):
+they sit on the fixed black surround, which no theme changes. The *control*,
+however, is a palette citizen — a `SquircleView` on `palette.surface` with
+`palette.textPrimary`, i.e. the same floating vocabulary as the date pill and the
+conversion pill, both already proven over black. `ActionButton` was tried first
+and rejected: `palette.accent` is `0x0B0B0C` in light mode, so the project's
+standard button is invisible here.
 
 `maxPixels = min(longestScreenSideInPixels * 2, 2048)`.
 
@@ -284,10 +308,34 @@ two owners on overlapping intervals is read, not assumed.
 
 ## 7. Chrome
 
-Ratified in chat: nothing over the photo by default, a tap reveals the chrome,
-another tap hides it. Consistent with the grid's mandate, and it is what Photos
-does. The chrome is a close cross on the left, the capture date in the middle, and
-the same three-dot button as the grid on the right.
+The chrome is a close cross on the left, the capture date in the middle, and the
+same three-dot button as the grid on the right. A tap toggles it.
+
+**It is visible when the viewer opens.** The original rule here was the opposite —
+nothing over the photo by default — and it was justified with "it is what Photos
+does". That justification was simply wrong: Photos and Google Photos both show
+their top bar at open and hide it on the first tap. The viewer was therefore
+shipping a screen with no visible way out and no hint that one existed; a tap
+anywhere reveals the chrome, but nothing on screen says so, and the drag-to-dismiss
+is undiscoverable by construction.
+
+Ratified in chat (against a recommendation to auto-hide after a delay): **visible
+at open, hidden on the first tap, no timer.** A timer would mean the chrome can
+vanish while the user is still reading the date, and it would have to be re-armed
+or cancelled at every interaction — zoom, page, card dismissal. The one-line rule
+has no such edges, and the cost is one bar of chrome over the first photo until
+the user asks for it to go.
+
+`ZoomTransition` cross-fades the destination view in wholesale, so chrome visible
+at open needs no transition work — it arrives with the photo.
+
+Drag-to-dismiss hides the chrome on `.began`, so the chrome state is **saved and
+restored** across the gesture (`wasChromeVisibleBeforeDrag`), not forced back to a
+constant on the non-dismissing branch. With the chrome hidden by default this was
+invisible; with it visible by default, a cancelled drag would silently strip it.
+Same family as the `isAdjustingLayout` lesson (§1) and the viewer's other
+two-owner flags: a flag set by one interval and read by another is restored, never
+reset to a literal.
 
 The backdrop is hard-coded `.black`, not `Theme.palette.background`. A photo is
 judged against black; a light-grey surround shifts its perceived contrast and
