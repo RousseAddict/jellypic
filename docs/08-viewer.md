@@ -72,9 +72,18 @@ Two halves to the fix.
 **The reads are made total.** `PhotoTimeline` gains a default-implemented
 `photoIfPresent(at:)` that bounds-checks the section and the item before calling
 `photo(at:)`, and the viewer uses it everywhere — the date pill, the details
-card. A protocol extension rather than a change to `photo(at:)` itself: the grid
-asks for index paths `UICollectionView` just handed it, and making the common
-path optional would push a `guard` into every cell.
+card, and `cellForItemAt`.
+
+That last site was missed for a month, on an argument that was wrong: "the grid
+asks for index paths `UICollectionView` just handed it, so the common path can
+stay non-optional". The index paths `UICollectionView` hands out come from *its*
+model, and the deferral below keeps that model stale on purpose for the length
+of a swipe. During that window the data source is asked about the old layout
+while the timeline answers with the new one. Every `cellForItemAt` — viewer,
+grid, map bucket — now goes through `photoIfPresent(at:)` and returns an
+unconfigured cell on a miss; the deferred reload replaces it a moment later.
+`photo(at:)` stays on the protocol as the primitive the extension is built on,
+and nothing in a data source calls it directly. Doc 07 §3 has the grid's side.
 
 **The position is re-resolved by id, not by index.** The viewer keeps
 `currentPhotoId` alongside `currentIndexPath`, updated wherever the pill is. On a

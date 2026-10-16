@@ -143,7 +143,10 @@ extension PhotoBucketViewController: UICollectionViewDataSource {
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier,
                                                       for: indexPath) as! PhotoCell
-        let photo = timeline.photo(at: indexPath)
+        guard let photo = timeline.photoIfPresent(at: indexPath) else {
+            cell.configureEmpty(palette: Theme.palette)
+            return cell
+        }
         cell.configure(itemId: photo.id,
                        tag: photo.imageTag,
                        pixels: thumbnailPixels,

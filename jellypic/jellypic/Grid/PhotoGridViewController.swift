@@ -269,6 +269,10 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func reloadVisibleThumbnails() {
+        guard !pendingReload else {
+            applyReload()
+            return
+        }
         let visible = collectionView.indexPathsForVisibleItems
         guard !visible.isEmpty else { return }
         UIView.performWithoutAnimation {
@@ -455,6 +459,10 @@ final class PhotoGridViewController: UIViewController {
         guard pendingReload,
               !collectionView.isDragging,
               !collectionView.isDecelerating else { return }
+        applyReload()
+    }
+
+    private func applyReload() {
         pendingReload = false
         collectionView.reloadData()
         refreshEmptyState()
@@ -571,7 +579,10 @@ extension PhotoGridViewController: UICollectionViewDataSource {
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseIdentifier,
                                                       for: indexPath) as! PhotoCell
-        let photo = timeline.photo(at: indexPath)
+        guard let photo = timeline.photoIfPresent(at: indexPath) else {
+            cell.configureEmpty(palette: Theme.palette)
+            return cell
+        }
         cell.configure(itemId: photo.id,
                        tag: photo.imageTag,
                        pixels: thumbnailPixels,

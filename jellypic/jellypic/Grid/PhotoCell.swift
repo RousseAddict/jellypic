@@ -118,6 +118,10 @@ final class PhotoCell: UICollectionViewCell {
         isHidden = false
     }
 
+    func configureEmpty(palette: ThemePalette) {
+        contentView.backgroundColor = palette.field
+    }
+
     func configure(itemId: String,
                    tag: String?,
                    pixels: Int,

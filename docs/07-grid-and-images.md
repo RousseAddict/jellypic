@@ -355,6 +355,35 @@ that create sections is where `UICollectionView` is historically fragile, and
 the animation is neither wanted nor free. `reloadData` on an idle grid only
 builds the visible cells.
 
+### What a deferred reload owes the cells it still serves
+
+Deferring the reload means `UICollectionView` keeps its old counts while the
+fetched-results controller has new ones, and it keeps asking for cells in
+between. Two things follow, and both were crashes.
+
+**Every read in the data source is total.** `cellForItemAt` uses
+`photoIfPresent(at:)`, never `photo(at:)`, and a miss returns a cell carrying
+only the placeholder fill (`PhotoCell.configureEmpty`). The initial sync never
+produces a miss — pages arrive in the same order the controller sorts, so they
+append at the end and no existing index path moves — which is why this survived
+every 20 000-row sync. A catch-up does: the photos it brings are the newest, and
+the first ones of a new month create a section *above* everything, shifting every
+section index by one while the user is mid-flick. The stale path then names a
+month of a different length. The placeholder is on screen for at most the rest of
+the deceleration.
+
+**Nothing may batch-update a grid with a reload pending.** `reloadItems(at:)` is
+a batch update: it validates the data source's counts against the collection
+view's and throws `NSInternalInconsistencyException` if they disagree.
+`reloadVisibleThumbnails` — run when a scrub ends and when a session resumes —
+used to call it unconditionally. The path to the throw: a sync page lands while
+the grid is decelerating, so the reload is deferred; the user grabs the scrubber
+before the deceleration ends; `setContentOffset(_:animated: false)` is exactly
+how a deceleration is stopped, and it does not send `scrollViewDidEndDecelerating`
+(§6); `pendingReload` is still set on release. It now applies the pending
+`reloadData` instead, which rebuilds the visible cells and so serves the same
+purpose.
+
 Sort is `monthKey` desc, `captureDate` desc, `id` desc. `id` is the same total-order
 tiebreaker argument as `SortName` server-side: without it, equal-dated photos can
 swap places between two fetches and cells flicker.

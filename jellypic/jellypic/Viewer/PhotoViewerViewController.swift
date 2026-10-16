@@ -386,13 +386,13 @@ extension PhotoViewerViewController: UICollectionViewDataSource {
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: ZoomablePhotoCell.reuseIdentifier,
                                                       for: indexPath) as! ZoomablePhotoCell
-        let photo = timeline.photo(at: indexPath)
+        cell.onSingleTap = { [weak self] in self?.toggleChrome() }
+        guard let photo = timeline.photoIfPresent(at: indexPath) else { return cell }
         cell.configure(itemId: photo.id,
                        tag: photo.imageTag,
                        thumbnailPixels: thumbnailPixels,
                        fullPixels: fullPixels,
                        loader: services.images)
-        cell.onSingleTap = { [weak self] in self?.toggleChrome() }
         return cell
     }
 }
