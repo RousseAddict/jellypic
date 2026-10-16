@@ -5,6 +5,11 @@ private final class RetryPillButton: UIControl {
     private let surface = SquircleView()
     private let titleLabel = UILabel()
 
+    var title: String? {
+        get { return titleLabel.text }
+        set { titleLabel.text = newValue }
+    }
+
     init(title: String) {
         super.init(frame: .zero)
 
@@ -86,6 +91,9 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
     private weak var loader: ImageLoader?
 
     var onSingleTap: (() -> Void)?
+    var onSignIn: (() -> Void)?
+
+    private var failureNeedsSignIn = false
 
     var isZoomed: Bool {
         return scrollView.zoomScale > scrollView.minimumZoomScale + 0.01
@@ -122,7 +130,7 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
         failureLabel.textAlignment = .center
         failureLabel.numberOfLines = 0
 
-        retryButton.addTarget(self, action: #selector(retry), for: .touchUpInside)
+        retryButton.addTarget(self, action: #selector(failureAction), for: .touchUpInside)
 
         failureStack.axis = .vertical
         failureStack.alignment = .center
@@ -203,16 +211,28 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
                 guard !wasZoomed else { return }
                 self.layoutImage()
             case .failed(let message):
-                guard self.imageView.image == nil else { return }
-                self.failureLabel.text = message
-                self.failureStack.isHidden = false
+                self.showFailure(message, needsSignIn: false)
+            case .expired:
+                self.showFailure(ImageLoader.expiredMessage, needsSignIn: true)
             case .deferred:
                 break
             }
         }
     }
 
-    @objc private func retry() {
+    private func showFailure(_ message: String, needsSignIn: Bool) {
+        guard imageView.image == nil else { return }
+        failureNeedsSignIn = needsSignIn
+        failureLabel.text = message
+        retryButton.title = needsSignIn ? "Sign in" : "Retry"
+        failureStack.isHidden = false
+    }
+
+    @objc private func failureAction() {
+        guard !failureNeedsSignIn else {
+            onSignIn?()
+            return
+        }
         guard let loader = loader, !token.isEmpty else { return }
         configure(itemId: token,
                   tag: imageTag,

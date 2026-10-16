@@ -28,25 +28,29 @@ final class JellyfinClient: JellyfinAPI {
     }
 
     func publicSystemInfo(baseURL: URL,
-                          completion: @escaping (Result<PublicSystemInfo, JellyfinError>) -> Void) {
-        guard let request = makeRequest(baseURL: baseURL, path: "System/Info/Public", token: nil) else {
+                          completion: @escaping (Result<ServerProbe, JellyfinError>) -> Void) {
+        let endpoint = "System/Info/Public"
+        guard let request = makeRequest(baseURL: baseURL, path: endpoint, token: nil) else {
             completion(.failure(.invalidServerURL))
             return
         }
-        perform(request, as: PublicSystemInfo.self) { result in
+        perform(request, as: PublicSystemInfo.self, mapping: { info, response in
+            ServerProbe(baseURL: ServerURL.baseURL(answering: response?.url, endpoint: endpoint) ?? baseURL,
+                        info: info)
+        }, completion: { result in
             switch result {
-            case .success(let info):
-                guard info.version != nil else {
+            case .success(let probe):
+                guard probe.info.version != nil else {
                     completion(.failure(.notAJellyfinServer))
                     return
                 }
-                completion(.success(info))
+                completion(.success(probe))
             case .failure(.decoding):
                 completion(.failure(.notAJellyfinServer))
             case .failure(let error):
                 completion(.failure(error))
             }
-        }
+        })
     }
 
     func authenticate(baseURL: URL,
@@ -67,7 +71,13 @@ final class JellyfinClient: JellyfinAPI {
         }
         request.httpBody = data
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        perform(request, as: AuthenticationResult.self, completion: completion)
+        perform(request, as: AuthenticationResult.self) { result in
+            if case .failure(.unauthorized) = result {
+                completion(.failure(.wrongCredentials))
+            } else {
+                completion(result)
+            }
+        }
     }
 
     func libraries(completion: @escaping (Result<[JellyfinLibrary], JellyfinError>) -> Void) {
@@ -367,6 +377,7 @@ final class JellyfinClient: JellyfinAPI {
         return perform(request, as: type, mapping: { value, _ in value }, completion: completion)
     }
 
+    @discardableResult
     private func perform<T: Decodable, R>(_ request: URLRequest,
                                           as type: T.Type,
                                           mapping: @escaping (T, HTTPURLResponse?) -> R,

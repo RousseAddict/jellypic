@@ -13,6 +13,7 @@ enum JellyfinError: Error {
     case appTransportSecurity
     case unreachable(URLError)
     case transport(Error)
+    case wrongCredentials
     case unauthorized
     case httpStatus(Int)
     case emptyResponse
@@ -35,8 +36,10 @@ extension JellyfinError: LocalizedError {
             return "Could not reach the server. Check the address, and that jellypic is allowed to access the local network."
         case .transport(let error):
             return error.localizedDescription
-        case .unauthorized:
+        case .wrongCredentials:
             return "Wrong username or password."
+        case .unauthorized:
+            return "Your session has expired. Sign in again."
         case .httpStatus(let code):
             return "The server answered with HTTP \(code)."
         case .emptyResponse:

@@ -29,7 +29,7 @@ protocol JellyfinAPI: AnyObject {
     var onTokenRejected: (() -> Void)? { get set }
 
     func publicSystemInfo(baseURL: URL,
-                          completion: @escaping (Result<PublicSystemInfo, JellyfinError>) -> Void)
+                          completion: @escaping (Result<ServerProbe, JellyfinError>) -> Void)
 
     func authenticate(baseURL: URL,
                       username: String,

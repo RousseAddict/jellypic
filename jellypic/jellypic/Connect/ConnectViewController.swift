@@ -368,9 +368,9 @@ final class ConnectViewController: UIViewController {
             self.setLoading(false)
 
             switch result {
-            case .success(let (url, info)):
-                self.baseURL = url
-                self.serverName = info.serverName
+            case .success(let probe):
+                self.baseURL = probe.baseURL
+                self.serverName = probe.info.serverName
                 self.reachedStep = .credentials
                 self.move(to: .credentials)
             case .failure(let error):
@@ -382,12 +382,11 @@ final class ConnectViewController: UIViewController {
 
     private func probe(_ candidates: [URL],
                        index: Int,
-                       completion: @escaping (Result<(URL, PublicSystemInfo), JellyfinError>) -> Void) {
-        let url = candidates[index]
-        services.client.publicSystemInfo(baseURL: url) { [weak self] result in
+                       completion: @escaping (Result<ServerProbe, JellyfinError>) -> Void) {
+        services.client.publicSystemInfo(baseURL: candidates[index]) { [weak self] result in
             switch result {
-            case .success(let info):
-                completion(.success((url, info)))
+            case .success(let probe):
+                completion(.success(probe))
             case .failure(let error):
                 let next = index + 1
                 if next < candidates.count {

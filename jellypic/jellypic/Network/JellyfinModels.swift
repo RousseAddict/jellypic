@@ -13,6 +13,11 @@ struct LenientDate: Decodable {
     }
 }
 
+struct ServerProbe {
+    let baseURL: URL
+    let info: PublicSystemInfo
+}
+
 struct PublicSystemInfo: Decodable {
     let id: String?
     let serverName: String?

@@ -398,7 +398,7 @@ final class PhotoGridViewController: UIViewController {
     private func hideQueueBanner() {
         guard isQueueBannerVisible else { return }
         isQueueBannerVisible = false
-        if services.sync.isRunning {
+        if services.sync.isSyncing {
             showBanner("Indexing…")
         } else {
             hideBanner()
@@ -544,7 +544,7 @@ final class PhotoGridViewController: UIViewController {
         guard let libraryId = Preferences.libraryId else { return }
         didSyncFail = false
         services.sync.refresh(libraryId: libraryId)
-        if services.sync.isRunning {
+        if services.sync.isSyncing {
             showBanner("Indexing…")
         }
     }
@@ -560,6 +560,7 @@ final class PhotoGridViewController: UIViewController {
         collectionView.backgroundColor = palette.background
         emptyLabel.textColor = palette.textSecondary
         brandLabel.textColor = palette.textPrimary
+        refreshControl.tintColor = palette.textSecondary
         view.applyThemeRecursively(palette)
     }
 }
@@ -618,6 +619,12 @@ extension PhotoGridViewController: UICollectionViewDelegate {
         viewer.transitionSource = self
         viewer.onWillDismiss = { [weak self] path in
             self?.prepareForReturn(to: path)
+        }
+        viewer.onSignInRequested = { [weak self] in
+            guard let self = self else { return }
+            self.dismiss(animated: true) {
+                self.presentReauth()
+            }
         }
         viewer.onShowLocation = { [weak self] latitude, longitude in
             guard let self = self else { return }

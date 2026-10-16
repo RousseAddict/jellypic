@@ -35,6 +35,7 @@ final class PhotoViewerViewController: UIViewController {
     weak var transitionSource: ZoomTransitionEndpoint?
     var onWillDismiss: ((IndexPath) -> Void)?
     var onShowLocation: ((Double, Double) -> Void)?
+    var onSignInRequested: (() -> Void)?
 
     init(services: AppServices,
          timeline: PhotoTimeline,
@@ -387,6 +388,7 @@ extension PhotoViewerViewController: UICollectionViewDataSource {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: ZoomablePhotoCell.reuseIdentifier,
                                                       for: indexPath) as! ZoomablePhotoCell
         cell.onSingleTap = { [weak self] in self?.toggleChrome() }
+        cell.onSignIn = { [weak self] in self?.onSignInRequested?() }
         guard let photo = timeline.photoIfPresent(at: indexPath) else { return cell }
         cell.configure(itemId: photo.id,
                        tag: photo.imageTag,

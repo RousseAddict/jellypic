@@ -13,6 +13,11 @@ final class SyncEngine {
     private let store: PhotoStore
 
     private(set) var isRunning = false
+    private(set) var isCatchingUp = false
+
+    var isSyncing: Bool {
+        return isRunning && !isCatchingUp
+    }
     private var runToken = 0
     private var pageTask: URLSessionTask?
     private var libraryId: String = ""
@@ -49,6 +54,9 @@ final class SyncEngine {
     }
 
     func refresh(libraryId: String) {
+        if isCatchingUp {
+            cancel()
+        }
         guard !isRunning else { return }
         Preferences.clearSync()
         start(libraryId: libraryId)
@@ -64,6 +72,7 @@ final class SyncEngine {
 
         self.libraryId = libraryId
         isRunning = true
+        isCatchingUp = true
         runToken += 1
         onCatchUpFinished = completion
 
@@ -79,6 +88,7 @@ final class SyncEngine {
         pageTask?.cancel()
         pageTask = nil
         isRunning = false
+        isCatchingUp = false
         let finished = onCatchUpFinished
         onCatchUpFinished = nil
         finished?()
@@ -182,6 +192,7 @@ final class SyncEngine {
         SyncEngine.raiseWatermark(to: start)
         pageTask = nil
         isRunning = false
+        isCatchingUp = false
         let finished = onCatchUpFinished
         onCatchUpFinished = nil
         finished?()

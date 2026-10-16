@@ -122,6 +122,18 @@ without hardcoding offsets that differ per OS version. If the stored mode is not
 the list, selection falls back to `Theme.isDark ? .dark : .light` — the resolved
 appearance rather than an arbitrary segment.
 
+**System UI follows the app's choice, not the OS's** (ratified 2026-10-15). On
+iOS 13+ the palette only reached views jellypic draws; alerts, the keyboard and
+the segmented control kept the OS appearance, so *Light* on a dark phone gave
+black alerts in a white app. `RootViewController` now sets the window's
+`overrideUserInterfaceStyle` from the mode (`.unspecified` for *System*). Three
+smaller holes closed with it: under *System*, a live OS switch now re-themes the
+app (`traitCollectionDidChange` posts `Theme.didChangeNotification`) instead of
+waiting for a relaunch; the status bar is refreshed on every theme change; and
+the light palette asks for `.darkContent` — `.default` means "follow the OS" on
+iOS 13+, which is white text over a light grid when the OS is dark. The grid's
+refresh spinner takes `textSecondary`.
+
 ## 3. Image cache
 
 `ImageLoader.clearCaches()` empties both the `URLCache` on disk and the `NSCache`
@@ -145,11 +157,17 @@ without reading.
 
 ## 4. Resync library
 
-Calls `SyncEngine.refresh(libraryId:)`, which re-pages `/Items` from the start and
-upserts. It is **not** destructive: the store is never cleared, so the grid keeps
-showing everything it already has while the pass runs. The alert says so, because
-"Resync" otherwise sounds like "wipe and redownload" and on a 20 000-photo library
-over a phone that would be alarming.
+Calls `SyncEngine.refresh(libraryId:)`, which **empties the index** and re-pages
+`/Items` from the start (doc 06 §5.5 — it used to be additive, which left photos
+deleted on the server in the grid forever). The alert says the grid empties and
+fills back up, because it does.
+
+A catch-up may be running when Resync is tapped — one starts on every return to
+the foreground, and it can hang for the 15 s request timeout on an unreachable
+server. `refresh` used to return silently on `isRunning`, which a catch-up also
+sets, and the grid then showed an "Indexing…" banner nothing would ever clear.
+It now cancels the catch-up first. The grid's banner logic reads
+`SyncEngine.isSyncing` (a full sync, not a catch-up) wherever it meant that.
 
 This one *does* confirm, ratified in chat. The pass costs minutes and heat on an
 A7, and unlike the cache reset it cannot be undone by waiting.
@@ -171,10 +189,9 @@ in the app, not two.
 
 ### What it does not fix
 
-Deletion. `refresh` upserts; a photo removed on the server stays in the index and
-its cell shows a broken thumbnail forever. Detecting deletions means diffing the
-full server id set against the local one, which is the *point* of a resync and the
-obvious next step — but it is a separate piece of work and it is not in L1.
+Deletion *between* resyncs. A catch-up only adds and updates, so a photo removed on
+the server stays until the next Resync or sign-out. Detecting it incrementally means
+diffing the full server id set against the local one, which is not in L1.
 
 ## 5. Sign out
 
@@ -202,6 +219,16 @@ vanished a frame before the root cross-fade started. It now assigns
 `onDismissed = onSignedOut` and calls `dismissCard()`: the base class already
 slides the card out and fires `onDismissed` in the completion, so the sign-out
 hook rides the existing animation instead of racing it.
+
+**The card cannot be closed while it signs out.** The completion is the only thing
+that routes back to Connect, and it is held `[weak self]` by the card. Against a
+server that is unreachable without refusing — a host that is off, a home address
+from somewhere else — the logout POST takes up to the 15 s timeout, and tapping
+outside a card that says "Signing out…" is the natural reaction. The card then
+deallocated, the wipe still ran, and the app sat on an empty grid with no session
+until relaunch. `CardSheetViewController.allowsUserDismissal` gates the three user
+gestures (dimming tap, swipe, close button) and leaves `dismissCard()` itself
+alone, so the card's own completion still closes it.
 
 ## 6. Not done yet
 

@@ -11,6 +11,10 @@ class CardSheetViewController: UIViewController {
 
     private(set) var isDismissing = false
 
+    var allowsUserDismissal = true {
+        didSet { closeButton.isEnabled = allowsUserDismissal }
+    }
+
     var isFullSheet: Bool {
         return traitCollection.verticalSizeClass == .compact
     }
@@ -73,7 +77,12 @@ class CardSheetViewController: UIViewController {
                        completion: nil)
     }
 
-    @objc func dismissCard() {
+    @objc private func dismissCardByUser() {
+        guard allowsUserDismissal else { return }
+        dismissCard()
+    }
+
+    func dismissCard() {
         guard !isDismissing else { return }
         isDismissing = true
         view.endEditing(true)
@@ -109,7 +118,7 @@ class CardSheetViewController: UIViewController {
         dimming.alpha = 0
         dimming.translatesAutoresizingMaskIntoConstraints = false
         dimming.addGestureRecognizer(UITapGestureRecognizer(target: self,
-                                                            action: #selector(dismissCard)))
+                                                            action: #selector(dismissCardByUser)))
         view.addSubview(dimming)
 
         NSLayoutConstraint.activate([
@@ -125,7 +134,7 @@ class CardSheetViewController: UIViewController {
         card.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(card)
 
-        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(dismissCard))
+        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(dismissCardByUser))
         swipe.direction = .down
         card.addGestureRecognizer(swipe)
 
@@ -138,7 +147,7 @@ class CardSheetViewController: UIViewController {
     }
 
     private func buildSheet() {
-        closeButton.addTarget(self, action: #selector(dismissCard), for: .touchUpInside)
+        closeButton.addTarget(self, action: #selector(dismissCardByUser), for: .touchUpInside)
 
         accessories.axis = .horizontal
         accessories.spacing = 4

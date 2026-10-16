@@ -73,6 +73,8 @@ Trim, strip trailing slashes, prepend `http://` when no scheme is given, and —
 
 It deliberately does *not* try to be clever about https-for-public / http-for-private. The caller tries the candidates in order; a user who types `https://` gets exactly that.
 
+**The address kept is the one that answered, not the one that was typed.** `URLSession` follows redirects silently, so a public server behind a reverse proxy that sends `http://` to `https://` used to pass the probe while the app stored the `http://` candidate. Everything after inherited it: the credentials step warned about cleartext for a server that is HTTPS; `AuthenticateByName` went out in clear on the first hop; and on a 301 or 302 — nginx's usual — `URLSession` re-issued the POST as a GET without its body, so sign-in failed with a misleading status. On a 307/308 it worked, and every later request, `api_key` stream URLs included, made a cleartext first hop forever. `publicSystemInfo` now returns a `ServerProbe` whose `baseURL` is derived from `response.url` by stripping the endpoint path (`ServerURL.baseURL(answering:endpoint:)`), so a redirect to a path prefix (`/jellyfin`) is kept too. If the final URL does not end with the endpoint — something rewrote the path — the typed candidate is kept rather than guessed at. Adopting the redirect is what a browser does; refusing a scheme change would instead have made the common HTTPS proxy unusable without typing the scheme.
+
 ### 2.6 Completions are delivered on the main queue
 
 Decoding happens on the URLSession queue, delivery hops to main. Callers never have to remember, and the L1.3 grid cannot accidentally touch UIKit off-thread. At 1000 items per page in L1.2 the decode cost stays off the main thread, which is the part that actually matters on an A7.
@@ -383,3 +385,28 @@ what it was written for.
 
 The general rule, cheap to apply: **`credentials` is for making a request,
 `session` is for describing one.**
+
+### 6.7 A 401 outside the sign-in form is not a wrong password
+
+`.unauthorized` carried "Wrong username or password." everywhere, because the
+same case served `AuthenticateByName` and every authenticated request. In the
+details card and the download alert that sent the user to check a password that
+was never the problem — the original symptom of this whole section, left in the
+error text after the banner was fixed. `authenticate` now maps its 401 to
+`.wrongCredentials`, the only case that says "password", and `.unauthorized`
+reads "Your session has expired. Sign in again." — the banner's own words. A 401
+anywhere else already means the token was rejected (§6.5 is the 403 half).
+
+### 6.8 Saying it where the user is
+
+The banner lives on the grid, and the two places a user is likely to be when the
+token dies are in front of it: the viewer (the only screen still making requests
+once a sync is done) and the settings card. The viewer used to report a cache
+miss on a token-less request as "The server is unreachable." with a Retry that
+could never succeed. `ImageLoader` now answers `.expired` — a token-less request
+that missed the cache, or a 401 — and the viewer's failure overlay says "Your
+session has expired." with **Sign in** in place of Retry; it closes the viewer
+and opens the re-auth card over the grid, the same hand-off "Show location" uses
+for the map. The grid draws its usual failure glyph for it. Settings closes
+itself on `sessionExpiredNotification` so the banner is visible, except while it
+is signing out (doc 09 §5).

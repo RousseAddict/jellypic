@@ -32,6 +32,18 @@ enum ServerURL {
         return result
     }
 
+    static func baseURL(answering response: URL?, endpoint: String) -> URL? {
+        guard let response = response,
+              var components = URLComponents(url: response, resolvingAgainstBaseURL: false) else { return nil }
+        let suffix = "/" + endpoint
+        let path = components.percentEncodedPath
+        guard path.lowercased().hasSuffix(suffix.lowercased()) else { return nil }
+        components.percentEncodedPath = String(path.dropLast(suffix.count))
+        components.query = nil
+        components.fragment = nil
+        return components.url
+    }
+
     static func isPlaintextToPublicHost(_ url: URL) -> Bool {
         guard url.scheme?.lowercased() == "http",
               let host = url.host?.lowercased() else { return false }

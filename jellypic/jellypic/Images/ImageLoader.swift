@@ -5,6 +5,7 @@ enum ImageLoadResult {
     case image(UIImage)
     case deferred
     case failed(String)
+    case expired
 }
 
 final class ImageLoader {
@@ -12,6 +13,7 @@ final class ImageLoader {
     static let unreachableMessage = "The server is unreachable."
     static let missingMessage = "This photo is no longer on the server."
     static let genericMessage = "This photo could not be loaded."
+    static let expiredMessage = "Your session has expired."
 
     static func defaultConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
@@ -70,6 +72,7 @@ final class ImageLoader {
             completion(.failed(ImageLoader.genericMessage))
             return nil
         }
+        let isSignedOut = client.credentials == nil
 
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else {
@@ -77,7 +80,10 @@ final class ImageLoader {
                 return
             }
             self.reportIfUnauthorized(response)
-            switch ImageLoader.payload(data: data, response: response, error: error) {
+            switch ImageLoader.payload(data: data,
+                                       response: response,
+                                       error: error,
+                                       isSignedOut: isSignedOut) {
             case .outcome(let outcome):
                 DispatchQueue.main.async { completion(outcome) }
             case .body(let body):
@@ -110,6 +116,7 @@ final class ImageLoader {
             completion(.failed(ImageLoader.genericMessage))
             return nil
         }
+        let isSignedOut = client.credentials == nil
 
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else {
@@ -117,7 +124,10 @@ final class ImageLoader {
                 return
             }
             self.reportIfUnauthorized(response)
-            switch ImageLoader.payload(data: data, response: response, error: error) {
+            switch ImageLoader.payload(data: data,
+                                       response: response,
+                                       error: error,
+                                       isSignedOut: isSignedOut) {
             case .outcome(let outcome):
                 DispatchQueue.main.async { completion(outcome) }
             case .body(let body):
@@ -169,10 +179,17 @@ final class ImageLoader {
         case outcome(ImageLoadResult)
     }
 
-    private static func payload(data: Data?, response: URLResponse?, error: Error?) -> Payload {
+    private static func payload(data: Data?,
+                                response: URLResponse?,
+                                error: Error?,
+                                isSignedOut: Bool) -> Payload {
         if let error = error {
             guard (error as? URLError)?.code != .cancelled else { return .outcome(.deferred) }
+            guard !isSignedOut else { return .outcome(.expired) }
             return .outcome(.failed(error is URLError ? unreachableMessage : genericMessage))
+        }
+        if let http = response as? HTTPURLResponse, HTTPStatus.rejectsToken(http.statusCode) {
+            return .outcome(.expired)
         }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             return .outcome(.failed(http.statusCode == 404 ? missingMessage : genericMessage))

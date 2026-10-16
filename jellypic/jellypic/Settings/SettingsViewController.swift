@@ -53,6 +53,15 @@ final class SettingsViewController: CardSheetViewController {
                                                selector: #selector(reloadBackup),
                                                name: UIApplication.didBecomeActiveNotification,
                                                object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(sessionDidExpire),
+                                               name: AppServices.sessionExpiredNotification,
+                                               object: nil)
+    }
+
+    @objc private func sessionDidExpire() {
+        guard allowsUserDismissal else { return }
+        dismissCard()
     }
 
     deinit {
@@ -374,6 +383,7 @@ final class SettingsViewController: CardSheetViewController {
     private func signOut() {
         signOutRow.isEnabled = false
         signOutRow.detail = "Signing out…"
+        allowsUserDismissal = false
         services.signOut { [weak self] in
             guard let self = self else { return }
             self.onDismissed = self.onSignedOut

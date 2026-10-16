@@ -152,7 +152,9 @@ failure; it is a degraded success. Covering it with an error would be a regressi
 over doing nothing. The black screen was the bug, not the missing full resolution.
 
 Retry lives in the cell, not the view controller: `configure`'s parameters are
-stored and the method is re-invoked. The alternative, `reloadItems` on the
+stored and the method is re-invoked. When the failure is an expired session
+(`.expired`, doc 04 §6.8), the same pill reads **Sign in** and hands off to the
+re-auth card instead: a Retry that cannot succeed is worse than none. The alternative, `reloadItems` on the
 currently visible cell of a paging layout, risks a visual jump for no gain.
 
 The glyph and the message are **hard-coded white-alpha inks** (`0.45` and `0.75`),
