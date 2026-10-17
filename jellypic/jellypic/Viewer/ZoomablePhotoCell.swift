@@ -196,6 +196,7 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
 
         failureStack.isHidden = true
         retryButton.apply(Theme.palette)
+        scrollView.zoomScale = 1
 
         if let thumbnail = loader.cached(itemId: itemId, tag: tag, pixels: thumbnailPixels) {
             imageView.image = thumbnail
@@ -272,6 +273,7 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
     }
 
     @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        guard imageView.image != nil else { return }
         guard !isZoomed else {
             scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
             return

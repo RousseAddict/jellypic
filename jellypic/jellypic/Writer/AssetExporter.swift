@@ -27,6 +27,10 @@ final class AssetExporter {
         directory = caches.appendingPathComponent("Uploads", isDirectory: true)
     }
 
+    private static func directStagingKey(for asset: PHAsset) -> String {
+        return "direct/" + asset.localIdentifier
+    }
+
     static func stagedName(for identifier: String) -> String {
         var digest = SHA256Digest()
         digest.update(Data(identifier.utf8))
@@ -63,7 +67,7 @@ final class AssetExporter {
                 completion(.failure(.noAsset))
                 return
             }
-            self.export(asset, identifier: asset.localIdentifier, completion: completion)
+            self.export(asset, identifier: AssetExporter.directStagingKey(for: asset), completion: completion)
         }
     }
 

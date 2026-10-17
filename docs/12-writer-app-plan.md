@@ -508,6 +508,17 @@ The text tables did not move to a second home — `BackupUploadError.from(_:)` a
 `refusalText(_:)` became statics on the error, shared by both the queue's verdict and the
 one-photo debug path.
 
+**"Photo access denied" has to be detected before the export, not by it.** The queue looks
+each asset up by `localIdentifier` first, and under revoked or narrowed access that lookup
+simply returns nothing — the export, the only place that reported `.denied`, is never
+reached. Every pending photo was therefore charged as `failItem(.photoUnavailable)` and
+retired. Realistic and total: iOS terminates the app when its photo permission changes, so
+the next launch resumes the queue straight into the new state and empties a catch-up of
+thousands in seconds. A missing asset now halts with `.permissionDenied` unless access is
+full — only under full access does "not found" mean the photo was deleted. Under *Limited*
+this stops at the first photo outside the selection even if visible ones follow; keeping
+everything until access returns is the right side of that trade for a backup.
+
 `UploadFailure.offline` is new, and narrow: `NSURLErrorDataNotAllowed` (-1020) is the exact
 error `allowsCellularAccess = false` produces when only cellular is up. It is the
 user-visible face of the Wi-Fi policy, and everything else stays `.transient`.
@@ -645,7 +656,10 @@ is `.main`, so it is ordered against the delegate callbacks rather than racing t
 Staged filenames became `sha256(localIdentifier)` instead of `UUID()`. Three consequences:
 the staging directory is self-describing after a cold start with nothing persisted; a retry
 overwrites its own file instead of leaking one per attempt (a real leak in W4's `.retry`
-path); and the launch sweep can be handed the live set directly.
+path); and the launch sweep can be handed the live set directly. The one-photo "Send latest
+photo" path stages under `sha256("direct/" + localIdentifier)`: the most recent photo is
+exactly the one the automatic sweep has just queued, and sharing a name let the debug export
+truncate and then delete the file a background upload was reading.
 
 W4 ran `exporter.sweep()` in `init`, deleting *every* staged file. Under a background
 session, files staged before a kill may still back live tasks. Apple does not document
@@ -661,6 +675,17 @@ Ambiguity after a relaunch is always resolved in the **forgiving** direction, be
 kill landed between `retire` and `persist` — is re-inserted at the *head*. One replay beats
 a lost photo. `taskDescription` surviving a launch is treated as an optimisation, never as a
 contract.
+
+**`getAllTasks` only sees tasks that are still going.** A task that *finished* while the
+process was dead is not in it, but its `didCompleteWithError` is still delivered after the
+relaunch — on the 5s that is the ordinary background path, not an edge case. Such a result
+used to reach `complete`, find no `inFlight` slot, and be dropped, leaving the photo in
+`pending` to be exported and uploaded a second time (counted as a duplicate by the server).
+`settleUnadopted` now applies a terminal outcome — stored or failed — to a `pending` item that
+has no slot, and leaves retries and halts for the queue's own next pass. It works in either
+arrival order: before reconciliation the item is in `pending` from `queue.json`; after it, if
+the pump has already restarted the photo, the old result settles the new slot and the new
+task's result finds nothing left to settle.
 
 ### Persistence gains two mandatory flush points
 
@@ -1000,6 +1025,16 @@ changed meaning.
 Nothing in the compiler error says so — it reads as "`PHPhotoLibrary` has no member",
 which looks like an availability problem and is not. `import PhotosUI` is the whole
 fix; autolinking handles the framework, as with MapKit and AVKit (see docs/10).
+
+### When Send is refused
+
+`UploadService.enqueue` only accepts a selection while the server is `.ready`; it used to
+return silently otherwise, and the picker closed regardless — the selection vanished with no
+word. It now reports refusal, and the picker **stays open with the selection intact** behind
+a "Not sent" alert carrying the same reason text the Settings note shows
+(`BackupAvailability.unavailableReason`, now shared by both). Ratified 2026-10-15. The window
+is narrow — readiness changing between opening the picker and tapping Send — but the cost of
+losing a hand-made selection is the whole selection.
 
 ### The picker, when limited
 

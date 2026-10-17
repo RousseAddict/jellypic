@@ -11,6 +11,7 @@ enum Preferences {
         static let syncTotal = "syncTotal"
         static let syncCompleted = "syncCompleted"
         static let syncWatermark = "syncWatermark"
+        static let syncRunStart = "syncRunStart"
         static let indexSchemaVersion = "indexSchemaVersion"
     }
 
@@ -60,6 +61,11 @@ enum Preferences {
         set { defaults.set(newValue, forKey: Key.syncWatermark) }
     }
 
+    static var syncRunStart: Date? {
+        get { return defaults.object(forKey: Key.syncRunStart) as? Date }
+        set { defaults.set(newValue, forKey: Key.syncRunStart) }
+    }
+
     static var indexSchemaVersion: Int {
         get { return defaults.integer(forKey: Key.indexSchemaVersion) }
         set { defaults.set(newValue, forKey: Key.indexSchemaVersion) }
@@ -71,6 +77,7 @@ enum Preferences {
         defaults.removeObject(forKey: Key.syncTotal)
         defaults.removeObject(forKey: Key.syncCompleted)
         defaults.removeObject(forKey: Key.syncWatermark)
+        defaults.removeObject(forKey: Key.syncRunStart)
     }
 
     static func clearLibrary() {

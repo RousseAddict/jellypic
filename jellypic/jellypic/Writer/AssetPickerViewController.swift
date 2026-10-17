@@ -356,7 +356,13 @@ final class AssetPickerViewController: UIViewController {
         fetched.enumerateObjects { asset, _, _ in selected.append(asset) }
         guard !selected.isEmpty else { return }
 
-        services.upload.enqueue(selected)
+        guard services.upload.enqueue(selected) else {
+            let reason = services.upload.availability.unavailableReason ?? BackupUploadError.notReady.text
+            let alert = UIAlertController(title: "Not sent", message: reason, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+            present(alert, animated: true, completion: nil)
+            return
+        }
         dismiss(animated: true, completion: nil)
     }
 }

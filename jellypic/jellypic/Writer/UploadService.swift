@@ -23,6 +23,19 @@ enum BackupAvailability {
             return true
         }
     }
+
+    var unavailableReason: String? {
+        switch self {
+        case .notInstalled:
+            return "Requires the upload plugin on your server"
+        case .incompatible:
+            return "Update the upload plugin on your server"
+        case .blocked(let reason):
+            return reason
+        case .unknown, .ready:
+            return nil
+        }
+    }
 }
 
 enum BackupUploadError: Error {
@@ -122,7 +135,7 @@ protocol UploadService: AnyObject {
     func declineCatchUp()
     func refreshAvailability(completion: @escaping () -> Void)
     func uploadMostRecentPhoto(completion: @escaping (Result<UploadReceipt, BackupUploadError>) -> Void)
-    func enqueue(_ assets: [PHAsset])
+    func enqueue(_ assets: [PHAsset]) -> Bool
     func resumeQueue()
     func stopQueue()
     func clearQueue()
@@ -286,9 +299,10 @@ final class JellyfinUploadService: UploadService {
         }
     }
 
-    func enqueue(_ assets: [PHAsset]) {
-        guard case .ready(let target) = availability else { return }
+    func enqueue(_ assets: [PHAsset]) -> Bool {
+        guard case .ready(let target) = availability else { return false }
         queue.enqueue(assets.map { $0.localIdentifier }, targetId: target.id)
+        return true
     }
 
     func resumeQueue() {

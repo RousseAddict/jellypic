@@ -174,6 +174,15 @@ items, because `startIndex` addresses a server-side ordering that has shifted.
 The fix is a manual resync (§5.5), not a more clever cursor — Jellyfin has no
 opaque pagination token.
 
+What a resume must *not* lose is the run's start date. It becomes the catch-up
+watermark when the run completes (§5.4), and it used to live in memory, so a
+resumed run took it from its own first page. Photos added to the server between
+the kill and the resume sort first, so the resumed pages never see them — and
+their `DateLastSaved` predates the new watermark, so the foreground catch-up
+skipped them too; only a pull-to-refresh within its 48 h lookback recovered them.
+`Preferences.syncRunStart` now persists it beside `syncStartIndex`, is set by the
+first page of a run and cleared at completion and by `clearSync()`.
+
 A run ends when a page comes back shorter than the page size; `syncCompleted` is
 then set and `start` becomes a no-op until something calls `refresh`. Changing
 library wipes the store and the counters, since `startIndex` means nothing

@@ -124,6 +124,13 @@ recomputed in `scrollViewDidZoom`.
 `layoutSubviews` only re-runs the fit when the scroll view's size actually
 changed, otherwise every layout pass would reset the user's zoom.
 
+**Double-tap does nothing until there is an image.** With no cached thumbnail the
+image view's frame is zero — or stale from the cell's previous photo, since reuse
+does not clear it — so zooming it set `isZoomed` on nothing; when the full image
+arrived, §3's "do not re-fit a zoomed image" rule kept it in that frame: black, or
+the wrong aspect, and drag-to-dismiss disabled. `configure` also resets
+`zoomScale`, because Retry (§3) re-enters it without going through reuse.
+
 ## 3. Progressive display
 
 `configure` puts the **already-cached grid thumbnail** into the image view

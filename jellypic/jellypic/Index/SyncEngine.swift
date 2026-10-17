@@ -21,7 +21,6 @@ final class SyncEngine {
     private var runToken = 0
     private var pageTask: URLSessionTask?
     private var libraryId: String = ""
-    private var syncRunStart: Date?
     private var onCatchUpFinished: (() -> Void)?
 
     var onProgress: ((Progress) -> Void)?
@@ -49,7 +48,6 @@ final class SyncEngine {
         self.libraryId = libraryId
         isRunning = true
         runToken += 1
-        syncRunStart = nil
         requestPage(at: Preferences.syncStartIndex, includeTotalCount: true)
     }
 
@@ -110,8 +108,8 @@ final class SyncEngine {
                 if includeTotalCount {
                     Preferences.syncTotal = page.totalRecordCount
                 }
-                if self.syncRunStart == nil {
-                    self.syncRunStart = page.serverDate
+                if Preferences.syncRunStart == nil {
+                    Preferences.syncRunStart = page.serverDate
                 }
                 self.persist(page, from: startIndex, token: token)
             }
@@ -212,7 +210,8 @@ final class SyncEngine {
         guard token == runToken else { return }
         guard page.items.count == SyncEngine.pageSize else {
             Preferences.syncCompleted = true
-            SyncEngine.raiseWatermark(to: syncRunStart)
+            SyncEngine.raiseWatermark(to: Preferences.syncRunStart)
+            Preferences.syncRunStart = nil
             stop(with: nil)
             return
         }

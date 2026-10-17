@@ -214,8 +214,11 @@ final class UploadQueue {
 
     private func start(_ identifier: String, token: Int, targetId: String) {
         guard let asset = UploadQueue.asset(for: identifier) else {
+            let outcome: Outcome = PhotoAccess.current == .full
+                ? .failItem(.photoUnavailable)
+                : .halt(.permissionDenied)
             DispatchQueue.main.async { [weak self] in
-                self?.complete(.failItem(.photoUnavailable), identifier: identifier, token: token)
+                self?.complete(outcome, identifier: identifier, token: token)
             }
             return
         }
@@ -236,12 +239,38 @@ final class UploadQueue {
 
     private func uploadFinished(_ identifier: String, _ result: Result<UploadReceipt, UploadFailure>) {
         exporter.discardStaged(for: identifier)
+        let outcome: Outcome
         switch result {
         case .success(let receipt):
-            complete(.stored(created: receipt.created), identifier: identifier, token: runToken)
+            outcome = .stored(created: receipt.created)
         case .failure(let failure):
-            complete(UploadQueue.verdict(failure), identifier: identifier, token: runToken)
+            outcome = UploadQueue.verdict(failure)
         }
+        guard inFlight[identifier] != nil else {
+            settleUnadopted(outcome, identifier: identifier)
+            return
+        }
+        complete(outcome, identifier: identifier, token: runToken)
+    }
+
+    private func settleUnadopted(_ outcome: Outcome, identifier: String) {
+        guard let index = pending.firstIndex(of: identifier) else { return }
+        switch outcome {
+        case .stored(let created):
+            if created {
+                sent += 1
+            } else {
+                duplicates += 1
+            }
+        case .failItem(let error):
+            failed += 1
+            lastErrorText = error.text
+        case .retry, .halt:
+            return
+        }
+        pending.remove(at: index)
+        persist()
+        notifyChanged()
     }
 
     private func uploadCancelled(_ identifier: String) {

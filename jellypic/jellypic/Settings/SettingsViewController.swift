@@ -196,28 +196,22 @@ final class SettingsViewController: CardSheetViewController {
     }
 
     private func backupNoteText() -> String {
-        switch services.upload.availability {
-        case .notInstalled:
-            return "Requires the upload plugin on your server"
-        case .incompatible:
-            return "Update the upload plugin on your server"
-        case .blocked(let reason):
+        if let reason = services.upload.availability.unavailableReason {
             return reason
-        case .unknown, .ready:
-            let isLimited = PhotoAccess.current == .limited
-            switch services.upload.mode {
-            case .off:
-                return "Photos taken on this device stay on this device"
-            case .manual:
-                return isLimited
-                    ? "Choose photos on the grid to send them\nJellypic only sees the photos you allowed"
-                    : "Choose photos on the grid to send them"
-            case .automatic:
-                if isLimited {
-                    return "Automatic backup needs all photos — a photo taken later never joins a limited selection"
-                }
-                return "New photos are sent in the background\n" + sweepNoteText() + catchUpNoteText()
+        }
+        let isLimited = PhotoAccess.current == .limited
+        switch services.upload.mode {
+        case .off:
+            return "Photos taken on this device stay on this device"
+        case .manual:
+            return isLimited
+                ? "Choose photos on the grid to send them\nJellypic only sees the photos you allowed"
+                : "Choose photos on the grid to send them"
+        case .automatic:
+            if isLimited {
+                return "Automatic backup needs all photos — a photo taken later never joins a limited selection"
             }
+            return "New photos are sent in the background\n" + sweepNoteText() + catchUpNoteText()
         }
     }
 
