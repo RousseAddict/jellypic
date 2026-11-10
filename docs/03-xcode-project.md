@@ -94,7 +94,9 @@ Normally the identifier is `TEAMID.bundle-id` and comes from the provisioning
 profile. There is no team here — the IPA is ad-hoc signed and installed on a
 jailbroken 5s — so the bundle id alone is used. When the CI `sign: true` path
 runs with a real certificate, the profile's entitlements take over and this file
-should be bypassed (the signing step picks it up only if it exists).
+should be bypassed (the signing step picks it up only if it exists). They are
+not taken verbatim: the profile's `keychain-access-groups` is the wildcard
+`TEAMID.*`, which the signing step replaces with `TEAMID.bundle-id` (docs/14 §3).
 
 The nested Swift dylibs are signed **without** entitlements. They are libraries;
 only the main executable gets a blob. (They exist only on the Xcode 13 path —
