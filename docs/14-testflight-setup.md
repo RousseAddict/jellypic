@@ -105,14 +105,18 @@ turns a ten-minute round trip into a one-second one:
 security cms -D -i profile.mobileprovision > /tmp/p.plist
 /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' /tmp/p.plist            # must FAIL
 /usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' /tmp/p.plist   # must be false
-/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/p.plist
-/usr/libexec/PlistBuddy -c 'Print :Entitlements:keychain-access-groups' /tmp/p.plist
+/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/p.plist   # TEAMID.com.rousseaddict.jellypic
 ```
 
-If `ProvisionedDevices` prints, the profile is Development or Ad Hoc. The last
-two lines must both show `TEAMID.com.rousseaddict.jellypic` — that is what keeps
-the keychain working under the store signature, and its absence is how
-`-34018` came back the first time (see `03-xcode-project.md` §5.1).
+If `ProvisionedDevices` prints, the profile is Development or Ad Hoc.
+
+Do not expect `keychain-access-groups` to name the app. A profile lists what
+the app *may* claim, so it always reads `TEAMID.*` (plus `com.apple.token` on
+recent profiles). The signing step narrows it to `TEAMID.com.rousseaddict.jellypic`
+before `codesign`, the way Xcode does. Signed verbatim, the wildcard risks a
+rejection at upload and a keychain with no clear default group, the `-34018`
+of `03-xcode-project.md` §5.1. Neither has been measured; the narrowing removes
+the question rather than answering it.
 
 And that the `.p12` actually carries its key:
 

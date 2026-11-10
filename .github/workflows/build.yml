@@ -216,7 +216,8 @@ jobs:
           echo "Signing identity: $IDENTITY"
 
           # Entitlements and the app id both come from the profile itself, so no
-          # extra secrets and no chance of them drifting apart.
+          # extra secrets and no chance of them drifting apart. The keychain
+          # group is the one key narrowed below.
           security cms -D -i "$WORK/profile.mobileprovision" > "$WORK/profile.plist"
           /usr/libexec/PlistBuddy -x -c 'Print :Entitlements' "$WORK/profile.plist" \
             > "$WORK/entitlements.plist"
@@ -232,6 +233,18 @@ jobs:
             echo "::error::Bundle id mismatch: app is '$BUNDLE_ID', profile allows '$PROFILE_BUNDLE_ID'"
             exit 1
           fi
+
+          # A profile lists what the app may claim, not what it claims: its
+          # keychain-access-groups is TEAMID.* plus com.apple.token, a wildcard
+          # Xcode never signs. Signed verbatim, it risks ITMS-90046 at upload and
+          # leaves the keychain's default group unclear (the -34018 of docs/03
+          # §5.1). Narrowed to the app's own group, like Xcode does.
+          /usr/libexec/PlistBuddy -c 'Delete :keychain-access-groups' \
+            "$WORK/entitlements.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy \
+            -c 'Add :keychain-access-groups array' \
+            -c "Add :keychain-access-groups:0 string $APP_ID" \
+            "$WORK/entitlements.plist"
 
           # Only an App Store profile omits ProvisionedDevices; Development and
           # Ad Hoc both carry it. That key is the discriminator, not the
