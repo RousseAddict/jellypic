@@ -45,7 +45,7 @@ on:
         description: 'Minimum iOS version'
         type: string
         required: false
-        default: '12.2'
+        default: '15.0'
       configuration:
         description: 'Debug or Release'
         type: choice
@@ -66,7 +66,7 @@ jobs:
     timeout-minutes: 30
     env:
       XCODE_VERSION: '26.6'
-      DEPLOYMENT_TARGET: ${{ inputs.deployment_target || '12.2' }}
+      DEPLOYMENT_TARGET: ${{ inputs.deployment_target || '15.0' }}
       CONFIGURATION: ${{ inputs.configuration || 'Release' }}
 
     steps:
@@ -144,7 +144,9 @@ jobs:
           MINOS=$(otool -l "$APP/jellypic" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2; exit}')
           SDKV=$(otool -l "$APP/jellypic" | awk '/LC_BUILD_VERSION/{f=1} f&&/sdk /{print $2; exit}')
           echo "minos=$MINOS  sdk=$SDKV"
-          if [ "$MINOS" != "$DEPLOYMENT_TARGET" ]; then
+          # A target typed as "15" builds as minos 15.0: compare as major.minor.
+          majmin() { case "$1" in *.*) echo "$1" ;; *) echo "$1.0" ;; esac; }
+          if [ "$(majmin "$MINOS")" != "$(majmin "$DEPLOYMENT_TARGET")" ]; then
             echo "::error::minos is $MINOS, expected $DEPLOYMENT_TARGET"
             exit 1
           fi
@@ -333,7 +335,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: jellypic-${{ inputs.sign && 'signed' || 'adhoc' }}-ios${{ inputs.deployment_target || '12.2' }}-${{ github.run_number }}
+          name: jellypic-${{ inputs.sign && 'signed' || 'adhoc' }}-ios${{ inputs.deployment_target || '15.0' }}-${{ github.run_number }}
           path: artifacts/jellypic.ipa
           retention-days: 30
           if-no-files-found: error
