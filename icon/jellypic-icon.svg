@@ -1,12 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="10%" x2="100%" y2="90%">
-      <stop offset="0%" stop-color="#9C61C5"/>
-      <stop offset="100%" stop-color="#0E9EDA"/>
+    <linearGradient id="grad" gradientUnits="userSpaceOnUse" x1="300" y1="270" x2="730" y2="760">
+      <stop offset="0" stop-color="#B67DFF"/>
+      <stop offset="0.5" stop-color="#7C8CFF"/>
+      <stop offset="1" stop-color="#2FD3FF"/>
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" fill="#FFFFFF"/>
-  <g transform="translate(512,512) scale(1.33941) translate(-512,-512)">
+  <g transform="translate(512,512) scale(1.51224) translate(-512,-512)">
     <path d="M530.17,403.78 L552.54,324.24 Q568.24,268.41 616.88,300.00 L663.02,329.96 Q711.66,361.55 667.04,398.60 L603.48,451.38 Q578.86,471.83 552.02,454.40 L548.34,452.01 Q521.51,434.58 530.17,403.78 Z" fill="url(#grad)"/>
     <path d="M614.81,473.62 L694.87,453.23 Q751.08,438.91 748.04,496.83 L745.16,551.76 Q742.13,609.68 687.73,589.57 L610.23,560.91 Q580.22,549.82 581.90,517.86 L582.12,513.48 Q583.80,481.52 614.81,473.62 Z" fill="url(#grad)"/>
     <path d="M596.64,581.85 L654.34,640.98 Q694.84,682.50 643.16,708.83 L594.15,733.81 Q542.47,760.14 532.69,702.97 L518.76,621.53 Q513.36,589.99 541.87,575.46 L545.78,573.47 Q574.29,558.94 596.64,581.85 Z" fill="url(#grad)"/>
