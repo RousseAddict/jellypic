@@ -134,7 +134,6 @@ protocol UploadService: AnyObject {
     func beginCatchUp()
     func declineCatchUp()
     func refreshAvailability(completion: @escaping () -> Void)
-    func uploadMostRecentPhoto(completion: @escaping (Result<UploadReceipt, BackupUploadError>) -> Void)
     func enqueue(_ assets: [PHAsset]) -> Bool
     func resumeQueue()
     func stopQueue()
@@ -271,31 +270,6 @@ final class JellyfinUploadService: UploadService {
                 break
             }
             completion()
-        }
-    }
-
-    func uploadMostRecentPhoto(completion: @escaping (Result<UploadReceipt, BackupUploadError>) -> Void) {
-        guard case .ready(let target) = availability else {
-            completion(.failure(.notReady))
-            return
-        }
-
-        exporter.exportMostRecent { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .failure(let failure):
-                completion(.failure(BackupUploadError.from(failure)))
-            case .success(let export):
-                self.client.upload(export, targetId: target.id) { outcome in
-                    self.exporter.discard(export)
-                    switch outcome {
-                    case .success(let receipt):
-                        completion(.success(receipt))
-                    case .failure(let failure):
-                        completion(.failure(BackupUploadError.from(failure)))
-                    }
-                }
-            }
         }
     }
 

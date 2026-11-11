@@ -64,7 +64,6 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
 
     private let identity: DeviceIdentity
     private let session: URLSession
-    private let uploadSession: URLSession
     private var backgroundSession: URLSession!
     private var bodies: [Int: Data] = [:]
     private var backgroundCompletion: (() -> Void)?
@@ -78,14 +77,6 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpAdditionalHeaders = ["Accept": "application/json"]
         self.session = URLSession(configuration: configuration)
-
-        let uploadConfiguration = URLSessionConfiguration.default
-        uploadConfiguration.timeoutIntervalForRequest = 60
-        uploadConfiguration.timeoutIntervalForResource = 3600
-        uploadConfiguration.allowsCellularAccess = false
-        uploadConfiguration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        uploadConfiguration.httpAdditionalHeaders = ["Accept": "application/json"]
-        self.uploadSession = URLSession(configuration: uploadConfiguration)
 
         super.init()
 
@@ -146,23 +137,6 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             self.finish(self.missing(data: data, response: response, error: error), completion)
-        }
-        task.resume()
-        return task
-    }
-
-    @discardableResult
-    func upload(_ export: AssetExport,
-                targetId: String,
-                completion: @escaping (Result<UploadReceipt, UploadFailure>) -> Void) -> URLSessionTask? {
-        guard let request = itemsRequest(export: export, targetId: targetId) else {
-            finish(.failure(.rejected("BAD_REQUEST")), completion)
-            return nil
-        }
-
-        let task = uploadSession.uploadTask(with: request, fromFile: export.fileURL) { [weak self] data, response, error in
-            guard let self = self else { return }
-            self.finish(self.receipt(data: data, response: response, error: error), completion)
         }
         task.resume()
         return task

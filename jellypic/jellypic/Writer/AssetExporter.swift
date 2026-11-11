@@ -27,10 +27,6 @@ final class AssetExporter {
         directory = caches.appendingPathComponent("Uploads", isDirectory: true)
     }
 
-    private static func directStagingKey(for asset: PHAsset) -> String {
-        return "direct/" + asset.localIdentifier
-    }
-
     static func stagedName(for identifier: String) -> String {
         var digest = SHA256Digest()
         digest.update(Data(identifier.utf8))
@@ -47,28 +43,9 @@ final class AssetExporter {
         }
     }
 
-    func discard(_ export: AssetExport) {
-        try? FileManager.default.removeItem(at: export.fileURL)
-    }
-
     func discardStaged(for identifier: String) {
         try? FileManager.default.removeItem(at: directory
             .appendingPathComponent(AssetExporter.stagedName(for: identifier)))
-    }
-
-    func exportMostRecent(completion: @escaping (Result<AssetExport, AssetExportFailure>) -> Void) {
-        requestAuthorization { [weak self] granted in
-            guard let self = self else { return }
-            guard granted else {
-                completion(.failure(.denied))
-                return
-            }
-            guard let asset = AssetExporter.mostRecentAsset() else {
-                completion(.failure(.noAsset))
-                return
-            }
-            self.export(asset, identifier: AssetExporter.directStagingKey(for: asset), completion: completion)
-        }
     }
 
     func export(_ asset: PHAsset,
@@ -170,10 +147,6 @@ final class AssetExporter {
         })
     }
 
-    private func requestAuthorization(completion: @escaping (Bool) -> Void) {
-        PhotoAccess.request { completion($0.allowsLibraryRead) }
-    }
-
     private func makeFileURL(for identifier: String) -> URL? {
         do {
             try FileManager.default.createDirectory(at: directory,
@@ -183,19 +156,6 @@ final class AssetExporter {
             return nil
         }
         return directory.appendingPathComponent(AssetExporter.stagedName(for: identifier))
-    }
-
-    private static func mostRecentAsset() -> PHAsset? {
-        let collections = PHAssetCollection.fetchAssetCollections(with: .smartAlbum,
-                                                                  subtype: .smartAlbumUserLibrary,
-                                                                  options: nil)
-        guard let library = collections.firstObject else { return nil }
-
-        let options = PHFetchOptions()
-        options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        options.fetchLimit = 1
-        return PHAsset.fetchAssets(in: library, options: options).firstObject
     }
 
     private static let monthFormatter: DateFormatter = {

@@ -12,11 +12,9 @@ final class SettingsViewController: CardSheetViewController {
 
     private let backupControl = UISegmentedControl()
     private let backupNote = SettingsNoteView()
-    private let sendRow = SettingsRowView()
     private let photoAccessRow = SettingsRowView()
     private let backupModes: [BackupMode] = [.off, .manual, .automatic]
 
-    private lazy var sendGroup = SettingsGroupView(rows: [sendRow], padding: 0)
     private lazy var photoAccessGroup = SettingsGroupView(rows: [photoAccessRow], padding: 0)
 
     private let themeControl = UISegmentedControl()
@@ -77,9 +75,6 @@ final class SettingsViewController: CardSheetViewController {
         buildBackupControl()
         buildThemeControl()
 
-        sendRow.title = "Send my latest photo"
-        sendRow.addTarget(self, action: #selector(sendLatestPhoto), for: .touchUpInside)
-
         photoAccessRow.title = "Allow access to all photos"
         photoAccessRow.addTarget(self, action: #selector(openPhotoSettings), for: .touchUpInside)
 
@@ -95,8 +90,7 @@ final class SettingsViewController: CardSheetViewController {
 
         body.addArrangedSubview(section("Backup",
                                         [SettingsGroupView(rows: [backupControl, backupNote], padding: 8),
-                                         photoAccessGroup,
-                                         sendGroup]))
+                                         photoAccessGroup]))
         body.addArrangedSubview(section("Appearance",
                                         [SettingsGroupView(rows: [themeControl], padding: 8)]))
         body.addArrangedSubview(section("Storage",
@@ -187,12 +181,6 @@ final class SettingsViewController: CardSheetViewController {
         }
         photoAccessGroup.isHidden = access != .limited
         backupNote.text = backupNoteText()
-        sendGroup.isHidden = services.upload.mode == .off
-        if case .ready = services.upload.availability {
-            sendRow.isEnabled = true
-        } else {
-            sendRow.isEnabled = false
-        }
     }
 
     private func backupNoteText() -> String {
@@ -300,27 +288,6 @@ final class SettingsViewController: CardSheetViewController {
 
     @objc private func openPhotoSettings() {
         PhotoAccess.openSystemSettings()
-    }
-
-    @objc private func sendLatestPhoto() {
-        sendRow.isEnabled = false
-        sendRow.detail = "Sending…"
-
-        services.upload.uploadMostRecentPhoto { [weak self] result in
-            guard let self = self else { return }
-            self.sendRow.detail = nil
-            self.renderBackup()
-
-            switch result {
-            case .success(let receipt):
-                self.report(title: receipt.created ? "Sent" : "Already there",
-                            message: receipt.created
-                                ? "Filed as \(receipt.path).\n\nYour server picks up new photos after about a minute; Jellypic will show it the next time you open the grid."
-                                : "Your server already had this photo, as \(receipt.path).")
-            case .failure(let failure):
-                self.report(title: "Not sent", message: failure.text)
-            }
-        }
     }
 
     private func report(title: String, message: String) {
