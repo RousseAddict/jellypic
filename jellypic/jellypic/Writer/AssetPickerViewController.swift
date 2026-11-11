@@ -7,6 +7,11 @@ final class AssetPickerViewController: UIViewController {
         let monthKey: String
         let first: Int
         var count: Int
+        var chosen: Int
+
+        var isFullyChosen: Bool {
+            return chosen == count
+        }
     }
 
     private static let bandHeight: CGFloat = 56
@@ -84,9 +89,9 @@ final class AssetPickerViewController: UIViewController {
         collectionView.prefetchDataSource = self
         collectionView.register(AssetGridCell.self,
                                 forCellWithReuseIdentifier: AssetGridCell.reuseIdentifier)
-        collectionView.register(MonthHeaderView.self,
+        collectionView.register(PickerMonthHeaderView.self,
                                 forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
-                                withReuseIdentifier: MonthHeaderView.reuseIdentifier)
+                                withReuseIdentifier: PickerMonthHeaderView.reuseIdentifier)
         collectionView.contentInset = UIEdgeInsets(top: AssetPickerViewController.bandHeight,
                                                    left: 0,
                                                    bottom: 0,
@@ -204,12 +209,15 @@ final class AssetPickerViewController: UIViewController {
         assets = PHAsset.fetchAssets(in: library, options: options)
 
         var built: [MonthSection] = []
+        let current = chosen
         assets.enumerateObjects { asset, index, _ in
             let key = AssetExporter.monthKey(for: asset.creationDate)
+            let isChosen = current.contains(asset.localIdentifier) ? 1 : 0
             if let last = built.last, last.monthKey == key {
                 built[built.count - 1].count += 1
+                built[built.count - 1].chosen += isChosen
             } else {
-                built.append(MonthSection(monthKey: key, first: index, count: 1))
+                built.append(MonthSection(monthKey: key, first: index, count: 1, chosen: isChosen))
             }
         }
         sections = built
@@ -288,6 +296,46 @@ final class AssetPickerViewController: UIViewController {
 
     private func updateCount() {
         countLabel.text = order.isEmpty ? "Select photos" : "\(order.count) selected"
+    }
+
+    private static func monthActionTitle(for section: MonthSection) -> String {
+        return section.isFullyChosen ? "Deselect" : "Select"
+    }
+
+    private func toggleMonth(at index: Int) {
+        guard index < sections.count else { return }
+        let section = sections[index]
+        let selecting = !section.isFullyChosen
+        let range = IndexSet(integersIn: section.first..<(section.first + section.count))
+        let identifiers = assets.objects(at: range).map { $0.localIdentifier }
+
+        if selecting {
+            for identifier in identifiers where chosen.insert(identifier).inserted {
+                order.append(identifier)
+            }
+            sections[index].chosen = section.count
+        } else {
+            let removed = Set(identifiers)
+            chosen.subtract(removed)
+            order.removeAll { removed.contains($0) }
+            sections[index].chosen = 0
+        }
+
+        for indexPath in collectionView.indexPathsForVisibleItems where indexPath.section == index {
+            let cell = collectionView.cellForItem(at: indexPath) as? AssetGridCell
+            cell?.setChosen(selecting, animated: true)
+        }
+        refreshMonthAction(at: index)
+        updateCount()
+        updatePill()
+    }
+
+    private func refreshMonthAction(at index: Int) {
+        let indexPath = IndexPath(item: 0, section: index)
+        guard index < sections.count,
+              let header = collectionView.supplementaryView(forElementKind: UICollectionView.elementKindSectionHeader,
+                                                           at: indexPath) as? PickerMonthHeaderView else { return }
+        header.setActionTitle(AssetPickerViewController.monthActionTitle(for: sections[index]))
     }
 
     private func updatePill() {
@@ -406,11 +454,17 @@ extension AssetPickerViewController: UICollectionViewDataSource {
                         viewForSupplementaryElementOfKind kind: String,
                         at indexPath: IndexPath) -> UICollectionReusableView {
         let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind,
-                                                                     withReuseIdentifier: MonthHeaderView.reuseIdentifier,
-                                                                     for: indexPath) as! MonthHeaderView
-        header.configure(monthKey: sections[indexPath.section].monthKey,
+                                                                     withReuseIdentifier: PickerMonthHeaderView.reuseIdentifier,
+                                                                     for: indexPath) as! PickerMonthHeaderView
+        let section = sections[indexPath.section]
+        header.configure(title: MonthKey.title(for: section.monthKey),
+                         actionTitle: AssetPickerViewController.monthActionTitle(for: section),
                          palette: Theme.palette,
-                         leadingInset: horizontalInset)
+                         horizontalInset: horizontalInset)
+        let index = indexPath.section
+        header.onAction = { [weak self] in
+            self?.toggleMonth(at: index)
+        }
         return header
     }
 }
@@ -443,13 +497,16 @@ extension AssetPickerViewController: UICollectionViewDelegate {
         let identifier = asset(at: indexPath).localIdentifier
         if chosen.remove(identifier) != nil {
             order.removeAll { $0 == identifier }
+            sections[indexPath.section].chosen -= 1
         } else {
             chosen.insert(identifier)
             order.append(identifier)
+            sections[indexPath.section].chosen += 1
         }
 
         let cell = collectionView.cellForItem(at: indexPath) as? AssetGridCell
         cell?.setChosen(chosen.contains(identifier), animated: true)
+        refreshMonthAction(at: indexPath.section)
         updateCount()
         updatePill()
     }
@@ -576,5 +633,68 @@ private final class SendPillButton: UIControl, Themed {
         surface.fillColor = palette.accent
         surface.applyShadow(palette)
         label.textColor = palette.onAccent
+    }
+}
+
+private final class PickerMonthHeaderView: UICollectionReusableView {
+
+    static let reuseIdentifier = "PickerMonthHeaderView"
+
+    private let label = UILabel()
+    private let actionButton = BandTextButton()
+    private var leading: NSLayoutConstraint!
+    private var trailing: NSLayoutConstraint!
+
+    var onAction: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+
+        label.font = Typography.headline
+        label.adjustsFontForContentSizeCategory = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        actionButton.addTarget(self, action: #selector(actionTapped), for: .touchUpInside)
+        actionButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(actionButton)
+
+        leading = label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16)
+        trailing = actionButton.trailingAnchor.constraint(equalTo: trailingAnchor)
+
+        NSLayoutConstraint.activate([
+            leading,
+            trailing,
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: actionButton.leadingAnchor),
+            actionButton.centerYAnchor.constraint(equalTo: label.centerYAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        onAction = nil
+    }
+
+    func configure(title: String, actionTitle: String, palette: ThemePalette, horizontalInset: CGFloat) {
+        leading.constant = 16 + horizontalInset
+        trailing.constant = -horizontalInset
+        backgroundColor = palette.background
+        label.textColor = palette.textPrimary
+        label.text = title
+        actionButton.title = actionTitle
+        actionButton.applyTheme(palette)
+    }
+
+    func setActionTitle(_ title: String) {
+        actionButton.title = title
+    }
+
+    @objc private func actionTapped() {
+        onAction?()
     }
 }
