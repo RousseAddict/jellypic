@@ -27,6 +27,7 @@ final class ImageLoader {
 
     private let client: JellyfinAPI
     private let session: URLSession
+    private let fullSession: URLSession
     private let memory = NSCache<NSString, UIImage>()
     private let fullSize = NSCache<NSString, UIImage>()
     private let decodeQueue = DispatchQueue(label: "jellypic.image.decode", qos: .userInitiated)
@@ -38,6 +39,9 @@ final class ImageLoader {
          configuration: URLSessionConfiguration = ImageLoader.defaultConfiguration()) {
         self.client = client
         self.session = URLSession(configuration: configuration)
+        let fullConfiguration = configuration.copy() as! URLSessionConfiguration
+        fullConfiguration.httpMaximumConnectionsPerHost = 2
+        self.fullSession = URLSession(configuration: fullConfiguration)
         memory.totalCostLimit = 24 * 1024 * 1024
         fullSize.countLimit = 3
 
@@ -118,7 +122,7 @@ final class ImageLoader {
         }
         let isSignedOut = client.credentials == nil
 
-        let task = session.dataTask(with: request) { [weak self] data, response, error in
+        let task = fullSession.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else {
                 DispatchQueue.main.async { completion(.deferred) }
                 return

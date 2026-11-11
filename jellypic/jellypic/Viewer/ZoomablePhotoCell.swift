@@ -80,6 +80,8 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
     private let failureGlyph = BrokenImageGlyphView()
     private let failureLabel = UILabel()
     private let retryButton = RetryPillButton(title: "Retry")
+    // LEGACY(ios12): UIActivityIndicatorView.Style.medium is iOS 13+; .white is the only option here. Freed at iOS 13.
+    private let spinner = UIActivityIndicatorView(style: .white)
 
     private var task: URLSessionTask?
     private var token = ""
@@ -143,7 +145,14 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
         failureStack.setCustomSpacing(12, after: failureGlyph)
         contentView.addSubview(failureStack)
 
+        spinner.hidesWhenStopped = true
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(spinner)
+
         NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+
             failureGlyph.widthAnchor.constraint(equalToConstant: ZoomablePhotoCell.failureGlyphSide),
             failureGlyph.heightAnchor.constraint(equalToConstant: ZoomablePhotoCell.failureGlyphSide),
 
@@ -172,6 +181,7 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
         super.prepareForReuse()
         task?.cancel()
         task = nil
+        spinner.stopAnimating()
         token = ""
         scrollView.zoomScale = 1
         imageView.image = nil
@@ -202,18 +212,24 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
             imageView.image = thumbnail
             layoutImage()
         }
+        if imageView.image == nil {
+            spinner.startAnimating()
+        }
 
         task = loader.loadFull(itemId: itemId, tag: tag, maxPixels: fullPixels) { [weak self] result in
             guard let self = self, self.token == itemId else { return }
             switch result {
             case .image(let image):
+                self.spinner.stopAnimating()
                 let wasZoomed = self.isZoomed
                 self.imageView.image = image
                 guard !wasZoomed else { return }
                 self.layoutImage()
             case .failed(let message):
+                self.spinner.stopAnimating()
                 self.showFailure(message, needsSignIn: false)
             case .expired:
+                self.spinner.stopAnimating()
                 self.showFailure(ImageLoader.expiredMessage, needsSignIn: true)
             case .deferred:
                 break
