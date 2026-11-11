@@ -180,6 +180,20 @@ SHA-256 changes. Deletion propagation is out of scope (doc 11 §12), so the supe
 version stays. That is the honest cost of this choice and it is the right trade: keeping
 one too many is recoverable, silently keeping the wrong one is not.
 
+**The edit's name lies about its format, so the extension comes from the bytes.** Measured
+2026-11-11 on an iPhone 13 Pro Max (iOS 18.7.2): for a cropped HEIC, the `.fullSizePhoto`
+resource's `originalFilename` ends in `.jpg` while its bytes are HEIC, EXIF intact. The
+plugin keeps only the extension of the name it is sent, so the file landed as `….jpg`;
+Jellyfin's `PhotoProvider` then handed it to TagLib as a JPEG, which read nothing, and
+heic-for-jelly — gated on a `.heic` extension — never looked. The item had no
+`PremiereDate` and 0×0 dimensions: undated in the reader, with nothing on screen saying
+why. `AssetExporter` now keeps the first 12 bytes of the read and lets them decide (JPEG,
+PNG, or a HEIF `ftyp` brand), the rule heic-for-jelly's rename tool already follows: the
+content decides, never the name. An unrecognised signature keeps the name's extension, so
+video and every other type is unchanged. The SHA-256 does not move, and `Have` matches on
+the hash alone, so files already stored under the wrong extension are not re-sent; they
+have to be renamed on the server.
+
 ### What W2 actually built, and the four decisions it forced
 
 `Writer/AssetExporter.swift` was the first file in the app to import `Photos`. It is now

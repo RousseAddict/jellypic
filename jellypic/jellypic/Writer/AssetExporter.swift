@@ -116,6 +116,7 @@ final class AssetExporter {
         }
 
         var digest = SHA256Digest()
+        var head = Data()
         var received = 0
         var wroteEverything = true
 
@@ -124,6 +125,9 @@ final class AssetExporter {
 
         PHAssetResourceManager.default().requestData(for: resource, options: options, dataReceivedHandler: { data in
             guard wroteEverything, !isAborted() else { return }
+            if head.count < AssetExporter.signatureLength {
+                head.append(data.prefix(AssetExporter.signatureLength - head.count))
+            }
             digest.update(data)
             received += data.count
             if let stream = stream {
@@ -140,7 +144,8 @@ final class AssetExporter {
             } else if isAborted() || !wroteEverything || received == 0 {
                 outcome = .failure(.write)
             } else {
-                outcome = .success((sha256: sha256, fileName: resource.originalFilename))
+                outcome = .success((sha256: sha256,
+                                    fileName: AssetExporter.fileName(resource.originalFilename, matching: head)))
             }
 
             DispatchQueue.main.async { completion(outcome) }
@@ -177,6 +182,32 @@ final class AssetExporter {
             }
         }
         return resources.first
+    }
+
+    private static let signatureLength = 12
+
+    private static let heifBrands: Set<String> = ["heic", "heix", "heim", "heis", "hevc", "hevx"]
+
+    private static func fileName(_ name: String, matching head: Data) -> String {
+        guard let extensions = contentExtensions(of: head) else { return name }
+        let named = (name as NSString).pathExtension.lowercased()
+        guard !extensions.contains(named) else { return name }
+        return (name as NSString).deletingPathExtension + "." + extensions[0]
+    }
+
+    private static func contentExtensions(of head: Data) -> [String]? {
+        let bytes = [UInt8](head.prefix(signatureLength))
+        if bytes.starts(with: [0xFF, 0xD8, 0xFF]) {
+            return ["jpg", "jpeg"]
+        }
+        if bytes.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
+            return ["png"]
+        }
+        guard bytes.count == signatureLength,
+              String(bytes: bytes[4..<8], encoding: .ascii) == "ftyp",
+              let brand = String(bytes: bytes[8..<12], encoding: .ascii),
+              heifBrands.contains(brand) else { return nil }
+        return ["heic", "heif"]
     }
 
     private static func write(_ data: Data, to stream: OutputStream) -> Bool {
