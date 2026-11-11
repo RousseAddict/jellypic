@@ -7,6 +7,7 @@ final class PhotoGridViewController: UIViewController {
     private static let brandFadeDistance: CGFloat = 40
     private static let brandMarkSide: CGFloat = 22
     private static let refreshLookback: TimeInterval = 48 * 60 * 60
+    private static let arrivalCheckDelays: [TimeInterval] = [70, 60]
 
     private let services: AppServices
 
@@ -34,6 +35,12 @@ final class PhotoGridViewController: UIViewController {
     private var isQueueBannerVisible = false
     private var didSyncFail = false
     private var didIntroduceScrubber = false
+    private var sentSeen = 0
+    private var arrivingCount = 0
+    private var arrivalBaseline: Int?
+    private var arrivalAttempt = 0
+    private var arrivalToken = 0
+    private var arrivalCheck: DispatchWorkItem?
 
     var onSignedOut: (() -> Void)?
 
@@ -55,6 +62,7 @@ final class PhotoGridViewController: UIViewController {
         buildHierarchy()
         buildTimeline()
         wireScrubber()
+        sentSeen = services.upload.queueState.sent
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
@@ -328,7 +336,9 @@ final class PhotoGridViewController: UIViewController {
 
     @objc private func catchUp() {
         guard let libraryId = Preferences.libraryId else { return }
-        services.sync.catchUp(libraryId: libraryId)
+        services.sync.catchUp(libraryId: libraryId) { [weak self] in
+            self?.resolveArrival()
+        }
     }
 
     @objc private func pullToRefresh() {
@@ -339,7 +349,64 @@ final class PhotoGridViewController: UIViewController {
         services.sync.catchUp(libraryId: libraryId,
                               lookback: PhotoGridViewController.refreshLookback) { [weak self] in
             self?.refreshControl.endRefreshing()
+            self?.resolveArrival()
         }
+    }
+
+    private func noteSent(_ sent: Int) {
+        if sent < sentSeen {
+            sentSeen = sent
+        }
+        guard sent > sentSeen else { return }
+        arrivingCount += sent - sentSeen
+        sentSeen = sent
+        arrivalBaseline = services.store.count()
+        arrivalToken += 1
+        scheduleArrivalCheck(attempt: 0)
+    }
+
+    private func scheduleArrivalCheck(attempt: Int) {
+        arrivalCheck?.cancel()
+        guard attempt < PhotoGridViewController.arrivalCheckDelays.count else {
+            endArrival()
+            return
+        }
+        arrivalAttempt = attempt
+        let check = DispatchWorkItem { [weak self] in
+            self?.checkArrival()
+        }
+        arrivalCheck = check
+        DispatchQueue.main.asyncAfter(deadline: .now() + PhotoGridViewController.arrivalCheckDelays[attempt],
+                                      execute: check)
+    }
+
+    private func checkArrival() {
+        arrivalCheck = nil
+        guard let libraryId = Preferences.libraryId else {
+            endArrival()
+            return
+        }
+        let token = arrivalToken
+        services.sync.catchUp(libraryId: libraryId) { [weak self] in
+            guard let self = self, token == self.arrivalToken, self.arrivalBaseline != nil else { return }
+            guard !self.resolveArrival() else { return }
+            self.scheduleArrivalCheck(attempt: self.arrivalAttempt + 1)
+        }
+    }
+
+    @discardableResult
+    private func resolveArrival() -> Bool {
+        guard let baseline = arrivalBaseline, services.store.count() > baseline else { return false }
+        endArrival()
+        return true
+    }
+
+    private func endArrival() {
+        arrivalCheck?.cancel()
+        arrivalCheck = nil
+        arrivalBaseline = nil
+        arrivingCount = 0
+        updateQueueBanner()
     }
 
     private func bannerTapped() {
@@ -349,6 +416,11 @@ final class PhotoGridViewController: UIViewController {
         }
         if isQueueBannerVisible {
             let state = services.upload.queueState
+            if state.pending == 0, state.failed == 0, arrivingCount > 0 {
+                arrivingCount = 0
+                updateQueueBanner()
+                return
+            }
             if state.isRunning {
                 services.upload.stopQueue()
             } else if state.pending > 0 {
@@ -365,6 +437,7 @@ final class PhotoGridViewController: UIViewController {
 
     @objc private func updateQueueBanner() {
         let state = services.upload.queueState
+        noteSent(state.sent)
         let done = state.sent + state.duplicates + state.failed
 
         if state.pending > 0 {
@@ -381,6 +454,11 @@ final class PhotoGridViewController: UIViewController {
         if state.failed > 0 {
             let detail = state.lastErrorText ?? ""
             showQueueBanner("\(state.failed) not sent. \(detail) Tap to dismiss.", busy: false)
+            return
+        }
+
+        if arrivingCount > 0 {
+            showQueueBanner("\(arrivingCount) sent — appearing in about a minute")
             return
         }
 
