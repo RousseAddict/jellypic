@@ -207,9 +207,15 @@ Content-Type: image/heic
 Every error body is that one object, and `code` is the name in the §10 table. Same casing
 rule as §4: lowercase, pinned by an explicit serializer attribute.
 
-`capturedAt` is used **only to choose the folder**. Jellyfin still reads EXIF itself for
-the timeline, and the reader still sorts on `PremiereDate` (doc 04). We are not a metadata
-source. It is optional; absent or unparseable sends the photo to `undated/`, named
+`capturedAt` chooses the folder and leads the file name. Jellyfin still reads the date
+*inside* the file for the timeline, and the reader still sorts on `PremiereDate` (doc 04).
+**Since plugin milestone U6 the plugin is a metadata source of last resort** (built
+2026-11-12, upload-for-jelly `41e7c03`; design in its `docs/01-plan.md` §3e): when a file it wrote carries no date
+of its own — a JPEG saved from WhatsApp is image data and nothing else — it hands Jellyfin
+the date its name carries. The file is never modified, and a date inside it always wins.
+That date is the phone's `PHAsset.creationDate`: the shot for a camera photo, but for a
+photo another app saved, the moment that app saved it — for WhatsApp roughly when it was
+received, not when it was taken. It is optional; absent or unparseable sends the photo to `undated/`, named
 `<deviceSlug>_<16 hex>.<ext>` since there is no timestamp to lead with — unparseable, not
 `400`, because that is the same bucket the reader already uses for a photo without a date.
 
