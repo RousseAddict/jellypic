@@ -582,7 +582,7 @@ layout on its own — no height constraint to animate.
   beat, then sharp. Worth measuring before spending memory on it.
 - No zoom-aware resolution: zooming past 2× shows the 2048 px image magnified
   rather than requesting a sharper crop.
-- No delete or favourite — both out of livrable 1.
+- No favourite. Delete arrived later, photos only, from the details card: doc 15.
 - The details card shows coordinates as decimal degrees, with no map and no reverse
   geocoding. MapKit would be the first non-trivial framework in the app.
 - Rotation keeps the right photo and re-fits it, but the zoom level is reset rather

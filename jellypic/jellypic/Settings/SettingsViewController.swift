@@ -21,6 +21,9 @@ final class SettingsViewController: CardSheetViewController {
     private let cacheRow = SettingsRowView()
     private let resyncRow = SettingsRowView()
     private let signOutRow = SettingsRowView()
+    private let deletionNote = SettingsNoteView()
+
+    private lazy var deletionGroup = SettingsGroupView(rows: [deletionNote], padding: 0)
 
     private var sectionLabels: [UILabel] = []
     private var themeModes: [ThemeMode] = []
@@ -43,6 +46,7 @@ final class SettingsViewController: CardSheetViewController {
         applyPalette()
         render()
         services.upload.refreshAvailability { [weak self] in self?.renderBackup() }
+        services.deletion.refreshCapability { [weak self] in self?.renderDeletion() }
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(reloadBackup),
                                                name: LibraryCatchUp.didChangeNotification,
@@ -96,7 +100,8 @@ final class SettingsViewController: CardSheetViewController {
         body.addArrangedSubview(section("Storage",
                                         [SettingsGroupView(rows: [cacheRow, resyncRow], padding: 0)]))
         body.addArrangedSubview(section("Account",
-                                        [SettingsGroupView(rows: [signOutRow], padding: 0)]))
+                                        [SettingsGroupView(rows: [signOutRow], padding: 0),
+                                         deletionGroup]))
     }
 
     private func buildIdentity() {
@@ -171,6 +176,14 @@ final class SettingsViewController: CardSheetViewController {
             : "\(indexed) of \(total) photos indexed"
         cacheRow.detail = SettingsViewController.sizeText(services.images.diskUsage())
         renderBackup()
+        renderDeletion()
+    }
+
+    private func renderDeletion() {
+        let text = services.deletion.capability.note(account: services.authStore.session?.username,
+                                                     library: Preferences.libraryName)
+        deletionNote.text = text
+        deletionGroup.isHidden = text == nil
     }
 
     private func renderBackup() {

@@ -40,12 +40,19 @@ reused rather than invented.
   Same rule, same reason as Core Data. A hit anywhere else means the seam leaked.
 - **No separate framework target.** The pbxproj is hand-written, and a dynamic framework
   costs launch time on an A7 for no benefit in a sideloaded personal app.
-- **Exactly four touch points outside `Writer/`**, and they are listed here so that a fifth
+- **Exactly five touch points outside `Writer/`**, and they are listed here so that a sixth
   is visible in review:
-  1. `Settings/SettingsViewController` — one section.
+  1. `Settings/SettingsViewController` — the Backup section, and the deletion note under
+     *Sign out* (doc 15).
   2. `Grid/PhotoGridViewController` — one button.
-  3. `AppServices` — owns the instance.
+  3. `AppServices` — owns `upload` and `deletion`.
   4. `AppDelegate` — background fetch and `handleEventsForBackgroundURLSession`.
+  5. `Viewer/PhotoDetailsViewController` — the delete button, its confirmation and the
+     request (doc 15). Added 2026-11-11, ratified with that plan.
+
+  The grid also sets the viewer's `allowsDeletion` and the viewer picks the neighbour after
+  a delete, but neither names a writer type: they are reader code reacting to a reader
+  event.
 
 **The backup mode is persisted inside `Writer/`, not in `Preferences`.** It is the one
 deviation from "every key lives in `Preferences`", and it is deliberate: a `backupMode`

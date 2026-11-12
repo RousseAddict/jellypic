@@ -130,6 +130,40 @@ final class ShareGlyphView: GlyphView {
     }
 }
 
+final class TrashGlyphView: GlyphView {
+
+    override var glyphSize: CGSize {
+        return CGSize(width: 16, height: 18)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 2
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let lid = box.minY + box.height * 0.2
+        let handle = box.width * 0.2
+        let rim = box.width * 0.12
+        let base = box.width * 0.2
+
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.minX, y: lid))
+        path.addLine(to: CGPoint(x: box.maxX, y: lid))
+
+        path.move(to: CGPoint(x: box.midX - handle, y: lid))
+        path.addLine(to: CGPoint(x: box.midX - handle, y: box.minY))
+        path.addLine(to: CGPoint(x: box.midX + handle, y: box.minY))
+        path.addLine(to: CGPoint(x: box.midX + handle, y: lid))
+
+        path.move(to: CGPoint(x: box.minX + rim, y: lid))
+        path.addLine(to: CGPoint(x: box.minX + base, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.maxX - base, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.maxX - rim, y: lid))
+        return path
+    }
+}
+
 final class StopGlyphView: GlyphView {
 
     override var glyphSize: CGSize {

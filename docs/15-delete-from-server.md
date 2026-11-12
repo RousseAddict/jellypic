@@ -318,6 +318,72 @@ Both are sound; neither is worth it yet.
 - Lifting the gate is the `isVideo` check of §3.5 and nothing else: the probe, the 401
   handling and the Settings note already cover videos.
 
-### Upstream status
+### Upstream status (checked 2026-11-11)
 
-*To be filled in from the issue search running on 2026-11-11.*
+**Reported for other library types, never for photos or home videos, and unfixed.** The
+delete code is identical in v10.11.6, v10.11.11, v12.4 (latest release, 2026-10-26) and
+`master`: `Video.GetDeletePaths`, `BaseItem.GetDeletePaths` / `GetLocalMetadataFilesToDelete`
+and its extension list, the `isInMixedFolder` line in `MovieResolver`, `DeleteItemPath`, and
+the endpoints. No release note mentions it.
+
+| Issue | Mechanism | Outcome |
+|---|---|---|
+| #12097 "media delete feature removes all other movies too" (10.9.6) | containing folder, movies library — the log deletes `/media1/Movies` | closed by the stale bot, *not planned*, 2025-03-11; no maintainer verdict |
+| #13250 "…deleting a single 'extras' file deletes all extras in that folder (and the folder)" (10.10.3) | containing folder, traced to `IsInMixedFolder = false` | **treated as a bug**; PR #13536 (merged 2025-04-26) marks *extras* as mixed when their folder holds more than one file. `GetDeletePaths` untouched; extras only |
+| #10755 "Deleting a video damaged the associated files of other videos" (10.8.13) | name prefix — `S30E1` took the sidecars of `S30E10`…`S30E19` | closed, put down to an unsupported naming scheme; no code change |
+| #17289 "…mixed folder also deletes NFO/subtitles/artwork of other items whose names share a prefix" | name prefix | withdrawn by its author 9 minutes after opening, 2026-07-10 |
+
+What this says for the recheck: the one precedent of a fix (#13536) corrected the *flag*
+for one item kind instead of narrowing the delete, so a fix for our case would most likely
+look the same — `MovieResolver` marking videos in `photos` / `homevideos` libraries as
+mixed. That would close the folder delete but **not** the name-prefix delete, which the
+team has so far treated as working as designed. Lifting the gate needs both closed, or
+videos moved where no photo shares their folder (above).
+
+---
+
+## 7. What was built (D0–D2), and where it departs from §3
+
+Files: `Writer/DeleteService.swift` (new — `DeleteCapability`, `DeleteOutcome`,
+`DeleteService`, `JellyfinDeleteService`), `Index/PhotoStore.swift` (`remove(ids:)` +
+tombstones), `Design/FloatingButton.swift` (`TrashGlyphView`),
+`Viewer/PhotoDetailsViewController.swift`, `Viewer/PhotoViewerViewController.swift`,
+`Grid/PhotoGridViewController.swift`, `Settings/SettingsViewController.swift`,
+`AppServices.swift`. pbxproj: ids `…145` / `…146`.
+
+### Departures, each deliberate
+
+- **The probe runs when Settings opens and when the details card opens — not on the grid's
+  `viewDidAppear` or `didBecomeActive`** (§3.2). The button lives in the card, so the card
+  asks: one small request next to the two the card already makes, an answer that is never
+  older than the card, and no grid code at all. A known answer shows the button at once;
+  the refresh only corrects it.
+- **The button is dimmed while the request runs, not replaced by a spinner** (§3.5). Same
+  signal as the viewer's play button while playback starts; the share button dims with it
+  and the card cannot be dismissed (`allowsUserDismissal = false`) until the answer lands.
+  The button is also hidden while an original is downloading.
+- **The row is removed from the card's completion, not by the viewer** (§3.1 said the
+  viewer). Still reader code — the card is in `Viewer/` — but the closure captures
+  `services.store` and `onDeleted` before the request, so a `204` removes the row even if
+  the card is gone by the time it lands.
+- **The viewer's step to the neighbour needs no change to `applyTimelineChangeIfIdle`.**
+  `onDeleted` fires *before* `remove`: the viewer sets `currentPhotoId` to the neighbour
+  (next older, else next newer, else `""`), and when the store's change arrives the
+  existing re-resolve-by-id lands on it. `""` resolves to nothing, which is the existing
+  "dismiss when the photo is gone" branch.
+- **`prepareForReturn` in the grid now bounds-checks the index path.** A viewer that
+  dismisses because its photo vanished reports a stale path, and `scrollToItem` on an
+  invalid one raises. Deleting the last photo left would have hit it; so would a Resync with
+  the viewer open, which predates this feature.
+- **One home for the permission sentence.** `DeleteCapability.note(account:library:)` is
+  what the Settings note shows *and* what the refusal alert says, so the two cannot drift.
+- **A timeout says "Try again", never "Nothing was deleted."** The `DELETE` may have landed
+  with its answer lost. Trying again answers `404`, which removes the row like a `204`.
+- **`401` with a probe that still says `CanDelete: true` is `.unexpected`**, not a refusal.
+- Map viewer: `allowsDeletion` defaults to `false`; only the grid sets it.
+
+### Verification so far
+
+Built on SERV2 (Xcode 13.2.1, Debug, floor 12.2) and reported working on the iPhone 5s on
+2026-11-11. The tests of §5 were not reported one by one, so the edge cases — revocation
+with the app open, read-only mount, deleting the last photo left — are still unconfirmed.

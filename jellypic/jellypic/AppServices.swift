@@ -12,6 +12,7 @@ final class AppServices {
     let sync: SyncEngine
     let images: ImageLoader
     let upload: UploadService
+    let deletion: DeleteService
 
     private init() {
         let authStore = AuthStore()
@@ -30,16 +31,21 @@ final class AppServices {
         let upload = JellyfinUploadService(identity: identity)
         upload.credentials = authStore.credentials
 
+        let deletion = JellyfinDeleteService(identity: identity)
+        deletion.credentials = authStore.credentials
+
         self.authStore = authStore
         self.client = client
         self.store = store
         self.sync = SyncEngine(client: client, store: store)
         self.images = ImageLoader(client: client)
         self.upload = upload
+        self.deletion = deletion
 
         client.onTokenRejected = { [weak self] in self?.expireSession() }
         images.onUnauthorized = { [weak self] in self?.expireSession() }
         upload.onTokenRejected = { [weak self] in self?.expireSession() }
+        deletion.onTokenRejected = { [weak self] in self?.expireSession() }
     }
 
     var hasSession: Bool {
@@ -65,12 +71,14 @@ final class AppServices {
         if wipesLocalIndex {
             store.reset()
             images.clearCaches()
+            deletion.reset()
             Preferences.clearLibrary()
         }
 
         client.credentials = credentials
         client.cachedImageBaseURL = baseURL
         upload.credentials = credentials
+        deletion.credentials = credentials
         return status
     }
 
@@ -85,6 +93,7 @@ final class AppServices {
         authStore.clearToken()
         client.credentials = nil
         upload.credentials = nil
+        deletion.credentials = nil
         NotificationCenter.default.post(name: AppServices.sessionExpiredNotification, object: nil)
     }
 
@@ -97,6 +106,8 @@ final class AppServices {
             self.client.cachedImageBaseURL = nil
             self.upload.credentials = nil
             self.upload.reset()
+            self.deletion.credentials = nil
+            self.deletion.reset()
             self.store.reset()
             self.images.clearCaches()
             Preferences.clearLibrary()

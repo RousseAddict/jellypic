@@ -33,6 +33,7 @@ final class PhotoViewerViewController: UIViewController {
     private(set) var currentIndexPath: IndexPath
 
     weak var transitionSource: ZoomTransitionEndpoint?
+    var allowsDeletion = false
     var onWillDismiss: ((IndexPath) -> Void)?
     var onShowLocation: ((Double, Double) -> Void)?
     var onSignInRequested: (() -> Void)?
@@ -310,13 +311,38 @@ final class PhotoViewerViewController: UIViewController {
               let photo = timeline.photoIfPresent(at: currentIndexPath) else { return }
         let card = PhotoDetailsViewController(services: services,
                                               itemId: photo.id,
-                                              displayImage: currentCell?.imageView.image)
+                                              displayImage: currentCell?.imageView.image,
+                                              offersDeletion: allowsDeletion && !photo.isVideo)
         card.onDismissed = { [weak self] in self?.detailsCard = nil }
+        card.onDeleted = { [weak self] id in self?.stepAway(fromDeleted: id) }
         if let onShowLocation = onShowLocation {
             card.onShowLocation = onShowLocation
         }
         detailsCard = card
         card.present(over: self)
+    }
+
+    private func stepAway(fromDeleted id: String) {
+        guard id == currentPhotoId, let path = timeline.indexPath(forPhotoId: id) else { return }
+        let neighbour = indexPath(after: path) ?? indexPath(before: path)
+        currentPhotoId = neighbour.flatMap { timeline.photoIfPresent(at: $0)?.id } ?? ""
+    }
+
+    private func indexPath(after path: IndexPath) -> IndexPath? {
+        if path.item + 1 < timeline.numberOfPhotos(inSection: path.section) {
+            return IndexPath(item: path.item + 1, section: path.section)
+        }
+        guard path.section + 1 < timeline.sectionCount else { return nil }
+        return IndexPath(item: 0, section: path.section + 1)
+    }
+
+    private func indexPath(before path: IndexPath) -> IndexPath? {
+        if path.item > 0 {
+            return IndexPath(item: path.item - 1, section: path.section)
+        }
+        guard path.section > 0 else { return nil }
+        let previous = path.section - 1
+        return IndexPath(item: timeline.numberOfPhotos(inSection: previous) - 1, section: previous)
     }
 
     @objc private func playVideo() {

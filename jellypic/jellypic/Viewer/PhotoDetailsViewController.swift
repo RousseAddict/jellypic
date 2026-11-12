@@ -5,6 +5,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private let services: AppServices
     private let itemId: String
     private let displayImage: UIImage?
+    private let offersDeletion: Bool
 
     private let titleLabel = UILabel()
     private let progressLabel = UILabel()
@@ -12,6 +13,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private let progressFill = SquircleView()
     private let shareButton = GlyphButton(glyph: ShareGlyphView())
     private let cancelButton = GlyphButton(glyph: StopGlyphView())
+    private let deleteButton = GlyphButton(glyph: TrashGlyphView())
 
     private var progressWidth: NSLayoutConstraint!
     private var details: PhotoDetailsDTO?
@@ -19,13 +21,16 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private var originalBytes: Int64?
     private var downloadTask: URLSessionTask?
     private var metadataTasks: [URLSessionTask] = []
+    private var isDeleting = false
 
     var onShowLocation: ((Double, Double) -> Void)?
+    var onDeleted: ((String) -> Void)?
 
-    init(services: AppServices, itemId: String, displayImage: UIImage?) {
+    init(services: AppServices, itemId: String, displayImage: UIImage?, offersDeletion: Bool) {
         self.services = services
         self.itemId = itemId
         self.displayImage = displayImage
+        self.offersDeletion = offersDeletion
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -57,8 +62,11 @@ final class PhotoDetailsViewController: CardSheetViewController {
         shareButton.addTarget(self, action: #selector(share), for: .touchUpInside)
         cancelButton.addTarget(self, action: #selector(cancelDownload), for: .touchUpInside)
         cancelButton.isHidden = true
+        deleteButton.addTarget(self, action: #selector(confirmDeletion), for: .touchUpInside)
         addAccessory(shareButton)
         addAccessory(cancelButton)
+        addAccessory(deleteButton)
+        renderDeleteButton()
 
         progressLabel.font = Typography.caption
         progressLabel.adjustsFontForContentSizeCategory = true
@@ -101,6 +109,16 @@ final class PhotoDetailsViewController: CardSheetViewController {
             self.render()
         }
         metadataTasks = [detailsTask, sizeTask].compactMap { $0 }
+
+        if offersDeletion {
+            services.deletion.refreshCapability { [weak self] in self?.renderDeleteButton() }
+        }
+    }
+
+    private func renderDeleteButton() {
+        deleteButton.isHidden = !offersDeletion
+            || services.deletion.capability != .allowed
+            || downloadTask != nil
     }
 
     private func render() {
@@ -246,6 +264,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
         }
         shareButton.isHidden = downloading
         cancelButton.isHidden = !downloading
+        renderDeleteButton()
         guard footer.isHidden == downloading else { return }
         UIView.animate(withDuration: 0.24,
                        delay: 0,
@@ -277,6 +296,71 @@ final class PhotoDetailsViewController: CardSheetViewController {
             try? FileManager.default.removeItem(at: fileURL)
         }
         present(activity, animated: true, completion: nil)
+    }
+
+    @objc private func confirmDeletion() {
+        guard !isDeleting else { return }
+        let name = details?.fileName ?? "This photo"
+        let server = services.authStore.session?.baseURL.host ?? "your server"
+        var message = "\(name) will be removed from \(server) for everyone who uses it. "
+            + "This can't be undone. Photos on this iPhone are not affected."
+        if services.upload.mode != .off {
+            message += "\n\nIf Jellypic backs up your library again, it will be sent again."
+        }
+
+        let sheet = UIAlertController(title: nil, message: message, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Delete from Server", style: .destructive) { [weak self] _ in
+            self?.performDeletion()
+        })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        sheet.popoverPresentationController?.sourceView = deleteButton
+        sheet.popoverPresentationController?.sourceRect = deleteButton.bounds
+        present(sheet, animated: true, completion: nil)
+    }
+
+    private func performDeletion() {
+        let itemId = self.itemId
+        let store = services.store
+        let onDeleted = self.onDeleted
+        setDeleting(true)
+
+        services.deletion.delete(itemId: itemId) { [weak self] outcome in
+            if case .removed = outcome {
+                onDeleted?(itemId)
+                store.remove(ids: [itemId]) { _ in }
+            }
+            guard let self = self else { return }
+            self.setDeleting(false)
+
+            switch outcome {
+            case .removed:
+                self.dismissCard()
+            case .sessionExpired:
+                break
+            case .notPermitted:
+                self.renderDeleteButton()
+                self.presentDeletionFailure(
+                    DeleteCapability.notPermitted.note(account: self.services.authStore.session?.username,
+                                                       library: Preferences.libraryName))
+            case .serverRefused, .unreachable, .unexpected:
+                self.presentDeletionFailure(outcome.text)
+            }
+        }
+    }
+
+    private func setDeleting(_ deleting: Bool) {
+        isDeleting = deleting
+        allowsUserDismissal = !deleting
+        for button in [deleteButton, shareButton] {
+            button.isUserInteractionEnabled = !deleting
+            button.alpha = deleting ? 0.5 : 1
+        }
+    }
+
+    private func presentDeletionFailure(_ message: String?) {
+        let alert = UIAlertController(title: "Not deleted", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+        present(alert, animated: true, completion: nil)
     }
 
     private func presentFailure(_ error: JellyfinError) {

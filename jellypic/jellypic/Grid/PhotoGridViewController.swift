@@ -695,6 +695,7 @@ extension PhotoGridViewController: UICollectionViewDelegate {
                                                startAt: indexPath,
                                                thumbnailPixels: thumbnailPixels)
         viewer.transitionSource = self
+        viewer.allowsDeletion = true
         viewer.onWillDismiss = { [weak self] path in
             self?.prepareForReturn(to: path)
         }
@@ -716,7 +717,9 @@ extension PhotoGridViewController: UICollectionViewDelegate {
 
     private func prepareForReturn(to indexPath: IndexPath) {
         transitionIndexPath = indexPath
-        guard collectionView.cellForItem(at: indexPath) == nil else { return }
+        guard indexPath.section < collectionView.numberOfSections,
+              indexPath.item < collectionView.numberOfItems(inSection: indexPath.section),
+              collectionView.cellForItem(at: indexPath) == nil else { return }
         collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: false)
         collectionView.layoutIfNeeded()
         scrubber.scheduleFade()
