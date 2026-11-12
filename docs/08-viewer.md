@@ -167,7 +167,7 @@ currently visible cell of a paging layout, risks a visual jump for no gain.
 The glyph and the message are **hard-coded white-alpha inks** (`0.45` and `0.75`),
 not palette tokens, for the same reason the backdrop is hard-coded black (§7):
 they sit on the fixed black surround, which no theme changes. The *control*,
-however, is a palette citizen — a `SquircleView` on `palette.surface` with
+however, is a palette citizen — a `SquircleView` (a circle since doc 16) on `palette.surface` with
 `palette.textPrimary`, i.e. the same floating vocabulary as the date pill and the
 conversion pill, both already proven over black. `ActionButton` was tried first
 and rejected: `palette.accent` is `0x0B0B0C` in light mode, so the project's
@@ -369,7 +369,7 @@ also dropped to `.defaultLow` so that in a locale with a longer date the pill
 truncates instead of eating the button.
 
 The pill and both buttons reuse the existing floating vocabulary (squircle, shadow,
-no blur). `FloatingButton` was generalised for this: it used to hardcode the
+no blur — since doc 16: capsule and circles, a hairline and a lighter shadow). `FloatingButton` was generalised for this: it used to hardcode the
 three-dot glyph, and now takes a `GlyphView` subclass, so the close cross is a path
 in code like everything else — no SF Symbols at this floor.
 

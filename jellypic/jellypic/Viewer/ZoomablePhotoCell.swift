@@ -13,6 +13,7 @@ private final class RetryPillButton: UIControl {
     init(title: String) {
         super.init(frame: .zero)
 
+        surface.isCapsule = true
         surface.isUserInteractionEnabled = false
         surface.translatesAutoresizingMaskIntoConstraints = false
         addSubview(surface)
@@ -39,11 +40,6 @@ private final class RetryPillButton: UIControl {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not used")
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        surface.cornerRadius = bounds.height / 2
     }
 
     override var isHighlighted: Bool {

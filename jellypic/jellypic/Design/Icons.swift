@@ -79,6 +79,7 @@ final class SelectionIndicatorView: UIView {
         super.init(frame: frame)
         backgroundColor = .clear
 
+        ring.isCapsule = true
         ring.translatesAutoresizingMaskIntoConstraints = false
         checkmark.translatesAutoresizingMaskIntoConstraints = false
         addSubview(ring)
@@ -104,11 +105,6 @@ final class SelectionIndicatorView: UIView {
 
     override var intrinsicContentSize: CGSize {
         return CGSize(width: 24, height: 24)
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        ring.cornerRadius = bounds.height / 2
     }
 
     func applyTheme(_ palette: ThemePalette) {

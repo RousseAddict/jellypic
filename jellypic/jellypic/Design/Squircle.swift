@@ -61,6 +61,36 @@ enum Squircle {
     }
 }
 
+enum Capsule {
+
+    static func path(in rect: CGRect) -> UIBezierPath {
+        guard rect.width > 0, rect.height > 0 else { return UIBezierPath() }
+
+        let radius = min(rect.width, rect.height) / 2
+        let path = UIBezierPath()
+
+        if rect.width >= rect.height {
+            path.move(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+            path.addArc(withCenter: CGPoint(x: rect.maxX - radius, y: rect.midY),
+                        radius: radius, startAngle: -.pi / 2, endAngle: .pi / 2, clockwise: true)
+            path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+            path.addArc(withCenter: CGPoint(x: rect.minX + radius, y: rect.midY),
+                        radius: radius, startAngle: .pi / 2, endAngle: .pi * 3 / 2, clockwise: true)
+        } else {
+            path.move(to: CGPoint(x: rect.maxX, y: rect.minY + radius))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+            path.addArc(withCenter: CGPoint(x: rect.midX, y: rect.maxY - radius),
+                        radius: radius, startAngle: 0, endAngle: .pi, clockwise: true)
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+            path.addArc(withCenter: CGPoint(x: rect.midX, y: rect.minY + radius),
+                        radius: radius, startAngle: .pi, endAngle: .pi * 2, clockwise: true)
+        }
+        path.close()
+        return path
+    }
+}
+
 class SquircleView: UIView {
 
     override class var layerClass: AnyClass {
@@ -72,6 +102,10 @@ class SquircleView: UIView {
     }
 
     var cornerRadius: CGFloat = 16 {
+        didSet { setNeedsLayout() }
+    }
+
+    var isCapsule = false {
         didSet { setNeedsLayout() }
     }
 
@@ -106,13 +140,22 @@ class SquircleView: UIView {
         shapeLayer.shadowOffset = palette.shadowOffset
     }
 
+    func applyFloatingShadow(_ palette: ThemePalette) {
+        shapeLayer.shadowColor = palette.shadowColor.cgColor
+        shapeLayer.shadowOpacity = palette.floatingShadowOpacity
+        shapeLayer.shadowRadius = palette.floatingShadowRadius
+        shapeLayer.shadowOffset = palette.floatingShadowOffset
+    }
+
     func removeShadow() {
         shapeLayer.shadowOpacity = 0
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let path = Squircle.path(in: bounds, cornerRadius: cornerRadius).cgPath
+        let path = (isCapsule
+            ? Capsule.path(in: bounds)
+            : Squircle.path(in: bounds, cornerRadius: cornerRadius)).cgPath
         shapeLayer.path = path
         shapeLayer.shadowPath = path
     }

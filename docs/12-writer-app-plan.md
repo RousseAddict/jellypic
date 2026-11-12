@@ -440,6 +440,10 @@ transparent 44 pt target cannot eat taps on the photo beneath. The `+` is 18 pt 
 stroke, not 20 at 2 — a cross reaching the corners of its box outweighs a ring of the
 same box, which is empty at the corners.
 
+**Reversed by doc 16 (2026-11-11):** the `+` and its two neighbours are `FloatingButton`
+circles and no longer fade, so the cost accepted above is gone — a circle stays readable
+over a photo, which a bare glyph could not. The `+` is now 14 pt inside a 36 pt circle.
+
 **No `POST /Have`.** §10 said the confirm step hashes the selection and asks the server
 what it already holds. It does not, and the reason is that `/Have` buys nothing here: a
 SHA-256 needs a full byte-for-byte read of the asset, which is the *same read* the export

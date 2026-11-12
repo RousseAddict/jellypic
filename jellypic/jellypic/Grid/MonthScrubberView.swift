@@ -28,7 +28,8 @@ final class MonthScrubberView: UIView, Themed {
         backgroundColor = .clear
         alpha = 0
 
-        thumb.cornerRadius = MonthScrubberView.thumbWidth / 2
+        thumb.isCapsule = true
+        thumb.strokeWidth = 0.5
         thumb.translatesAutoresizingMaskIntoConstraints = false
         addSubview(thumb)
 
@@ -36,7 +37,7 @@ final class MonthScrubberView: UIView, Themed {
         grip.translatesAutoresizingMaskIntoConstraints = false
         thumb.addSubview(grip)
 
-        bubble.cornerRadius = 16
+        bubble.isCapsule = true
         bubble.alpha = 0
         bubble.translatesAutoresizingMaskIntoConstraints = false
         addSubview(bubble)
@@ -169,10 +170,11 @@ final class MonthScrubberView: UIView, Themed {
 
     func applyTheme(_ palette: ThemePalette) {
         thumb.fillColor = palette.surface
-        thumb.applyShadow(palette)
+        thumb.strokeColor = palette.hairline
+        thumb.applyFloatingShadow(palette)
         grip.color = palette.textSecondary
         bubble.fillColor = palette.accent
-        bubble.applyShadow(palette)
+        bubble.applyFloatingShadow(palette)
         bubbleLabel.textColor = palette.onAccent
     }
 }

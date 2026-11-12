@@ -62,9 +62,11 @@ final class PhotoBucketViewController: UIViewController {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(closeButton)
 
-        titlePill.cornerRadius = 15
+        titlePill.isCapsule = true
         titlePill.fillColor = palette.surface
-        titlePill.applyShadow(palette)
+        titlePill.strokeWidth = 0.5
+        titlePill.strokeColor = palette.hairline
+        titlePill.applyFloatingShadow(palette)
         titlePill.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(titlePill)
 

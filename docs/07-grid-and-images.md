@@ -123,6 +123,11 @@ Alpha 0 does not stop a `UIControl` from taking touches, so the fade also sets
 on the top-right photo of every scrolled screen — a bug that presents as "some
 photos don't open".
 
+**Superseded by doc 16 (2026-11-11).** The three buttons are `FloatingButton`
+circles now, readable over any photo, so they no longer fade: only the wordmark does.
+The fade had the opposite failure of the one above — once faded, a tap where a button
+had been went through to the photo and opened it, which read as a misclick.
+
 The three-dot glyph now means one thing only: "more about *this photo*", in the
 viewer. The scrubber handle is still deliberately the same three dots turned 90°
 and still matches it. Only the grid left that family, which is the point.

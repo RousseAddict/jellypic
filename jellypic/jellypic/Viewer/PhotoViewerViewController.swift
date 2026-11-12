@@ -14,7 +14,7 @@ final class PhotoViewerViewController: UIViewController {
     private var collectionView: UICollectionView!
     private let closeButton = FloatingButton(glyph: CloseGlyphView())
     private let moreButton = FloatingButton()
-    private let playButton = FloatingButton(glyph: PlayGlyphView())
+    private let playButton = FloatingButton(glyph: PlayGlyphView(), diameter: 60)
     private let datePill = SquircleView()
     private let dateLabel = UILabel()
     private let conversionPill = SquircleView()
@@ -131,9 +131,11 @@ final class PhotoViewerViewController: UIViewController {
                                 forCellWithReuseIdentifier: ZoomablePhotoCell.reuseIdentifier)
         view.addSubview(collectionView)
 
-        datePill.cornerRadius = 15
+        datePill.isCapsule = true
         datePill.fillColor = Theme.palette.surface
-        datePill.applyShadow(Theme.palette)
+        datePill.strokeWidth = 0.5
+        datePill.strokeColor = Theme.palette.hairline
+        datePill.applyFloatingShadow(Theme.palette)
         datePill.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(datePill)
 
@@ -158,9 +160,11 @@ final class PhotoViewerViewController: UIViewController {
         playButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(playButton)
 
-        conversionPill.cornerRadius = 15
+        conversionPill.isCapsule = true
         conversionPill.fillColor = Theme.palette.surface
-        conversionPill.applyShadow(Theme.palette)
+        conversionPill.strokeWidth = 0.5
+        conversionPill.strokeColor = Theme.palette.hairline
+        conversionPill.applyFloatingShadow(Theme.palette)
         conversionPill.isHidden = true
         conversionPill.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(conversionPill)

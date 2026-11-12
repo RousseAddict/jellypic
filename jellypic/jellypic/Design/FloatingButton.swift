@@ -11,24 +11,33 @@ class GlyphView: UIView {
         didSet { applyColor() }
     }
 
-    var glyphSize: CGSize {
+    var naturalSize: CGSize {
         return CGSize(width: 18, height: 18)
+    }
+
+    var glyphSize: CGSize {
+        return sizeOverride ?? naturalSize
     }
 
     var strokeWidth: CGFloat {
         return 0
     }
 
+    private var sizeOverride: CGSize?
+
     private var shapeLayer: CAShapeLayer {
         return layer as! CAShapeLayer
     }
 
+    init(size: CGSize) {
+        sizeOverride = size
+        super.init(frame: .zero)
+        configureLayer()
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = .clear
-        shapeLayer.lineCap = .round
-        shapeLayer.lineWidth = strokeWidth
-        applyColor()
+        configureLayer()
     }
 
     required init?(coder: NSCoder) {
@@ -48,6 +57,20 @@ class GlyphView: UIView {
         return UIBezierPath()
     }
 
+    func designSpace(of rect: CGRect, width: CGFloat, height: CGFloat) -> (CGFloat, CGFloat) -> CGPoint {
+        return { x, y in
+            CGPoint(x: rect.minX + x * rect.width / width, y: rect.minY + y * rect.height / height)
+        }
+    }
+
+    private func configureLayer() {
+        backgroundColor = .clear
+        shapeLayer.lineCap = .round
+        shapeLayer.lineJoin = .round
+        shapeLayer.lineWidth = strokeWidth
+        applyColor()
+    }
+
     private func applyColor() {
         let stroked = strokeWidth > 0
         shapeLayer.fillColor = stroked ? UIColor.clear.cgColor : color.cgColor
@@ -57,8 +80,8 @@ class GlyphView: UIView {
 
 final class MoreGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 18, height: 4)
+    override var naturalSize: CGSize {
+        return CGSize(width: 16, height: 3.2)
     }
 
     override func path(in rect: CGRect) -> UIBezierPath {
@@ -79,7 +102,7 @@ final class MoreGlyphView: GlyphView {
 
 final class HandleGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
+    override var naturalSize: CGSize {
         return CGSize(width: 4, height: 18)
     }
 
@@ -101,84 +124,86 @@ final class HandleGlyphView: GlyphView {
 
 final class ShareGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 16, height: 18)
+    override var naturalSize: CGSize {
+        return CGSize(width: 13, height: 15)
     }
 
     override var strokeWidth: CGFloat {
-        return 2
+        return 1.5
     }
 
     override func path(in rect: CGRect) -> UIBezierPath {
-        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
-        let trayTop = box.minY + box.height * 0.42
-        let head = box.height * 0.2
-
+        let point = designSpace(of: rect, width: 17, height: 20)
         let path = UIBezierPath()
-        path.move(to: CGPoint(x: box.minX, y: trayTop))
-        path.addLine(to: CGPoint(x: box.minX, y: box.maxY))
-        path.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
-        path.addLine(to: CGPoint(x: box.maxX, y: trayTop))
+        path.move(to: point(5.2, 7.8))
+        path.addLine(to: point(3.8, 7.8))
+        path.addQuadCurve(to: point(1.8, 9.8), controlPoint: point(1.8, 7.8))
+        path.addLine(to: point(1.8, 16.8))
+        path.addQuadCurve(to: point(3.8, 18.8), controlPoint: point(1.8, 18.8))
+        path.addLine(to: point(13.2, 18.8))
+        path.addQuadCurve(to: point(15.2, 16.8), controlPoint: point(15.2, 18.8))
+        path.addLine(to: point(15.2, 9.8))
+        path.addQuadCurve(to: point(13.2, 7.8), controlPoint: point(15.2, 7.8))
+        path.addLine(to: point(11.8, 7.8))
 
-        path.move(to: CGPoint(x: box.midX, y: box.minY))
-        path.addLine(to: CGPoint(x: box.midX, y: box.maxY - box.height * 0.3))
+        path.move(to: point(8.5, 1.2))
+        path.addLine(to: point(8.5, 12.2))
 
-        path.move(to: CGPoint(x: box.midX - head, y: box.minY + head))
-        path.addLine(to: CGPoint(x: box.midX, y: box.minY))
-        path.addLine(to: CGPoint(x: box.midX + head, y: box.minY + head))
+        path.move(to: point(5.4, 4.3))
+        path.addLine(to: point(8.5, 1.2))
+        path.addLine(to: point(11.6, 4.3))
         return path
     }
 }
 
 final class TrashGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 16, height: 18)
+    override var naturalSize: CGSize {
+        return CGSize(width: 13, height: 15)
     }
 
     override var strokeWidth: CGFloat {
-        return 2
+        return 1.5
     }
 
     override func path(in rect: CGRect) -> UIBezierPath {
-        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
-        let lid = box.minY + box.height * 0.2
-        let handle = box.width * 0.2
-        let rim = box.width * 0.12
-        let base = box.width * 0.2
-
+        let point = designSpace(of: rect, width: 17, height: 19)
         let path = UIBezierPath()
-        path.move(to: CGPoint(x: box.minX, y: lid))
-        path.addLine(to: CGPoint(x: box.maxX, y: lid))
+        path.move(to: point(1.2, 4.4))
+        path.addLine(to: point(15.8, 4.4))
 
-        path.move(to: CGPoint(x: box.midX - handle, y: lid))
-        path.addLine(to: CGPoint(x: box.midX - handle, y: box.minY))
-        path.addLine(to: CGPoint(x: box.midX + handle, y: box.minY))
-        path.addLine(to: CGPoint(x: box.midX + handle, y: lid))
+        path.move(to: point(6, 4.4))
+        path.addLine(to: point(6, 2.6))
+        path.addQuadCurve(to: point(7.2, 1.4), controlPoint: point(6, 1.4))
+        path.addLine(to: point(9.8, 1.4))
+        path.addQuadCurve(to: point(11, 2.6), controlPoint: point(11, 1.4))
+        path.addLine(to: point(11, 4.4))
 
-        path.move(to: CGPoint(x: box.minX + rim, y: lid))
-        path.addLine(to: CGPoint(x: box.minX + base, y: box.maxY))
-        path.addLine(to: CGPoint(x: box.maxX - base, y: box.maxY))
-        path.addLine(to: CGPoint(x: box.maxX - rim, y: lid))
+        path.move(to: point(2.8, 4.4))
+        path.addLine(to: point(3.7, 16.1))
+        path.addQuadCurve(to: point(5.7, 17.9), controlPoint: point(3.85, 17.9))
+        path.addLine(to: point(11.3, 17.9))
+        path.addQuadCurve(to: point(13.3, 16.1), controlPoint: point(13.15, 17.9))
+        path.addLine(to: point(14.2, 4.4))
         return path
     }
 }
 
 final class StopGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 13, height: 13)
+    override var naturalSize: CGSize {
+        return CGSize(width: 10, height: 10)
     }
 
     override func path(in rect: CGRect) -> UIBezierPath {
-        return UIBezierPath(roundedRect: rect, cornerRadius: 2.5)
+        return UIBezierPath(roundedRect: rect, cornerRadius: 2)
     }
 }
 
 final class PersonGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 20, height: 20)
+    override var naturalSize: CGSize {
+        return CGSize(width: 18, height: 18)
     }
 
     override var strokeWidth: CGFloat {
@@ -219,8 +244,8 @@ final class PersonGlyphView: GlyphView {
 
 final class MapGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 20, height: 18)
+    override var naturalSize: CGSize {
+        return CGSize(width: 18, height: 16)
     }
 
     override var strokeWidth: CGFloat {
@@ -255,7 +280,7 @@ final class MapGlyphView: GlyphView {
 
 final class ChevronGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
+    override var naturalSize: CGSize {
         return CGSize(width: 7, height: 12)
     }
 
@@ -275,12 +300,12 @@ final class ChevronGlyphView: GlyphView {
 
 final class CloseGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 15, height: 15)
+    override var naturalSize: CGSize {
+        return CGSize(width: 12, height: 12)
     }
 
     override var strokeWidth: CGFloat {
-        return 2
+        return 1.7
     }
 
     override func path(in rect: CGRect) -> UIBezierPath {
@@ -296,8 +321,8 @@ final class CloseGlyphView: GlyphView {
 
 final class PlusGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 18, height: 18)
+    override var naturalSize: CGSize {
+        return CGSize(width: 14, height: 14)
     }
 
     override var strokeWidth: CGFloat {
@@ -317,7 +342,7 @@ final class PlusGlyphView: GlyphView {
 
 final class BrokenImageGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
+    override var naturalSize: CGSize {
         return CGSize(width: 24, height: 24)
     }
 
@@ -336,33 +361,46 @@ final class BrokenImageGlyphView: GlyphView {
 
 final class PlayGlyphView: GlyphView {
 
-    override var glyphSize: CGSize {
-        return CGSize(width: 24, height: 26)
+    override var naturalSize: CGSize {
+        return CGSize(width: 20, height: 22)
     }
 
     override func path(in rect: CGRect) -> UIBezierPath {
         let nudge = rect.width * 0.08
-        let path = UIBezierPath()
-        path.move(to: CGPoint(x: rect.minX + nudge, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.minX + nudge, y: rect.maxY))
-        path.close()
-        return path
+        let top = CGPoint(x: rect.minX + nudge, y: rect.minY)
+        let tip = CGPoint(x: rect.maxX, y: rect.midY)
+        let bottom = CGPoint(x: rect.minX + nudge, y: rect.maxY)
+        let radius = rect.width * 0.12
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: top.x, y: rect.midY))
+        path.addArc(tangent1End: top, tangent2End: tip, radius: radius)
+        path.addArc(tangent1End: tip, tangent2End: bottom, radius: radius)
+        path.addArc(tangent1End: bottom, tangent2End: top, radius: radius)
+        path.closeSubpath()
+        return UIBezierPath(cgPath: path)
     }
 }
 
 final class GlyphButton: UIControl, Themed {
 
     static let side: CGFloat = 44
+    static let discDiameter: CGFloat = 30
 
+    private let disc = SquircleView()
     private let glyph: GlyphView
-    private let prominent: Bool
 
-    init(glyph: GlyphView, prominent: Bool = false) {
+    var touchInsets = UIEdgeInsets(top: 0, left: -2, bottom: 0, right: -2)
+
+    init(glyph: GlyphView) {
         self.glyph = glyph
-        self.prominent = prominent
         super.init(frame: .zero)
         backgroundColor = .clear
+
+        disc.isCapsule = true
+        disc.isUserInteractionEnabled = false
+        disc.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(disc)
 
         glyph.isUserInteractionEnabled = false
         glyph.translatesAutoresizingMaskIntoConstraints = false
@@ -371,6 +409,11 @@ final class GlyphButton: UIControl, Themed {
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: GlyphButton.side),
             heightAnchor.constraint(equalToConstant: GlyphButton.side),
+
+            disc.centerXAnchor.constraint(equalTo: centerXAnchor),
+            disc.centerYAnchor.constraint(equalTo: centerYAnchor),
+            disc.widthAnchor.constraint(equalToConstant: GlyphButton.discDiameter),
+            disc.heightAnchor.constraint(equalToConstant: GlyphButton.discDiameter),
 
             glyph.centerXAnchor.constraint(equalTo: centerXAnchor),
             glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -385,25 +428,36 @@ final class GlyphButton: UIControl, Themed {
         fatalError("init(coder:) is not used")
     }
 
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        return bounds.inset(by: touchInsets).contains(point)
+    }
+
     override var isHighlighted: Bool {
         didSet { alpha = isHighlighted ? 0.5 : 1 }
     }
 
     func applyTheme(_ palette: ThemePalette) {
-        glyph.color = prominent ? palette.textPrimary : palette.textSecondary
+        disc.fillColor = palette.discFill
+        glyph.color = palette.textSecondary
     }
 }
 
 final class FloatingButton: UIControl, Themed {
 
+    static let restingOpacity: CGFloat = 0.92
+
     private let surface = SquircleView()
     private let glyph: GlyphView
     private var palette = Theme.palette
 
-    init(glyph: GlyphView = MoreGlyphView()) {
+    var touchInsets = UIEdgeInsets(top: -2, left: -2, bottom: -2, right: -2)
+
+    init(glyph: GlyphView = MoreGlyphView(), diameter: CGFloat = 36) {
         self.glyph = glyph
         super.init(frame: .zero)
 
+        surface.isCapsule = true
+        surface.strokeWidth = 0.5
         surface.isUserInteractionEnabled = false
         surface.translatesAutoresizingMaskIntoConstraints = false
         addSubview(surface)
@@ -413,10 +467,10 @@ final class FloatingButton: UIControl, Themed {
         addSubview(glyph)
 
         NSLayoutConstraint.activate([
-            surface.topAnchor.constraint(equalTo: topAnchor),
-            surface.leadingAnchor.constraint(equalTo: leadingAnchor),
-            surface.trailingAnchor.constraint(equalTo: trailingAnchor),
-            surface.bottomAnchor.constraint(equalTo: bottomAnchor),
+            surface.centerXAnchor.constraint(equalTo: centerXAnchor),
+            surface.centerYAnchor.constraint(equalTo: centerYAnchor),
+            surface.widthAnchor.constraint(equalToConstant: diameter),
+            surface.heightAnchor.constraint(equalToConstant: diameter),
 
             glyph.centerXAnchor.constraint(equalTo: centerXAnchor),
             glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -435,14 +489,14 @@ final class FloatingButton: UIControl, Themed {
         return CGSize(width: 44, height: 44)
     }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        surface.cornerRadius = bounds.height / 2
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        return bounds.inset(by: touchInsets).contains(point)
     }
 
     override var isHighlighted: Bool {
         didSet {
             guard isHighlighted != oldValue else { return }
+            surface.fillColor = fill
             UIView.animate(withDuration: 0.12) {
                 self.transform = self.isHighlighted
                     ? CGAffineTransform(scaleX: 0.94, y: 0.94)
@@ -451,10 +505,17 @@ final class FloatingButton: UIControl, Themed {
         }
     }
 
+    private var fill: UIColor {
+        return isHighlighted
+            ? palette.discFill
+            : palette.surface.withAlphaComponent(FloatingButton.restingOpacity)
+    }
+
     func applyTheme(_ palette: ThemePalette) {
         self.palette = palette
-        surface.fillColor = palette.surface
-        surface.applyShadow(palette)
+        surface.fillColor = fill
+        surface.strokeColor = palette.hairline
+        surface.applyFloatingShadow(palette)
         glyph.color = palette.textPrimary
     }
 }

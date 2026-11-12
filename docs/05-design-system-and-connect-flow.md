@@ -24,6 +24,11 @@ Translated into constraints:
 
 ## 2. Squircle by hand
 
+**Since doc 16 (2026-11-11) the squircle is for surfaces only** — cards, fields, option
+rows, setting groups. Controls are true circles and pills true capsules (`Capsule`, beside
+`Squircle` in the same file, selected with `SquircleView.isCapsule`): at a radius of half
+the height, an n = 4 superellipse reads as a rounded square, not a circle.
+
 `CALayerCornerCurve.continuous` is iOS 13+. On iOS 12 a rounded corner is a
 circular arc, which reads visibly "sharper" than the Apple shape.
 
@@ -81,25 +86,23 @@ All in `Design/`, all shape-layer backed, all `Themed`:
 
 | Component | Notes |
 | --- | --- |
-| `SquircleView` | the base surface; `fillColor`, `strokeColor`, `applyShadow` |
+| `SquircleView` | the base surface; `fillColor`, `strokeColor`, `applyShadow`, `applyFloatingShadow`; `isCapsule` for circles and pills (doc 16) |
 | `ActionButton` | `UIControl`, 52 pt, spinner replaces the title, 0.97 scale on press |
 | `TextInputView` | squircle field, 52 pt; `isInvalid` paints a 1.5 pt danger stroke |
 | `OptionRowView` | 56 pt selectable row, filled with `palette.field` when on |
 | `CheckmarkView` | path drawn in code, `strokeEnd` animated on selection |
-| `SelectionIndicatorView` | ring + checkmark, 24 pt |
+| `SelectionIndicatorView` | circular ring + checkmark, 24 pt |
 | `StepIndicatorView` | onboarding dots; each dot is a 36×44 `UIControl` |
-| `FloatingButton` | 44 pt circle over content: surface, shadow, one `GlyphView` |
+| `FloatingButton` | a 36 pt circle (play: 60) drawn inside a 44 pt frame, over content: surface at 92 %, hairline, floating shadow, one `GlyphView`; `touchInsets` widens the tap area (doc 16) |
 | `ShareGlyphView` / `StopGlyphView` | arrow-out-of-tray, and the filled square that replaces it mid-download |
 | `CardSheetViewController` | the sheet all cards are built on — see §4.1 |
-| `GlyphButton` | bare `GlyphView` in a fixed 44×44 target — `prominent: true` tints it primary |
+| `GlyphButton` | Apple's sheet disc: a 30 pt `discFill` circle in a fixed 44×44 target, for buttons on a card (doc 16) |
 | `PersonGlyphView` | user-circle — ring, head, shoulders; the grid's settings button. See doc 07 |
 
 It was called `CardAccessoryButton` for as long as cards were the only place a
-bare glyph could live. The grid's settings button is the same object outside a
-card, so the name had to stop naming its first caller. `prominent` is the only
-axis that separates the two uses: an accessory inside a card must not compete
-with the card's title (`textSecondary`), a lone control over the grid has to
-hold its own (`textPrimary`).
+bare glyph could live, then gained `prominent:` when the grid's buttons borrowed it.
+Since doc 16 the grid's buttons are `FloatingButton` circles, so `GlyphButton` is
+back to cards only — as a disc — and `prominent:` is gone.
 
 No SF Symbols (iOS 13+): every glyph is a `UIBezierPath`, so it stays crisp at
 any size and costs no bundle space. The **one** image asset in the app is the
@@ -228,8 +231,9 @@ sits a few points below the title's optical centre; that is the cost of keeping
 Apple's minimum touch target, and it is cheaper than hard-coding a font metric.
 
 No `FloatingButton`: a surface and a shadow on top of a card is a card on a
-card. `GlyphButton` is the bare glyph in `palette.textSecondary`, in a
-44 pt target, dimming on press.
+card. `GlyphButton` was the bare glyph in `palette.textSecondary`, in a
+44 pt target, dimming on press; since doc 16 it is Apple's sheet disc — a flat
+30 pt `discFill` circle, no shadow, so the card-on-a-card argument still holds.
 
 ### A card with a text field lifts on its transform
 

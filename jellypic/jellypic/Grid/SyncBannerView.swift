@@ -29,6 +29,8 @@ final class SyncBannerView: UIView, Themed {
         super.init(frame: frame)
 
         surface.translatesAutoresizingMaskIntoConstraints = false
+        surface.isCapsule = true
+        surface.strokeWidth = 0.5
         addSubview(surface)
 
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap)))
@@ -71,11 +73,6 @@ final class SyncBannerView: UIView, Themed {
         fatalError("init(coder:) is not used")
     }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        surface.cornerRadius = min(bounds.height / 2, 16)
-    }
-
     var text: String? {
         get { return label.text }
         set { label.text = newValue }
@@ -87,7 +84,8 @@ final class SyncBannerView: UIView, Themed {
 
     func applyTheme(_ palette: ThemePalette) {
         surface.fillColor = palette.surface
-        surface.applyShadow(palette)
+        surface.strokeColor = palette.hairline
+        surface.applyFloatingShadow(palette)
         label.textColor = palette.textSecondary
         // LEGACY(ios12): UIActivityIndicatorView.Style.medium is iOS 13+, so the colour is set rather than the style. Freed at iOS 13.
         spinner.color = palette.textSecondary

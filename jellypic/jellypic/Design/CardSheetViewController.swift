@@ -5,7 +5,7 @@ class CardSheetViewController: UIViewController {
     let card = SquircleView()
     let body = UIStackView()
     let footer = UIStackView()
-    let closeButton = GlyphButton(glyph: CloseGlyphView())
+    let closeButton = GlyphButton(glyph: CloseGlyphView(size: CGSize(width: 10, height: 10)))
 
     var onDismissed: (() -> Void)?
 

@@ -151,9 +151,11 @@ final class MapViewController: UIViewController {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(closeButton)
 
-        messagePill.cornerRadius = 15
+        messagePill.isCapsule = true
         messagePill.fillColor = palette.surface
-        messagePill.applyShadow(palette)
+        messagePill.strokeWidth = 0.5
+        messagePill.strokeColor = palette.hairline
+        messagePill.applyFloatingShadow(palette)
         messagePill.isHidden = true
         messagePill.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(messagePill)

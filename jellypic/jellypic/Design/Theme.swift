@@ -20,6 +20,11 @@ struct ThemePalette {
     let shadowOpacity: Float
     let shadowRadius: CGFloat
     let shadowOffset: CGSize
+    let hairline: UIColor
+    let discFill: UIColor
+    let floatingShadowOpacity: Float
+    let floatingShadowRadius: CGFloat
+    let floatingShadowOffset: CGSize
 }
 
 enum Theme {
@@ -66,7 +71,12 @@ enum Theme {
         shadowColor: UIColor(hex: 0x0B0B0C),
         shadowOpacity: 0.10,
         shadowRadius: 24,
-        shadowOffset: CGSize(width: 0, height: 10)
+        shadowOffset: CGSize(width: 0, height: 10),
+        hairline: UIColor(white: 0, alpha: 0.08),
+        discFill: UIColor(hex: 0xEDEDF0),
+        floatingShadowOpacity: 0.14,
+        floatingShadowRadius: 4,
+        floatingShadowOffset: CGSize(width: 0, height: 2)
     )
 
     private static let dark = ThemePalette(
@@ -82,7 +92,12 @@ enum Theme {
         shadowColor: UIColor(hex: 0x000000),
         shadowOpacity: 0.55,
         shadowRadius: 28,
-        shadowOffset: CGSize(width: 0, height: 12)
+        shadowOffset: CGSize(width: 0, height: 12),
+        hairline: UIColor(white: 1, alpha: 0.10),
+        discFill: UIColor(hex: 0x2C2C30),
+        floatingShadowOpacity: 0.5,
+        floatingShadowRadius: 5,
+        floatingShadowOffset: CGSize(width: 0, height: 2)
     )
 }
 

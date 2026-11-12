@@ -13,15 +13,15 @@ final class PhotoGridViewController: UIViewController {
 
     private let layout = UICollectionViewFlowLayout()
     private var collectionView: UICollectionView!
-    private let settingsButton = GlyphButton(glyph: PersonGlyphView(), prominent: true)
-    private let mapButton = GlyphButton(glyph: MapGlyphView(), prominent: true)
+    private let settingsButton = FloatingButton(glyph: PersonGlyphView())
+    private let mapButton = FloatingButton(glyph: MapGlyphView())
     private let banner = SyncBannerView()
     private let refreshControl = UIRefreshControl()
     private let brand = UIStackView()
     private let brandLabel = UILabel()
     private let emptyLabel = UILabel()
     private let scrubber = MonthScrubberView()
-    private let sendButton = GlyphButton(glyph: PlusGlyphView(), prominent: true)
+    private let sendButton = FloatingButton(glyph: PlusGlyphView())
 
     private var timeline: PhotoTimeline!
     private var pendingReload = false
@@ -159,15 +159,18 @@ final class PhotoGridViewController: UIViewController {
         scrubber.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrubber)
 
+        settingsButton.touchInsets = UIEdgeInsets(top: -4, left: 0, bottom: -4, right: -4)
         settingsButton.addTarget(self, action: #selector(showSettings), for: .touchUpInside)
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(settingsButton)
 
+        mapButton.touchInsets = UIEdgeInsets(top: -4, left: 0, bottom: -4, right: 0)
         mapButton.addTarget(self, action: #selector(showMap), for: .touchUpInside)
         mapButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(mapButton)
 
         sendButton.isHidden = true
+        sendButton.touchInsets = UIEdgeInsets(top: -4, left: 0, bottom: -4, right: 0)
         sendButton.addTarget(self, action: #selector(showPicker), for: .touchUpInside)
         sendButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(sendButton)
@@ -519,14 +522,7 @@ final class PhotoGridViewController: UIViewController {
     }
 
     private func updateHeaderAlpha() {
-        let alpha = headerAlpha()
         brand.alpha = brandAlpha()
-        settingsButton.alpha = alpha
-        settingsButton.isUserInteractionEnabled = alpha > 0
-        mapButton.alpha = alpha
-        mapButton.isUserInteractionEnabled = alpha > 0
-        sendButton.alpha = alpha
-        sendButton.isUserInteractionEnabled = alpha > 0
     }
 
     private func refreshEmptyState() {

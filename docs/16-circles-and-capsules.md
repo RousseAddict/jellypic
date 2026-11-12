@@ -164,3 +164,36 @@ changes, except I3 (the grid's fade logic).
 Cards, fields and option rows keep their squircle corners. The segmented controls are
 UIKit's. No blur anywhere (doc 05 §1). The map's photo markers keep their rounded
 corners: they are thumbnails, not controls.
+
+---
+
+## 12. What was built, and where it departs from the plan
+
+All of I1–I7, in one pass. Files: `Design/Squircle.swift` (`Capsule`, `isCapsule`,
+`applyFloatingShadow`), `Design/Theme.swift` (tokens), `Design/FloatingButton.swift`
+(glyphs, `GlyphView` size parameter and round joins, both buttons), `Design/Icons.swift`
+(selection ring), `Design/CardSheetViewController.swift` (disc X at 10 pt),
+`Grid/PhotoGridViewController.swift`, `Grid/SyncBannerView.swift`,
+`Grid/MonthScrubberView.swift`, `Viewer/PhotoViewerViewController.swift`,
+`Viewer/ZoomablePhotoCell.swift`, `Writer/AssetPickerViewController.swift`,
+`Map/MapViewController.swift`, `Map/PhotoBucketViewController.swift`. No new file, so no
+pbxproj edit.
+
+- **Glyph sizes landed with I2, not I6.** The circles needed them at once. Each glyph's
+  natural size is now its size where it is used (circle or disc), so only the cards' X —
+  12 pt in a circle, 10 pt in a disc — passes a size explicitly.
+- **The hairline and the floating shadow reach further than §7 said**: the sync banner,
+  the scrubber thumb, the bucket title and the map message pill get them too, not only
+  the date and conversion pills. All of them float over photos next to the circles, as
+  the canvas draws them.
+- **The scrubber bubble keeps its accent fill.** The canvas drew it light; the plan asked
+  for the shape only, and the shape is what changed. One line in `applyTheme` if the
+  canvas version is wanted.
+- Pressed `FloatingButton`: 0.94 scale and the fill moving to `discFill`, as planned.
+  The resting opacity is `FloatingButton.restingOpacity` (0.92), the one constant to
+  change if the fill looks muddy over its shadow on the device.
+
+Verification: the whole app type-checks as a Mac Catalyst target with Swift 5.5.2 (zero
+errors); built on SERV2 and reported working on the iPhone 5s on 2026-11-11. The tests
+of §10 were not reported one by one, so scroll smoothness and the runtime theme switch
+are still unconfirmed in detail.
