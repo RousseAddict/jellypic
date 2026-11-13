@@ -1,3 +1,4 @@
+import SafariServices
 import UIKit
 
 final class SettingsViewController: CardSheetViewController {
@@ -24,6 +25,10 @@ final class SettingsViewController: CardSheetViewController {
     private let deletionNote = SettingsNoteView()
 
     private lazy var deletionGroup = SettingsGroupView(rows: [deletionNote], padding: 0)
+
+    private let privacyRow = SettingsRowView()
+    private let versionRow = SettingsRowView()
+    private static let privacyPolicyAddress = "https://github.com/RousseAddict/jellypic/blob/main/PRIVACY.md"
 
     private var sectionLabels: [UILabel] = []
     private var themeModes: [ThemeMode] = []
@@ -92,6 +97,13 @@ final class SettingsViewController: CardSheetViewController {
         signOutRow.isDestructive = true
         signOutRow.addTarget(self, action: #selector(confirmSignOut), for: .touchUpInside)
 
+        privacyRow.title = "Privacy policy"
+        privacyRow.addTarget(self, action: #selector(openPrivacyPolicy), for: .touchUpInside)
+
+        versionRow.title = "Version"
+        versionRow.detail = SettingsViewController.versionText()
+        versionRow.isUserInteractionEnabled = false
+
         body.addArrangedSubview(section("Backup",
                                         [SettingsGroupView(rows: [backupControl, backupNote], padding: 8),
                                          photoAccessGroup]))
@@ -102,6 +114,16 @@ final class SettingsViewController: CardSheetViewController {
         body.addArrangedSubview(section("Account",
                                         [SettingsGroupView(rows: [signOutRow], padding: 0),
                                          deletionGroup]))
+        body.addArrangedSubview(section("About",
+                                        [SettingsGroupView(rows: [privacyRow, versionRow], padding: 0)]))
+    }
+
+    private static func versionText() -> String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        guard let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String else {
+            return version
+        }
+        return "\(version) (\(build))"
     }
 
     private func buildIdentity() {
@@ -307,6 +329,11 @@ final class SettingsViewController: CardSheetViewController {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
         present(alert, animated: true, completion: nil)
+    }
+
+    @objc private func openPrivacyPolicy() {
+        guard let url = URL(string: SettingsViewController.privacyPolicyAddress) else { return }
+        present(SFSafariViewController(url: url), animated: true)
     }
 
     @objc private func themeChanged() {

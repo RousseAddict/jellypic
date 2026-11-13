@@ -55,8 +55,9 @@
 
 ## Privacy
 
-Jellypic talks to your server and nothing else, apart from Apple Maps for the map: no
-account of ours, no analytics, no third-party code. The session token is kept in the
+Jellypic talks to your server and nothing else, apart from Apple's map tiles and, when you
+open it, this privacy policy on GitHub: no account of ours, no analytics, no third-party
+code. The session token is kept in the
 Keychain and your password is never stored. Access to your photo library is asked for only
 when you turn backup on, and a limited selection is honoured — backup is then manual only.
 The full policy is in [PRIVACY.md](PRIVACY.md).

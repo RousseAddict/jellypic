@@ -3,8 +3,9 @@
 Jellypic · effective 12 November 2026
 
 **In short:** Jellypic sends nothing to its developer. Your photos, your server address and
-your credentials go to the Jellyfin server you sign in to, and nowhere else. The one
-exception is the map screen, which loads its maps from Apple.
+your credentials go to the Jellyfin server you sign in to, and nowhere else. The only
+other connections are the map screen, which loads its maps from Apple, and this policy,
+which opens from GitHub.
 
 ## Who is responsible
 
@@ -43,11 +44,14 @@ What the server does with this is up to whoever runs it. Jellypic allows plain H
 can reach a server on your home network; over plain HTTP, traffic is not encrypted. Use an
 `https://` address for a server reached over the internet.
 
-## Apple Maps
+## Apple Maps and GitHub
 
 The map screen uses Apple's MapKit. To draw it, your iPhone downloads map images from Apple
 for the area you are looking at, under Apple's privacy policy. The photos' locations are
 placed on the map on your iPhone and are not sent to Apple.
+
+*Privacy policy* in Settings opens this page from GitHub, in Safari inside the app, under
+GitHub's privacy policy. Nothing is loaded from GitHub unless you tap it.
 
 ## What stays on your iPhone
 

@@ -230,7 +230,51 @@ until relaunch. `CardSheetViewController.allowsUserDismissal` gates the three us
 gestures (dimming tap, swipe, close button) and leaves `dismissCard()` itself
 alone, so the card's own completion still closes it.
 
-## 6. Not done yet
+## 6. About: the privacy policy and the version
+
+Ratified in chat 2026-11-12, over a footer line under the last section and over a
+row in the Account group.
+
+**Why it exists.** App Store guideline 5.1.1(i): the privacy policy must be linked
+in App Store Connect *and* reachable inside the app. The privacy manifest and the
+"Data Not Collected" label do not stand in for it (doc 03 §5.4). The policy is
+`PRIVACY.md` at the root of the repository, and the app opens its GitHub page.
+
+**A section of its own.** A footer caption was the discreet option, but a
+caption-sized target has to be padded up to 44 pt to be tappable. A row in Account
+would put a document beside the one destructive action on the card. A last section
+titled *About* is where iOS users look for legal text, and it gives a home to a
+second row worth having anyway.
+
+**The version row** reads `CFBundleShortVersionString (CFBundleVersion)`, e.g.
+`1.0 (15)`. CI stamps `CFBundleVersion` from the run number (doc 03 §5.6), so on a
+TestFlight build the row names the exact run, which is what a bug report needs; a
+SERV2 build shows the tracked `1`. It is a `SettingsRowView` with
+`isUserInteractionEnabled = false`: `isEnabled = false` would halve its alpha and
+read as unavailable, and a control with no target still highlights on touch.
+
+**`SFSafariViewController`**, over handing off to Safari, which leaves the app and
+loses the card, and over a copy of the policy bundled and drawn natively, which is a
+second copy to keep in sync and needs Markdown rendering that iOS 12 does not have
+(`AttributedString(markdown:)` is iOS 15). SafariServices is a system framework
+since iOS 9, and autolinking emits its load command, so the pbxproj is untouched —
+the same as AVKit in doc 10. The sheet is presented from the card, which is a child
+of the grid rather than a modal; `present` walks up to the presentation context,
+as the card's alerts already do.
+
+**The policy names the connection it causes.** Opening it is the one request the
+app makes to a host other than the user's server and Apple's map tiles, so
+`PRIVACY.md` and the README both say so.
+
+**On the 5s the section sits below the fold.** §1.1's "fits outright" predates the
+Backup section; the card now scrolls on the 5s, and the scroll indicator is the cue.
+
+Device tests (5s): the card scrolls to *About* and the indicator shows there is more;
+*Privacy policy* opens the GitHub page in the sheet, and Done returns to the card,
+still open; *Version* reads `1.0 (1)` on a SERV2 build and the run number on a CI
+build, and does not react to a tap; both themes.
+
+## 7. Not done yet
 
 - **Dark mode has only been seen on the iOS 12 5s.** It is correct there, but the
   "System" segment — the one path that cannot exist at that floor — has never been
