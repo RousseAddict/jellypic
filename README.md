@@ -1,9 +1,21 @@
-# Jellypic
+<p align="center">
+  <img src="icon/jellypic-readme.svg" width="128" height="128" alt="Jellypic app icon">
+</p>
 
-An iPhone app for the photos on your own Jellyfin server: browse the library the way the
-Photos app shows your camera roll, and back the iPhone's photos up to it.
+<h1 align="center">Jellypic</h1>
 
-Jellypic is an independent project. It is not made or endorsed by the Jellyfin project.
+<p align="center">
+  An iPhone app for the photos on your own Jellyfin server: browse the library the way
+  the Photos app shows your camera roll, and back the iPhone's photos up to it.
+</p>
+
+<p align="center">
+  iOS 12.2+ · Jellyfin 10.11 · <a href="PRIVACY.md">Privacy</a> · <a href="LICENSE">MIT licence</a>
+</p>
+
+<p align="center">
+  <sub>An independent project, not made or endorsed by the Jellyfin project.</sub>
+</p>
 
 ## What it does
 

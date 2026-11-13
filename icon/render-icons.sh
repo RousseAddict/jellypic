@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Rasterises icon/jellypic-icon.svg into every slot of AppIcon.appiconset, and
 # icon/jellypic-mark.svg into LogoMark.imageset (the wordmark above the grid,
-# 22 pt) and LogoMarkLarge.imageset (the connect card, 56 pt).
+# 22 pt) and LogoMarkLarge.imageset (the connect card, 56 pt). Also derives
+# icon/jellypic-readme.svg, the rounded tile at the top of README.md.
 #
 # The two SVGs share the same six petals but are NOT the same drawing: the icon
 # is full bleed on opaque white, the mark is transparent and trimmed tight. An
@@ -32,6 +33,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SVG="icon/jellypic-icon.svg"
+README_SVG="icon/jellypic-readme.svg"
 MARK_SVG="icon/jellypic-mark.svg"
 OUT="jellypic/jellypic/Assets.xcassets/AppIcon.appiconset"
 MARK_OUT="jellypic/jellypic/Assets.xcassets/LogoMark.imageset"
@@ -51,6 +53,16 @@ mkdir -p "$OUT"
 for px in "${SIZES[@]}"; do
     rsvg-convert -w "$px" -h "$px" "$SVG" -o "$OUT/icon-$px.png"
 done
+
+# The README shows the icon the way a home screen does: rounded, with a hairline
+# so the white tile keeps an edge on GitHub's light theme. GitHub cannot round an
+# <img>, and an SVG shown as an image may not reference another file, so the
+# tile is the icon SVG with its square background swapped for a rounded one.
+# The radius approximates iOS's squircle (about 22% of the side).
+ICON_RECT='<rect width="1024" height="1024" fill="#FFFFFF"/>'
+README_RECT='<rect x="4" y="4" width="1016" height="1016" rx="226" fill="#FFFFFF" stroke="#000000" stroke-opacity="0.12" stroke-width="8"/>'
+grep -qF "$ICON_RECT" "$SVG" || { echo "$SVG: background rect not found, $README_SVG not updated" >&2; exit 1; }
+sed "s|$ICON_RECT|$README_RECT|" "$SVG" > "$README_SVG"
 
 # rsvg always writes RGBA. Drop the alpha channel onto white (a no-op for the
 # pixels, since the SVG's own background rect is already opaque white) and
