@@ -13,8 +13,12 @@ traps that are already known before a line is written.
   cells, the month sections and the scrubber. `PHPickerViewController` is iOS 14 and
   `UIImagePickerController` takes one photo at a time, so the system pickers are useless
   on the only device this can be tested on.
-- **Default scope: the camera roll minus screenshots.** `smartAlbumUserLibrary` minus
-  `smartAlbumScreenshots`. Hidden and Recently Deleted are excluded unconditionally.
+- ~~**Default scope: the camera roll minus screenshots.** `smartAlbumUserLibrary` minus
+  `smartAlbumScreenshots`.~~ **Reversed 2026-11-12: screenshots are backed up.** The scope
+  is the whole camera roll, `smartAlbumUserLibrary`, which is what the picker, the
+  Automatic sweep and the catch-up already fetch — the subtraction was never built, so the
+  plan now says what the code does. Hidden and Recently Deleted are excluded
+  unconditionally.
 - ~~**After a successful upload the app inserts the row into its own index**, from the item
   id the plugin returns.~~ **Withdrawn — the plugin cannot return an item id.** Doc 11 §8
   settles it: filing the bytes and Jellyfin noticing them are separate events, the
