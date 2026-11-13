@@ -87,12 +87,13 @@ All in `Design/`, all shape-layer backed, all `Themed`:
 | Component | Notes |
 | --- | --- |
 | `SquircleView` | the base surface; `fillColor`, `strokeColor`, `applyShadow`, `applyFloatingShadow`; `isCapsule` for circles and pills (doc 16) |
-| `ActionButton` | `UIControl`, 52 pt, spinner replaces the title, 0.97 scale on press |
+| `ActionButton` | `UIControl`, 52 pt **capsule** (doc 17), spinner replaces the title, 0.97 scale on press |
 | `TextInputView` | squircle field, 52 pt; `isInvalid` paints a 1.5 pt danger stroke |
+| `GroupedInputView` | two fields in one squircle box, 48 pt rows and a hairline; `isInvalid` strokes the whole box — the connect sign-in step (doc 17) |
 | `OptionRowView` | 56 pt selectable row, filled with `palette.field` when on |
 | `CheckmarkView` | path drawn in code, `strokeEnd` animated on selection |
 | `SelectionIndicatorView` | circular ring + checkmark, 24 pt |
-| `StepIndicatorView` | onboarding dots; each dot is a 36×44 `UIControl` |
+| `StepIndicatorView` | onboarding dots; each dot is a 36×44 `UIControl`; the current one is a 20 × 8 pill (doc 17) |
 | `FloatingButton` | a 36 pt circle (play: 60) drawn inside a 44 pt frame, over content: surface at 92 %, hairline, floating shadow, one `GlyphView`; `touchInsets` widens the tap area (doc 16) |
 | `ShareGlyphView` / `StopGlyphView` | arrow-out-of-tray, and the filled square that replaces it mid-download |
 | `CardSheetViewController` | the sheet all cards are built on — see §4.1 |
@@ -105,9 +106,11 @@ Since doc 16 the grid's buttons are `FloatingButton` circles, so `GlyphButton` i
 back to cards only — as a disc — and `prominent:` is gone.
 
 No SF Symbols (iOS 13+): every glyph is a `UIBezierPath`, so it stays crisp at
-any size and costs no bundle space. The **one** image asset in the app is the
-logo mark above the grid (`docs/07` §1) — an asset precisely because it is the
-one drawing that must *not* follow the palette.
+any size and costs no bundle space. The **one** image in the app is the logo
+mark — `LogoMark` at 22 pt above the grid (`docs/07` §1), `LogoMarkLarge` at
+56 pt on the connect card (doc 17) — an asset precisely because it is the one
+drawing that must *not* follow the palette. Kept so deliberately in doc 17: a
+monochrome and a tonal mark were drawn and set aside for the gradient.
 
 ## 4.1 `CardSheetViewController`
 
@@ -283,7 +286,11 @@ posted while it is still false and the subclass re-lays the card out mid-retreat
 
 ## 5. The connect flow
 
-Three steps, **one card that morphs in place** — no pushes, no modals:
+Three steps, **one card that morphs in place** — no pushes, no modals.
+**Since doc 17** the card carries the 56 pt mark above a centred title, a capsule
+button, a back disc on steps 2 and 3, and grouped credentials; the mark folds
+away while the keyboard is up, and the first step no longer opens the keyboard
+by itself. The rest of this section still holds.
 
 1. **Server** — free-text address. `ServerURL.candidates(from:)` produces the
    list to try (raw input, then the same host with `:8096` appended when no
@@ -318,7 +325,12 @@ Mechanics worth remembering:
 
 ## 5.1 Navigating between steps
 
-There is **no back button**. A first attempt used a bare chevron floating above
+**Superseded in part by doc 17 (2026-11-12): there is a back button now** — a
+sheet disc in the card's corner on steps 2 and 3. The disc is the container the
+first chevron lacked; the dots and the swipe below stay as they were. The current
+dot is a 20 × 8 pill rather than a dot scaled to 1.25.
+
+There was **no back button**. A first attempt used a bare chevron floating above
 the card and it read as a stray mark rather than a control — partly geometry
 (5 pt wide for 18 tall is a far steeper V than the system chevron), partly the
 absence of any container. It was removed rather than repaired, and replaced by
@@ -548,6 +560,15 @@ through Pillow.
 
 The source SVG was stripped of a 9 KB C2PA provenance manifest on the way in —
 it was five sixths of the file and says nothing about the drawing.
+
+**The mark has two sets** (doc 17): `LogoMark` at 22 pt for the grid and
+`LogoMarkLarge` at 56 pt for the connect card, both from `icon/jellypic-mark.svg`
+through the same render → trim → square → resample step in `render-icons.sh`.
+Scaling the 22 pt set up would have been soft. When the 56 pt set was added, Pillow
+was not installed on the dev Mac, so its PNGs were produced by the same steps in
+CoreGraphics with Accelerate's Lanczos resampler — checked against the committed
+Pillow output at 44 px: mean difference 1.2 / 255, at most 20, edges only. The
+script still uses Pillow and regenerates both sets the same way.
 
 ## 8. Not done yet
 

@@ -9,6 +9,7 @@ final class ReauthViewController: CardSheetViewController {
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
 
+    private let accountLabel = UILabel()
     private let usernameInput = TextInputView()
     private let passwordInput = TextInputView()
     private let errorLabel = UILabel()
@@ -60,6 +61,12 @@ final class ReauthViewController: CardSheetViewController {
         heading.addArrangedSubview(subtitleLabel)
         setHeaderView(heading)
 
+        accountLabel.font = Typography.body
+        accountLabel.adjustsFontForContentSizeCategory = true
+        accountLabel.numberOfLines = 0
+        accountLabel.text = accountText()
+        accountLabel.isHidden = session.username == nil
+
         usernameInput.setPlaceholder("Username")
         usernameInput.textField.text = session.username
         usernameInput.textField.textContentType = .username
@@ -80,6 +87,8 @@ final class ReauthViewController: CardSheetViewController {
         errorLabel.numberOfLines = 0
         errorLabel.isHidden = true
 
+        body.addArrangedSubview(accountLabel)
+        body.setCustomSpacing(10, after: accountLabel)
         body.addArrangedSubview(usernameInput)
         body.addArrangedSubview(passwordInput)
         body.addArrangedSubview(errorLabel)
@@ -90,14 +99,21 @@ final class ReauthViewController: CardSheetViewController {
         footer.isHidden = false
     }
 
+    private var host: String {
+        return session.baseURL.host ?? session.baseURL.absoluteString
+    }
+
+    private func accountText() -> String? {
+        return session.username.map { "\($0) · \(host)" }
+    }
+
     private func subtitleText() -> String {
-        let host = session.baseURL.host ?? session.baseURL.absoluteString
-        let account = session.username.map { "as \($0) " } ?? ""
+        let expired = session.username == nil
+            ? "\(host) no longer accepts the saved session."
+            : "The saved session has expired."
         let indexed = services.store.count()
-        guard indexed > 0 else {
-            return "\(host) no longer accepts the saved session. Sign in again \(account)to keep browsing."
-        }
-        return "\(host) no longer accepts the saved session. Sign in again \(account)to keep browsing — the \(indexed) photos already indexed on this device stay where they are."
+        guard indexed > 0 else { return expired }
+        return expired + " Your \(indexed) photos stay on this device."
     }
 
     @objc private func submit() {
@@ -134,6 +150,7 @@ final class ReauthViewController: CardSheetViewController {
 
     private func completeSignIn(with authentication: AuthenticationResult, baseURL: URL) {
         guard authentication.user.id == session.userId else {
+            accountLabel.isHidden = true
             usernameInput.isHidden = false
             usernameInput.isInvalid = true
             showError("That is a different account. Sign in with the one that indexed this library, or sign out to start over.")
@@ -163,6 +180,7 @@ final class ReauthViewController: CardSheetViewController {
         applySheetPalette(palette)
         titleLabel.textColor = palette.textPrimary
         subtitleLabel.textColor = palette.textSecondary
+        accountLabel.textColor = palette.textPrimary
         errorLabel.textColor = palette.danger
         view.applyThemeRecursively(palette)
     }

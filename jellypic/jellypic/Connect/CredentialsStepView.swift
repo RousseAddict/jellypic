@@ -2,23 +2,21 @@ import UIKit
 
 final class CredentialsStepView: UIView {
 
-    private let usernameInput = TextInputView()
-    private let passwordInput = TextInputView()
+    private let fields = GroupedInputView()
 
     var onSubmit: (() -> Void)?
 
     var username: String {
-        return usernameInput.textField.text ?? ""
+        return fields.topField.text ?? ""
     }
 
     var password: String {
-        return passwordInput.textField.text ?? ""
+        return fields.bottomField.text ?? ""
     }
 
     var isInvalid: Bool = false {
         didSet {
-            usernameInput.isInvalid = isInvalid
-            passwordInput.isInvalid = isInvalid
+            fields.isInvalid = isInvalid
         }
     }
 
@@ -26,35 +24,30 @@ final class CredentialsStepView: UIView {
         super.init(frame: frame)
         backgroundColor = .clear
 
-        usernameInput.setPlaceholder("Username")
-        usernameInput.textField.keyboardType = .default
-        usernameInput.textField.textContentType = .username
-        usernameInput.textField.autocapitalizationType = .none
-        usernameInput.textField.autocorrectionType = .no
-        usernameInput.textField.returnKeyType = .next
-        usernameInput.textField.delegate = self
-        usernameInput.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(usernameInput)
+        fields.setPlaceholders(top: "Username", bottom: "Password")
 
-        passwordInput.setPlaceholder("Password")
-        passwordInput.textField.isSecureTextEntry = true
-        passwordInput.textField.textContentType = .password
-        passwordInput.textField.autocapitalizationType = .none
-        passwordInput.textField.autocorrectionType = .no
-        passwordInput.textField.returnKeyType = .go
-        passwordInput.textField.delegate = self
-        passwordInput.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(passwordInput)
+        fields.topField.keyboardType = .default
+        fields.topField.textContentType = .username
+        fields.topField.autocapitalizationType = .none
+        fields.topField.autocorrectionType = .no
+        fields.topField.returnKeyType = .next
+        fields.topField.delegate = self
+
+        fields.bottomField.isSecureTextEntry = true
+        fields.bottomField.textContentType = .password
+        fields.bottomField.autocapitalizationType = .none
+        fields.bottomField.autocorrectionType = .no
+        fields.bottomField.returnKeyType = .go
+        fields.bottomField.delegate = self
+
+        fields.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(fields)
 
         NSLayoutConstraint.activate([
-            usernameInput.topAnchor.constraint(equalTo: topAnchor),
-            usernameInput.leadingAnchor.constraint(equalTo: leadingAnchor),
-            usernameInput.trailingAnchor.constraint(equalTo: trailingAnchor),
-
-            passwordInput.topAnchor.constraint(equalTo: usernameInput.bottomAnchor, constant: 10),
-            passwordInput.leadingAnchor.constraint(equalTo: leadingAnchor),
-            passwordInput.trailingAnchor.constraint(equalTo: trailingAnchor),
-            passwordInput.bottomAnchor.constraint(equalTo: bottomAnchor)
+            fields.topAnchor.constraint(equalTo: topAnchor),
+            fields.leadingAnchor.constraint(equalTo: leadingAnchor),
+            fields.trailingAnchor.constraint(equalTo: trailingAnchor),
+            fields.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
     }
 
@@ -63,15 +56,15 @@ final class CredentialsStepView: UIView {
     }
 
     func focus() {
-        usernameInput.textField.becomeFirstResponder()
+        fields.topField.becomeFirstResponder()
     }
 }
 
 extension CredentialsStepView: UITextFieldDelegate {
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        if textField === usernameInput.textField {
-            passwordInput.textField.becomeFirstResponder()
+        if textField === fields.topField {
+            fields.bottomField.becomeFirstResponder()
         } else {
             onSubmit?()
         }

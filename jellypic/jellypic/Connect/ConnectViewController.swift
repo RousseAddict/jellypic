@@ -12,11 +12,18 @@ final class ConnectViewController: UIViewController {
     }
 
     private static let indicatorSpace: CGFloat = 62
+    private static let contentInset: CGFloat = 24
+    private static let markSide: CGFloat = 56
+    private static let markSpacing: CGFloat = 14
+    private static let backInset: CGFloat = 9
+    private static let titleInsetBesideBack: CGFloat = 56
 
     private let services: AppServices
 
     private let card = SquircleView()
     private let stepIndicator = StepIndicatorView(count: Step.count)
+    private let markView = UIImageView(image: UIImage(named: "LogoMarkLarge"))
+    private let backButton = GlyphButton(glyph: BackGlyphView())
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private let stepContainer = UIView()
@@ -29,6 +36,10 @@ final class ConnectViewController: UIViewController {
 
     private var cardCenterY: NSLayoutConstraint!
     private var errorTop: NSLayoutConstraint!
+    private var markHeight: NSLayoutConstraint!
+    private var markGap: NSLayoutConstraint!
+    private var titleLeading: NSLayoutConstraint!
+    private var titleTrailing: NSLayoutConstraint!
     private var stepBottom: NSLayoutConstraint?
 
     private var step: Step = .server
@@ -90,11 +101,6 @@ final class ConnectViewController: UIViewController {
         updateCardOffset()
     }
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        serverStep.focus()
-    }
-
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -107,15 +113,28 @@ final class ConnectViewController: UIViewController {
         stepIndicator.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stepIndicator)
 
+        markView.contentMode = .scaleAspectFit
+        markView.isAccessibilityElement = true
+        markView.accessibilityLabel = "Jellypic"
+        markView.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(markView)
+
+        backButton.accessibilityLabel = "Back"
+        backButton.addTarget(self, action: #selector(goBack), for: .touchUpInside)
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(backButton)
+
         titleLabel.font = Typography.title
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.numberOfLines = 0
+        titleLabel.textAlignment = .center
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(titleLabel)
 
         subtitleLabel.font = Typography.caption
         subtitleLabel.adjustsFontForContentSizeCategory = true
         subtitleLabel.numberOfLines = 0
+        subtitleLabel.textAlignment = .center
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(subtitleLabel)
 
@@ -126,6 +145,7 @@ final class ConnectViewController: UIViewController {
         errorLabel.font = Typography.caption
         errorLabel.adjustsFontForContentSizeCategory = true
         errorLabel.numberOfLines = 0
+        errorLabel.textAlignment = .center
         errorLabel.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(errorLabel)
 
@@ -134,6 +154,14 @@ final class ConnectViewController: UIViewController {
 
         cardCenterY = card.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         errorTop = errorLabel.topAnchor.constraint(equalTo: stepContainer.bottomAnchor)
+        markHeight = markView.heightAnchor.constraint(equalToConstant: ConnectViewController.markSide)
+        markGap = titleLabel.topAnchor.constraint(equalTo: markView.bottomAnchor,
+                                                  constant: ConnectViewController.markSpacing)
+        titleLeading = titleLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor,
+                                                           constant: ConnectViewController.contentInset)
+        titleTrailing = titleLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor,
+                                                             constant: -ConnectViewController.contentInset)
+        let inset = ConnectViewController.contentInset
 
         NSLayoutConstraint.activate([
             card.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
@@ -145,26 +173,34 @@ final class ConnectViewController: UIViewController {
             stepIndicator.leadingAnchor.constraint(greaterThanOrEqualTo: card.leadingAnchor),
             stepIndicator.trailingAnchor.constraint(lessThanOrEqualTo: card.trailingAnchor),
 
-            titleLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 24),
-            titleLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 24),
-            titleLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -24),
+            markView.topAnchor.constraint(equalTo: card.topAnchor, constant: inset),
+            markView.centerXAnchor.constraint(equalTo: card.centerXAnchor),
+            markView.widthAnchor.constraint(equalToConstant: ConnectViewController.markSide),
+            markHeight,
+
+            backButton.topAnchor.constraint(equalTo: card.topAnchor, constant: ConnectViewController.backInset),
+            backButton.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: ConnectViewController.backInset),
+
+            markGap,
+            titleLeading,
+            titleTrailing,
 
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
-            subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            subtitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            subtitleLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: inset),
+            subtitleLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -inset),
 
             stepContainer.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 20),
-            stepContainer.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            stepContainer.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            stepContainer.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: inset),
+            stepContainer.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -inset),
 
             errorTop,
-            errorLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            errorLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            errorLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: inset),
+            errorLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -inset),
 
             actionButton.topAnchor.constraint(equalTo: errorLabel.bottomAnchor, constant: 18),
-            actionButton.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            actionButton.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-            actionButton.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -24)
+            actionButton.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: inset),
+            actionButton.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -inset),
+            actionButton.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -inset)
         ])
     }
 
@@ -265,7 +301,26 @@ final class ConnectViewController: UIViewController {
         stepIndicator.update(current: step.rawValue,
                              reachable: reachedStep.rawValue,
                              animated: animated)
+
+        let canGoBack = step != .server
+        let titleInset = canGoBack
+            ? ConnectViewController.titleInsetBesideBack
+            : ConnectViewController.contentInset
+        backButton.alpha = canGoBack ? 1 : 0
+        titleLeading.constant = titleInset
+        titleTrailing.constant = -titleInset
+        refreshBackButton()
         refreshActionState()
+    }
+
+    private func refreshBackButton() {
+        backButton.isUserInteractionEnabled = step != .server && !actionButton.isLoading
+    }
+
+    private func foldMark(_ folded: Bool) {
+        markHeight.constant = folded ? 0 : ConnectViewController.markSide
+        markGap.constant = folded ? 0 : ConnectViewController.markSpacing
+        markView.alpha = folded ? 0 : 1
     }
 
     private func applySubtitle(_ text: String) {
@@ -318,6 +373,7 @@ final class ConnectViewController: UIViewController {
     private func setLoading(_ loading: Bool) {
         actionButton.isLoading = loading
         stepIndicator.isUserInteractionEnabled = !loading
+        refreshBackButton()
         if !loading {
             refreshActionState()
         }
@@ -329,6 +385,10 @@ final class ConnectViewController: UIViewController {
               index <= reachedStep.rawValue,
               let target = Step(rawValue: index) else { return }
         move(to: target)
+    }
+
+    @objc private func goBack() {
+        jump(to: step.rawValue - 1)
     }
 
     @objc private func handleSwipe(_ recognizer: UISwipeGestureRecognizer) {
@@ -487,6 +547,8 @@ final class ConnectViewController: UIViewController {
                        delay: 0,
                        options: [UIView.AnimationOptions(rawValue: curve << 16), .beginFromCurrentState],
                        animations: {
+                        self.foldMark(self.keyboardHeight > 0)
+                        self.view.layoutIfNeeded()
                         self.updateCardOffset()
                         self.view.layoutIfNeeded()
                        },

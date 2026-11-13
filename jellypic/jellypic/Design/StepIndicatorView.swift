@@ -2,22 +2,13 @@ import UIKit
 
 final class CircleView: UIView {
 
-    override class var layerClass: AnyClass {
-        return CAShapeLayer.self
-    }
-
-    private var shapeLayer: CAShapeLayer {
-        return layer as! CAShapeLayer
-    }
-
     var fillColor: UIColor = .clear {
-        didSet { shapeLayer.fillColor = fillColor.cgColor }
+        didSet { backgroundColor = fillColor }
     }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = .clear
-        shapeLayer.fillColor = fillColor.cgColor
+        backgroundColor = fillColor
     }
 
     required init?(coder: NSCoder) {
@@ -26,7 +17,7 @@ final class CircleView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        shapeLayer.path = UIBezierPath(ovalIn: bounds).cgPath
+        layer.cornerRadius = bounds.height / 2
     }
 }
 
@@ -39,10 +30,12 @@ final class StepDotControl: UIControl {
     }
 
     private static let diameter: CGFloat = 8
+    private static let currentWidth: CGFloat = 20
 
     private let dot = CircleView()
     private var palette = Theme.palette
     private var dotState: State = .upcoming
+    private var dotWidth: NSLayoutConstraint!
 
     override var isHighlighted: Bool {
         didSet { alpha = isHighlighted ? 0.4 : 1 }
@@ -56,10 +49,11 @@ final class StepDotControl: UIControl {
         dot.translatesAutoresizingMaskIntoConstraints = false
         addSubview(dot)
 
+        dotWidth = dot.widthAnchor.constraint(equalToConstant: StepDotControl.diameter)
         NSLayoutConstraint.activate([
             dot.centerXAnchor.constraint(equalTo: centerXAnchor),
             dot.centerYAnchor.constraint(equalTo: centerYAnchor),
-            dot.widthAnchor.constraint(equalToConstant: StepDotControl.diameter),
+            dotWidth,
             dot.heightAnchor.constraint(equalToConstant: StepDotControl.diameter)
         ])
 
@@ -89,13 +83,13 @@ final class StepDotControl: UIControl {
         switch dotState {
         case .current:
             dot.fillColor = palette.accent
-            dot.transform = CGAffineTransform(scaleX: 1.25, y: 1.25)
+            dotWidth.constant = StepDotControl.currentWidth
         case .reachable:
             dot.fillColor = palette.textSecondary
-            dot.transform = .identity
+            dotWidth.constant = StepDotControl.diameter
         case .upcoming:
             dot.fillColor = palette.separator
-            dot.transform = .identity
+            dotWidth.constant = StepDotControl.diameter
         }
     }
 }
@@ -153,6 +147,7 @@ final class StepIndicatorView: UIView, Themed {
                     dot.setState(.upcoming)
                 }
             }
+            self.layoutIfNeeded()
         }
 
         guard animated else {

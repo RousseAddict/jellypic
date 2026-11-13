@@ -127,3 +127,40 @@ clear the disc whenever the disc is visible.
 6. The re-auth card: capsule button, the account on its own line above the password, the
    short caption; with no stored username, both fields and no account line.
 7. Switching theme while on the connect screen repaints everything except the mark.
+
+---
+
+## 10. What was built, and where it departs from the plan
+
+K1–K5 and K3b in one pass. Files: `Assets.xcassets/LogoMarkLarge.imageset` (new),
+`icon/render-icons.sh`, `Design/GroupedInputView.swift` (new — pbxproj ids `…147` /
+`…148`), `Design/ActionButton.swift`, `Design/StepIndicatorView.swift`,
+`Design/FloatingButton.swift` (`BackGlyphView`), `Connect/ConnectViewController.swift`,
+`Connect/CredentialsStepView.swift`, `Connect/ServerStepView.swift`,
+`Connect/ReauthViewController.swift`, docs 05 and this one.
+
+- **The first step no longer opens the keyboard by itself.** `viewDidAppear` used to
+  focus the server field, so the keyboard rose the moment the screen appeared — and with
+  §7's fold the mark would have shown for a fraction of a second and gone, defeating the
+  point of putting it there. Now the card arrives with the mark; the first tap on the
+  field brings the keyboard and folds it. Steps 2 and 3 still focus themselves after the
+  morph, and going back to step 1 focuses it too. One line to restore if it is missed.
+- **The current dot's pill is drawn with `layer.cornerRadius`, not `Capsule.path`.** A
+  shape layer's path does not animate with the view's bounds — the pill would jump to its
+  final width while the frame grew. A corner radius of half the height on the dot's
+  background colour is the same shape, animates with the width constraint, and needs no
+  mask.
+- **The 56 pt PNGs were produced without Pillow**, which the dev Mac does not have: the
+  script's exact steps in CoreGraphics, resampled with Accelerate's Lanczos, verified
+  against the committed Pillow output (doc 05 §7). The script itself gained the 56 pt
+  slots and regenerates both sets with Pillow.
+
+The rest is as planned: the title's side insets widen to 56 pt whenever the back disc is
+visible; the re-auth caption names the server only when there is no account line to
+carry it.
+
+Verification: the whole app type-checks as a Mac Catalyst target (zero errors); built on
+SERV2, and the compiled `Assets.car` in the IPA holds both `LogoMark` and `LogoMarkLarge`.
+Reported working on the iPhone 5s on 2026-11-12, with one bug found along the way — the
+session-expired banner squeezing the grid's circles — which is doc 16's, not this one's,
+and is fixed and recorded there.

@@ -298,6 +298,26 @@ final class ChevronGlyphView: GlyphView {
     }
 }
 
+final class BackGlyphView: GlyphView {
+
+    override var naturalSize: CGSize {
+        return CGSize(width: 7, height: 12)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 1.7
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.maxX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.minX, y: box.midY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
+        return path
+    }
+}
+
 final class CloseGlyphView: GlyphView {
 
     override var naturalSize: CGSize {

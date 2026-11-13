@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Rasterises icon/jellypic-icon.svg into every slot of AppIcon.appiconset, and
-# icon/jellypic-mark.svg into LogoMark.imageset (the wordmark above the grid).
+# icon/jellypic-mark.svg into LogoMark.imageset (the wordmark above the grid,
+# 22 pt) and LogoMarkLarge.imageset (the connect card, 56 pt).
 #
 # The two SVGs share the same six petals but are NOT the same drawing: the icon
 # is full bleed on opaque white, the mark is transparent and trimmed tight. An
@@ -34,6 +35,7 @@ SVG="icon/jellypic-icon.svg"
 MARK_SVG="icon/jellypic-mark.svg"
 OUT="jellypic/jellypic/Assets.xcassets/AppIcon.appiconset"
 MARK_OUT="jellypic/jellypic/Assets.xcassets/LogoMark.imageset"
+MARK_LARGE_OUT="jellypic/jellypic/Assets.xcassets/LogoMarkLarge.imageset"
 ICC="/System/Library/ColorSync/Profiles/sRGB Profile.icc"
 
 # Distinct pixel sizes across all 18 slots. Several slots resolve to the same
@@ -82,19 +84,21 @@ for px in sizes:
 print('%d icons written to %s' % (len(sizes), out))
 PY
 
-# The mark is laid out at 22 pt, so the slots are 22/44/66 px. It is rendered
-# once at 1024, trimmed to the ink, then resampled: the petals do not touch the
-# viewBox edges, and rendering each slot directly would leave a different amount
-# of slack at each size, so the mark would sit at a different optical size in
-# the 2x and 3x builds.
-mkdir -p "$MARK_OUT"
+# The mark is laid out at 22 pt on the grid and 56 pt on the connect card, so
+# the slots are 22/44/66 px and 56/112/168 px. It is rendered once at 1024,
+# trimmed to the ink, then resampled: the petals do not touch the viewBox
+# edges, and rendering each slot directly would leave a different amount of
+# slack at each size, so the mark would sit at a different optical size in the
+# 2x and 3x builds. A 22 pt image scaled to 56 pt would be soft, hence the
+# second set rather than one set stretched.
+mkdir -p "$MARK_OUT" "$MARK_LARGE_OUT"
 rsvg-convert -w 1024 -h 1024 "$MARK_SVG" -o "$MARK_OUT/logo-mark.png"
 
-python3 - "$MARK_OUT" "$ICC" <<'PY'
+python3 - "$MARK_OUT" "$ICC" "$MARK_LARGE_OUT" <<'PY'
 import sys
 from PIL import Image
 
-out, icc_path = sys.argv[1], sys.argv[2]
+out, icc_path, large_out = sys.argv[1], sys.argv[2], sys.argv[3]
 icc = open(icc_path, 'rb').read()
 source = '%s/logo-mark.png' % out
 
@@ -107,13 +111,17 @@ side = max(right - left, bottom - top)
 cx, cy = (left + right) // 2, (top + bottom) // 2
 im = im.crop((cx - side // 2, cy - side // 2, cx + side // 2, cy + side // 2))
 
-for px, name in ((22, 'logo-mark.png'), (44, 'logo-mark@2x.png'), (66, 'logo-mark@3x.png')):
-    im.resize((px, px), Image.LANCZOS).save('%s/%s' % (out, name),
+slots = [(out, 22, 'logo-mark.png'), (out, 44, 'logo-mark@2x.png'), (out, 66, 'logo-mark@3x.png'),
+         (large_out, 56, 'logo-mark-large.png'), (large_out, 112, 'logo-mark-large@2x.png'),
+         (large_out, 168, 'logo-mark-large@3x.png')]
+
+for folder, px, name in slots:
+    im.resize((px, px), Image.LANCZOS).save('%s/%s' % (folder, name),
                                             format='PNG', icc_profile=icc)
 
-for px, name in ((22, 'logo-mark.png'), (44, 'logo-mark@2x.png'), (66, 'logo-mark@3x.png')):
-    check = Image.open('%s/%s' % (out, name))
+for folder, px, name in slots:
+    check = Image.open('%s/%s' % (folder, name))
     assert check.mode == 'RGBA', '%s lost its transparency' % name
     assert check.size == (px, px), '%s is %s' % (name, check.size)
-print('3 mark slots written to %s' % out)
+print('%d mark slots written to %s and %s' % (len(slots), out, large_out))
 PY

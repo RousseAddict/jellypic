@@ -76,7 +76,7 @@ final class ActionButton: UIControl, Themed {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let path = Squircle.path(in: bounds, cornerRadius: 16).cgPath
+        let path = Capsule.path(in: bounds).cgPath
         shapeLayer.path = path
         shapeLayer.shadowPath = path
     }

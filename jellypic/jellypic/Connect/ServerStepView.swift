@@ -33,6 +33,7 @@ final class ServerStepView: UIView, Themed {
         hintLabel.font = Typography.caption
         hintLabel.adjustsFontForContentSizeCategory = true
         hintLabel.numberOfLines = 0
+        hintLabel.textAlignment = .center
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(hintLabel)
 
