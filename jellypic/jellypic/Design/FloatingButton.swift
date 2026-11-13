@@ -476,6 +476,9 @@ final class FloatingButton: UIControl, Themed {
         self.glyph = glyph
         super.init(frame: .zero)
 
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .vertical)
+
         surface.isCapsule = true
         surface.strokeWidth = 0.5
         surface.isUserInteractionEnabled = false

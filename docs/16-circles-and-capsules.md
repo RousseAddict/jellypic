@@ -197,3 +197,19 @@ Verification: the whole app type-checks as a Mac Catalyst target with Swift 5.5.
 errors); built on SERV2 and reported working on the iPhone 5s on 2026-11-11. The tests
 of §10 were not reported one by one, so scroll smoothness and the runtime theme switch
 are still unconfirmed in detail.
+
+### Bug found on the 5s, 2026-11-12: a long banner squeezed the grid's circles
+
+When the session expired, the banner's text ("Session expired — tap to sign in") pushed
+the map circle onto the settings circle, and it stayed there after signing back in. The
+`GlyphButton`s the grid used before carried a **required** 44 pt width; `FloatingButton`
+only declared 44 pt as its intrinsic size, compressible at 750 — the same priority as the
+banner label's single-line width. Auto Layout squeezed the (hidden) `+` and the map button
+instead of wrapping the label onto its second line; a squeezed button still draws its full
+36 pt circle about its own centre, and with its trailing edge pinned to the settings
+button, the circle slid onto it. The banner fades but keeps its text, so the squeeze
+outlived it.
+
+Fixed by giving `FloatingButton` **required compression resistance** on both axes: it can
+no longer shrink below 44 pt, but it can still grow, which the play button's 64 pt needs —
+a pinned width would have conflicted with it. The label wraps, as it did before doc 16.
