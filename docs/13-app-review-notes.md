@@ -55,6 +55,8 @@ transcoding, no media library, no users. That is a very small machine.
   question.
 - **JPEG.** HEIC needs `heic-for-jelly` on the server; do not make the demo
   depend on a second plugin to show any content at all.
+- **An account that never expires.** App Store Connect's sign-in field says the demo
+  account *"must not expire"*, and every update is re-reviewed with the same one.
 
 Open question for whoever builds this: **is the upload plugin installed and the
 library writable?** Leaving Backup unavailable is honest but shows a dead
@@ -65,12 +67,30 @@ is made writable, it wants a size cap and a periodic wipe.
 ## 3. The notes themselves
 
 Placeholders in `<>` are filled once the server exists. Keep it short — review
-notes are read fast.
+notes are read fast — but specific: since 2026-10-16, guideline 2.3.1(a) says
+*"generic descriptions will be rejected"*, which is why the walkthrough names every
+feature and where to find it. Brought up to date with the app on 2026-11-13.
+
+**Give a host name.** A private LAN address cannot be reached from Apple at all. A
+public IPv4 address would work: on Apple's IPv6-only review network, `URLSession`
+synthesises an IPv6 address from an IPv4 literal (guideline 2.5.5,
+`18-app-store-submission.md` §4 — corrected 2026-11-13, this paragraph used to say it
+could not). But a name survives a server move, is what an https certificate needs,
+and with an AAAA record keeps NAT64 out of the path altogether. Plain `http://` with a
+name reaches the server too.
+
+**`https://` is recommended, not required.** Over plain HTTP to a host outside the
+local network, the sign-in step shows a red warning under its subtitle — "Your
+password will travel unencrypted" (`ServerURL.isPlaintextToPublicHost`). It blocks
+nothing, but the reviewer would watch the app warn about its own demo, and a public
+demo on HTTP weakens the ATS paragraph below, which argues that plain HTTP is a
+local-network matter. Once there is a name, a free certificate costs little:
+a reverse proxy such as Caddy in front of Jellyfin obtains one by itself.
 
 > **Jellypic browses and backs up photos on a Jellyfin server that the user
 > hosts themselves. It has no content of its own, so a demo server is provided.**
 >
-> Server address: `<URL>`
+> Server address: `<host name, https:// recommended>`
 > Username: `<user>`
 > Password: `<password>`
 >
@@ -81,23 +101,30 @@ notes are read fast.
 > 3. Pick the library named `<library>`, tap "Use this library".
 > 4. The photo grid appears and begins indexing. It is usable while it indexes.
 >
-> **Where the features are.** The buttons along the top of the grid fade out as
-> you scroll down and come back when you scroll up.
-> - **Grid** — scroll for month headers; drag the scrubber on the right edge.
-> - **Viewer** — tap any photo. Pinch to zoom, drag down to dismiss, tap the ⋯
->   button for capture details and sharing.
+> **Where the features are.**
+> - **Grid** — scroll for month headers; while scrolling, a scrubber appears on
+>   the right edge and can be dragged.
+> - **Viewer** — tap any photo. Pinch to zoom, drag down to dismiss, tap the
+>   photo to hide or show the buttons. The ⋯ button opens the capture details,
+>   with sharing.
 > - **Map** — the map button at the top of the grid; photos with GPS are grouped
 >   by place.
-> - **Video** — the thumbnails with a duration badge play on tap.
-> - **Settings** — the person button, top right of the grid: appearance, cache,
->   and the Backup section.
+> - **Video** — the thumbnails with a duration badge are videos: open one and tap
+>   the play button.
+> - **Settings** — the person button at the top of the grid: Backup, appearance,
+>   storage, account, and the privacy policy under About.
+> - **Backup** — needs the Upload for Jelly plugin on the server, which is
+>   `<installed / not installed>` on this demo server. `<If installed: set Backup
+>   to Manual in Settings, then tap + on the grid to choose photos.>`
+> - **Delete** — offered only to accounts the server allows to delete. The demo
+>   account `<can / cannot>`; Settings › Account says which.
 >
 > **Photo library access.** Jellypic asks for the photo library only to *upload*
-> photos to your own server, and only when you turn Backup on or tap "Send my
-> latest photo" in Settings. Browsing the demo server needs no photo access at
-> all, so the permission prompt can be declined and the app remains fully
-> reviewable. Nothing is read from the library unless one of those two actions is
-> taken.
+> photos to your own server, and only when you open the photo picker (the +
+> button, shown once Backup is set to Manual or Automatic) or accept the "Back up
+> everything?" offer. Browsing the demo server needs no photo access at all, so
+> the permission prompt can be declined and the app remains fully reviewable.
+> Nothing is read from the library unless one of those two actions is taken.
 >
 > **App Transport Security.** Jellypic connects only to a Jellyfin server whose
 > address the user enters at runtime. Those addresses cannot be known in advance,
@@ -115,6 +142,10 @@ Two sentences carry an obligation:
 - "Browsing needs no photo access" is true today because nothing on the read
   path touches `Photos`. It stops being true the moment a reader feature reads
   the library.
+- The walkthrough names buttons and labels as they are on 2026-11-13. Re-read it
+  against the app before every submission: two of its sentences had gone stale
+  within two months (a "Send my latest photo" button that no longer exists, and
+  grid buttons that no longer fade on scroll).
 
 ## 4. Not settled
 
@@ -124,3 +155,9 @@ Two sentences carry an obligation:
 - **Whether Backup is exercisable on it** (§2).
 - The demo account should be a **non-admin Jellyfin user**, so the notes cannot
   hand anyone the dashboard.
+- **Whether the demo account may delete.** Recommended: no. Every reviewer who
+  tries the trash button would shrink the demo library for the next one, and
+  Settings › Account already says plainly that deleting is off for that account.
+- **A name and an AAAA record for the server**, decided before it is built: the
+  name is what §3 hands over, and the AAAA record keeps the review independent of
+  NAT64 altogether.

@@ -103,6 +103,7 @@ are manual, separate steps (`.github/workflows/build.yml`).
 | [15](docs/15-delete-from-server.md) | deleting from the server |
 | [16](docs/16-circles-and-capsules.md) | buttons, pills and touch areas |
 | [17](docs/17-connect-icon-card.md) | the connect card |
+| [18](docs/18-app-store-submission.md) | App Store submission: the listing, the review risks, the checklist |
 
 ## Licence
 

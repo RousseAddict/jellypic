@@ -10,6 +10,11 @@ before: the Apple Developer Program membership **is** paid and active, and the
 `APPLE_PROVISIONING_PROFILE_BASE64` secret **was empty**, so the `sign` branch
 had never once executed. Nothing here is undoing an earlier attempt.
 
+**Executed since.** Store signing ran on 2026-11-10 (run #11), and the first upload
+reached TestFlight on 2026-11-11 (run #15, build 1.0 (15), deployment target 15.0).
+§5 records what each run measured. The certificate and the profile expire in
+November 2027, which is when this runbook is next followed from the top.
+
 **Internal TestFlight testers go through no review at all.** No demo server, no
 screenshots, no privacy policy URL — none of the App Store metadata backlog
 blocks it. That is the reason to do this before the rest of that backlog: it is
@@ -66,6 +71,9 @@ before being rejected at upload. §3 catches it locally.
 `appstoreconnect.apple.com` → *Apps* → `+` → New App. iOS, name ≤ 30 characters,
 the bundle ID from 1.1, any SKU.
 
+This step is web only: the App Store Connect API refuses to create an app record
+(`POST /v1/apps`), whatever the key's role.
+
 ### 1.5 App Store Connect API key
 
 ASC → **Users and Access → Integrations → App Store Connect API** → *Team
@@ -82,7 +90,7 @@ revocable on its own, scoped to a role, and carries no 2FA to work around.
 ## 2. The six secrets
 
 `github.com/RousseAddict/jellypic/settings/secrets/actions` → *New repository
-secret*. (`gh` is not installed on this machine, so this is the web UI.)
+secret*, or `gh secret set NAME < file` from the repository.
 
 | Secret | Value |
 |---|---|
@@ -115,8 +123,9 @@ the app *may* claim, so it always reads `TEAMID.*` (plus `com.apple.token` on
 recent profiles). The signing step narrows it to `TEAMID.com.rousseaddict.jellypic`
 before `codesign`, the way Xcode does. Signed verbatim, the wildcard risks a
 rejection at upload and a keychain with no clear default group, the `-34018`
-of `03-xcode-project.md` §5.1. Neither has been measured; the narrowing removes
-the question rather than answering it.
+of `03-xcode-project.md` §5.1. The narrowed signature was accepted at upload
+(run #15); what the wildcard would have done was never measured, and no longer
+needs to be.
 
 And that the `.p12` actually carries its key:
 
@@ -147,11 +156,24 @@ precisely this run.
 Then dispatch again with both on. `--validate-app` runs before `--upload-app`,
 so a server-side rejection still costs nothing.
 
-**Not yet measured, as of 2026-09-28: none of this has executed.** The most
-likely first failure is the spelling of the altool flags. The man page gives
-`--api-key` / `--api-issuer` and documents `--upload-app -f` as an alias of
-`--upload-package`; other sources use `--apiKey` / `--apiIssuer`. If the upload
-step fails on an unrecognised option, that is the line, and it is a one-word fix.
+**What the first runs measured**, 2026-11-10 and 11:
+
+| Run | Inputs | Result |
+|---|---|---|
+| #11 | `sign` | signed IPA; entitlements narrowed to the app, Distribution chain complete, `get-task-allow` false, `CFBundleVersion` 11 |
+| #13 | `sign` + `testflight`, target 12.2 | refused at validation, nothing consumed: *ITMS-90068: iOS apps must target iOS version from 13 to 27.3* |
+| #14 | target typed as `15` | the workflow's own minimum-version check failed: `15` against the binary's `15.0`. The check now compares major and minor |
+| #15 | `sign` + `testflight`, target 15.0 | `VERIFY SUCCEEDED`, `UPLOAD SUCCEEDED`, build 1.0 (15) |
+
+Three questions this settled:
+
+- **The altool flags are `--api-key` / `--api-issuer` with `--upload-app`**, on
+  Xcode 26.6. The camel-case spellings some sources give were never needed.
+- **No secure timestamp is accepted.** `codesign` without `--timestamp=none` still
+  signed with a plain `Signed Time`, not a `Timestamp`, and validation passed.
+- **The store refuses a floor below 13**, and warns that 15.0 becomes the minimum in
+  April 2027. Store builds therefore target 15.0, the `deployment_target` default;
+  the 5s sideload stays at 12.2. See `18-app-store-submission.md` §5.
 
 ## 6. Every submission after the first
 
@@ -162,3 +184,7 @@ step fails on an unrecognised option, that is the line, and it is a one-word fix
   `Info.plist` until a release deliberately changes it.
 - `ITSAppUsesNonExemptEncryption = false` is in the bundle, so no export
   compliance questionnaire appears per upload.
+- `deployment_target` stays at **15.0** for anything uploaded (§5).
+- An internal group created with access to all builds receives each new build
+  without a step in App Store Connect. A TestFlight build expires 90 days after
+  upload.
