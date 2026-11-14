@@ -216,9 +216,9 @@ The body (`"Unauthorized access"`) is not parsed: it is a message, not a contrac
   No batch delete — one row.
 - **In-memory tombstones**: the store keeps the ids it removed this session and `write`
   skips them, so a sync or catch-up page already in flight cannot put the row back.
-  Session-scoped on purpose: after a relaunch the server is the truth again. *(Review,
-  2026-11-13: a session is far too long for what they protect, and a relaunch does not
-  always bring a re-sent photo back — §8.1.)*
+  Session-scoped on purpose: after a relaunch the server is the truth again. *(Changed
+  2026-11-13: blocking an id for the whole session hid a photo sent again after its
+  delete. A tombstone now blocks only pages requested before the delete — §8.1.)*
 - **Viewer steps to the neighbour.** Before calling `remove`, the viewer records the
   neighbouring id (the next *older* photo, else the next newer one). When the timeline
   change lands, `applyTimelineChangeIfIdle` moves there instead of dismissing; it still
@@ -229,7 +229,7 @@ The body (`"Unauthorized access"`) is not parsed: it is a message, not a contrac
 - **Re-upload after an accepted re-offer** (§2): stated in the confirmation, not
   prevented — ratified. Preventing it needs a tombstone the next scan can see — a record in
   upload-for-jelly (`Have` answering "deleted"), or a local set of the 16-hex short hash
-  the plugin puts in every filename. Not v1. Reopened for discussion on 2026-11-13: §8.3.
+  the plugin puts in every filename. Not v1. Settled on 2026-11-13 without either: §8.3.
 - The map's markers stay stale until the map reloads.
 - Image cache entries for the deleted item are left to normal eviction.
 
@@ -263,6 +263,9 @@ real account before anything can be deleted.
 9. Delete the last photo of a month: the section goes. Delete the only photo left: the
    viewer closes.
 10. Backup mode Automatic: the confirmation carries the re-upload line.
+11. Delete a photo, then pick the same photo in the picker and send it, without quitting
+    the app: it is back in the grid about a minute later (the arrival check), with no
+    Resync. §8.1.
 
 ---
 
@@ -400,18 +403,19 @@ Original file* running, the trash stays hidden until the download ends or is can
 ## 8. Review findings (2026-11-13)
 
 A code review of the delete work (D0–D2 and what came after) found one bug, fixed and
-recorded in §7 (the trash visible during a download). The rest is below: one real problem
-left open (§8.1), one accepted risk (§8.2), and a question it reopened (§8.3).
+recorded in §7 (the trash visible during a download). The rest is below: a second bug,
+fixed the same day (§8.1), one accepted risk (§8.2), and the question it reopened, now
+settled (§8.3).
 
-### 8.1 The tombstones hide a re-sent photo — open
+### 8.1 The tombstones hid a re-sent photo — fixed 2026-11-13
 
 **A deleted photo that is sent again gets the same item id.** The plugin builds the file
 name from the capture time, the device and the 16-hex hash (doc 11 §7), so the same photo
 from the same iPhone lands on the same path, and Jellyfin derives an item's id from its
 path. The id is therefore one the store has already marked as removed.
 
-**`removedIds` lasts until sign-out or the end of the process**, and `write` silently drops
-every row in it, while the upsert still reports success. What follows:
+**`removedIds` lasted until sign-out or the end of the process**, and `write` silently
+dropped every row in it, while the upsert still reported success. What followed:
 
 - **Same session.** The upload succeeds and the file is on the server. The grid's arrival
   check (70 s, then 60 s) waits for a row that never comes, then gives up. The photo is
@@ -424,19 +428,38 @@ every row in it, while the upsert still reports success. What follows:
   the server re-saves the item. If no catch-up ran between the upload and the end of the
   session, the relaunch does bring it back.
 
-Who hits it: someone who deletes a photo and sends it again without quitting the app,
-either through the picker or by accepting the "Back up everything?" offer. That is rare,
-but the picker case is precisely a deliberate re-add, where the photo is expected to
-appear.
+Who hit it: someone who deletes a photo and sends it again without quitting the app,
+through the picker or by accepting the "Back up everything?" offer. Confirmed on the
+device on 2026-11-13: a photo deleted and then re-added through the picker did not come
+back.
 
-To see it: delete a photo, then pick the same photo in the picker and send it. Today it
-does not appear; a Resync shows it.
+**The fix: a tombstone blocks only pages requested before the delete.** The tombstones
+exist for one case: a sync or catch-up page that was already on its way when the photo was
+deleted, and still lists it. Such a page was always *requested* before the delete. So:
 
-**Direction, not decided.** The tombstones only exist to stop a page *already in flight*
-at the moment of the delete from putting the row back, which takes seconds. Expiring each
-id about a minute after `remove` covers that, and cures both cases above: a catch-up after
-the expiry inserts the row like any other. Tied to §8.3, since an explicit re-add is the
-case this has to get right.
+- `removedAt: [String: Date]` replaces `removedIds`: each id records when `remove` was
+  called.
+- `upsert(_:requestedAt:)`: `SyncEngine` takes the time just before each page request
+  (`requestPage` and `requestCatchUpPage`) and passes it with the page.
+- `write` drops a row only when its id was removed after the page was requested
+  (`wasRemoved(_:after:)`).
+
+A page in flight at the moment of the delete still cannot put the row back. Every page
+requested after the delete is written normally, including the one that lists a re-sent
+photo, so the re-add appears with the existing arrival check, like any upload. Because the
+row is no longer dropped, the catch-up can no longer move the watermark past it, and the
+relaunch case is gone too. There is no timer: an expiry (forget each id after about a
+minute) was considered and set aside, because too short lets a slow page bring the deleted
+photo back, and too long hides a quick re-add again, along with the watermark problem.
+
+Both clocks are the phone's, so the server's clock does not enter into it. A page cannot
+be requested before the delete and still list a re-sent photo: the re-add only starts once
+the delete has been answered.
+
+A photo hidden before the fix is already behind the watermark: a pull-to-refresh within
+48 h of its upload brings it back, otherwise a Resync.
+
+Built on SERV2 on 2026-11-13; not yet tried on the device (§5, test 11).
 
 ### 8.2 `onDeleted` runs before `remove`, and `remove`'s error is dropped — known, left
 
@@ -447,36 +470,43 @@ is gone from the server, the card closes, and the row stays in the grid until a 
 Left as is: a one-row delete and save failing on the background context means the store
 itself is broken, and a message for that one case is not worth it.
 
-### 8.3 Should a deleted photo ever be sent again? — open, for discussion
+### 8.3 Should a deleted photo ever be sent again? — settled 2026-11-13
 
-There are two separate memories here, and the trouble comes from mixing them:
+There were two separate memories here, and the trouble came from mixing them:
 
-- **A. The index tombstone** (§8.1): it only has to outlast the requests in flight.
-- **B. "Do not send back what I deleted"**: today nothing remembers a delete across
-  launches. Two paths re-send a deleted photo:
-  - **The "Back up everything?" offer.** It comes back on every switch into Automatic
-    and covers the whole library, and `/Have` reports the deleted photo as missing.
-  - **The picker**, if the photo is picked again, knowingly or not.
+- **A. The index tombstone** (§8.1): it only has to cover the pages in flight.
+- **B. "Do not send back what I deleted"**: nothing remembers a delete across launches.
 
-  The background sweep does not re-send one: `enqueueNewAssets` only takes photos created
-  after its watermark, and a photo on the server was sent before that.
+**The decision:**
 
-What was proposed on 2026-11-13, with nothing decided:
+- **The automatic backup must never re-send a deleted photo.**
+- **"Back up everything?" may**, since accepting it is a choice made on the spot.
+- **Picking the photo again in the picker is an explicit re-add**, and it must appear in
+  the grid without a Resync.
 
-- **The offer never re-sends a deleted photo. Picking it by hand is an explicit re-add**,
-  which overrides the record and must appear at once (so A expires after about a minute,
-  §8.1).
-- **Where record B lives:**
-  - **On the phone:** a set of the 16-hex hashes, taken from the item's file name at
-    delete time. Simple, but it covers only this iPhone and is lost on reinstall.
-  - **In the plugin:** `/Have` answers "deleted" as well as "missing". It covers every
-    device and survives a reinstall, but it is plugin work and gives the plugin its first
-    stored state; today it keeps no database (doc 11 §6).
-- The v1 answer still stands until this is settled: stated in the confirmation, not
-  prevented (§3.7).
+**The automatic backup already never re-sends a deleted photo, so record B is not built.**
+Read in the code on 2026-11-13:
 
-Questions to settle first: **is a deleted photo off-limits only to the automatic paths, or
-never re-sent at all? And does the record live on the phone or in the plugin?**
+- Switching into Automatic sets the backup watermark to *now* (`UploadService.mode`).
+- The sweep only takes photos created on or after the watermark (`enqueueNewAssets`), and
+  moves the watermark to the newest photo it queued.
+
+A photo on the server was sent before the current watermark, so the sweep cannot reach it
+again. Only the offer covers the whole library, and the offer is allowed to re-send. Doing
+nothing for B also means nothing changes in the plugin, which still keeps no database
+(doc 11 §6).
+
+The re-add case was the tombstone bug, fixed in §8.1.
+
+Not built, kept for the day the decision changes (the offer must not re-send either):
+
+- **On the phone:** a set of the 16-hex hashes, taken from the item's file name at delete
+  time. Covers only this iPhone, lost on reinstall.
+- **In the plugin:** `/Have` answers "deleted" as well as "missing". Covers every device and
+  survives a reinstall, but it is plugin work and gives the plugin stored state.
+
+The confirmation's line *"If Jellypic backs up your library again, it will be sent again"*
+(§3.5) stays true: "backs up your library again" is the offer.
 
 ### 8.4 Checked and kept
 

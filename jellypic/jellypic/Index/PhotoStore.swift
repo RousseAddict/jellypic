@@ -74,7 +74,7 @@ struct PhotoLocation {
 
 protocol PhotoStore: AnyObject {
     func makeTimeline() -> PhotoTimeline
-    func upsert(_ photos: [PhotoDTO], completion: @escaping (Error?) -> Void)
+    func upsert(_ photos: [PhotoDTO], requestedAt: Date, completion: @escaping (Error?) -> Void)
     func remove(ids: [String], completion: @escaping (Error?) -> Void)
     func count() -> Int
     func locations(completion: @escaping ([PhotoLocation]) -> Void)
@@ -88,7 +88,7 @@ final class CoreDataPhotoStore: PhotoStore {
 
     private let container: NSPersistentContainer
     private let backgroundContext: NSManagedObjectContext
-    private var removedIds = Set<String>()
+    private var removedAt: [String: Date] = [:]
 
     init(name: String = "JellyPicIndex") {
         let container = NSPersistentContainer(name: name, managedObjectModel: PhotoModel.make())
@@ -121,11 +121,11 @@ final class CoreDataPhotoStore: PhotoStore {
         return CoreDataTimeline(controller: controller)
     }
 
-    func upsert(_ photos: [PhotoDTO], completion: @escaping (Error?) -> Void) {
+    func upsert(_ photos: [PhotoDTO], requestedAt: Date, completion: @escaping (Error?) -> Void) {
         backgroundContext.perform {
             var failure: Error?
             do {
-                try self.write(photos, in: self.backgroundContext)
+                try self.write(photos, requestedAt: requestedAt, in: self.backgroundContext)
             } catch {
                 failure = error
             }
@@ -134,8 +134,11 @@ final class CoreDataPhotoStore: PhotoStore {
     }
 
     func remove(ids: [String], completion: @escaping (Error?) -> Void) {
+        let now = Date()
         backgroundContext.perform {
-            self.removedIds.formUnion(ids)
+            for id in ids {
+                self.removedAt[id] = now
+            }
             var failure: Error?
             do {
                 let request = NSFetchRequest<PhotoItem>(entityName: PhotoItem.entityName)
@@ -205,7 +208,7 @@ final class CoreDataPhotoStore: PhotoStore {
             let result = try? self.backgroundContext.execute(delete)
             deleted = ((result as? NSBatchDeleteResult)?.result as? [NSManagedObjectID]) ?? []
             self.backgroundContext.reset()
-            self.removedIds.removeAll()
+            self.removedAt.removeAll()
         }
 
         NSManagedObjectContext.mergeChanges(fromRemoteContextSave: [NSDeletedObjectsKey: deleted],
@@ -213,8 +216,13 @@ final class CoreDataPhotoStore: PhotoStore {
         NotificationCenter.default.post(name: photoStoreDidReset, object: self)
     }
 
-    private func write(_ photos: [PhotoDTO], in context: NSManagedObjectContext) throws {
-        let photos = photos.filter { !removedIds.contains($0.id) }
+    private func wasRemoved(_ id: String, after requestedAt: Date) -> Bool {
+        guard let removed = removedAt[id] else { return false }
+        return removed > requestedAt
+    }
+
+    private func write(_ photos: [PhotoDTO], requestedAt: Date, in context: NSManagedObjectContext) throws {
+        let photos = photos.filter { !wasRemoved($0.id, after: requestedAt) }
         guard !photos.isEmpty else { return }
 
         let request = NSFetchRequest<PhotoItem>(entityName: PhotoItem.entityName)

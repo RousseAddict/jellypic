@@ -94,6 +94,7 @@ final class SyncEngine {
 
     private func requestPage(at startIndex: Int, includeTotalCount: Bool) {
         let token = runToken
+        let requestedAt = Date()
         pageTask = client.photos(libraryId: libraryId,
                                  startIndex: startIndex,
                                  limit: SyncEngine.pageSize,
@@ -111,13 +112,13 @@ final class SyncEngine {
                 if Preferences.syncRunStart == nil {
                     Preferences.syncRunStart = page.serverDate
                 }
-                self.persist(page, from: startIndex, token: token)
+                self.persist(page, requestedAt: requestedAt, from: startIndex, token: token)
             }
         }
     }
 
-    private func persist(_ page: PhotoPage, from startIndex: Int, token: Int) {
-        store.upsert(page.items) { [weak self] error in
+    private func persist(_ page: PhotoPage, requestedAt: Date, from startIndex: Int, token: Int) {
+        store.upsert(page.items, requestedAt: requestedAt) { [weak self] error in
             guard let self = self, token == self.runToken else { return }
             if let error = error {
                 self.stop(with: .persistence(error))
@@ -153,6 +154,7 @@ final class SyncEngine {
 
     private func requestCatchUpPage(at startIndex: Int, since watermark: Date, start: Date?) {
         let token = runToken
+        let requestedAt = Date()
         pageTask = client.photos(libraryId: libraryId,
                                  startIndex: startIndex,
                                  limit: SyncEngine.pageSize,
@@ -169,7 +171,7 @@ final class SyncEngine {
                 self.endCatchUp(committing: runStart)
                 return
             }
-            self.store.upsert(page.items) { [weak self] error in
+            self.store.upsert(page.items, requestedAt: requestedAt) { [weak self] error in
                 guard let self = self, token == self.runToken else { return }
                 guard error == nil else {
                     self.endCatchUp(committing: nil)
