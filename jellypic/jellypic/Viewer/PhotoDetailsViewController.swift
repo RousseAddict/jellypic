@@ -20,6 +20,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private var detailsError: JellyfinError?
     private var originalBytes: Int64?
     private var downloadTask: URLSessionTask?
+    private var isDownloading = false
     private var metadataTasks: [URLSessionTask] = []
     private var isDeleting = false
 
@@ -118,7 +119,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
     private func renderDeleteButton() {
         deleteButton.isHidden = !offersDeletion
             || services.deletion.capability != .allowed
-            || downloadTask != nil
+            || isDownloading
     }
 
     private func render() {
@@ -259,6 +260,7 @@ final class PhotoDetailsViewController: CardSheetViewController {
     }
 
     private func setDownloading(_ downloading: Bool) {
+        isDownloading = downloading
         if !downloading {
             downloadTask = nil
         }

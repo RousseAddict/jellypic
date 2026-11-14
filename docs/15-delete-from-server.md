@@ -216,7 +216,9 @@ The body (`"Unauthorized access"`) is not parsed: it is a message, not a contrac
   No batch delete — one row.
 - **In-memory tombstones**: the store keeps the ids it removed this session and `write`
   skips them, so a sync or catch-up page already in flight cannot put the row back.
-  Session-scoped on purpose: after a relaunch the server is the truth again.
+  Session-scoped on purpose: after a relaunch the server is the truth again. *(Review,
+  2026-11-13: a session is far too long for what they protect, and a relaunch does not
+  always bring a re-sent photo back — §8.1.)*
 - **Viewer steps to the neighbour.** Before calling `remove`, the viewer records the
   neighbouring id (the next *older* photo, else the next newer one). When the timeline
   change lands, `applyTimelineChangeIfIdle` moves there instead of dismissing; it still
@@ -227,7 +229,7 @@ The body (`"Unauthorized access"`) is not parsed: it is a message, not a contrac
 - **Re-upload after an accepted re-offer** (§2): stated in the confirmation, not
   prevented — ratified. Preventing it needs a tombstone the next scan can see — a record in
   upload-for-jelly (`Have` answering "deleted"), or a local set of the 16-hex short hash
-  the plugin puts in every filename. Not v1.
+  the plugin puts in every filename. Not v1. Reopened for discussion on 2026-11-13: §8.3.
 - The map's markers stay stale until the map reloads.
 - Image cache entries for the deleted item are left to normal eviction.
 
@@ -361,7 +363,10 @@ tombstones), `Design/FloatingButton.swift` (`TrashGlyphView`),
 - **The button is dimmed while the request runs, not replaced by a spinner** (§3.5). Same
   signal as the viewer's play button while playback starts; the share button dims with it
   and the card cannot be dismissed (`allowsUserDismissal = false`) until the answer lands.
-  The button is also hidden while an original is downloading.
+  The button is also hidden while an original is downloading — truly so only since
+  2026-11-13: the rule read `downloadTask != nil`, and `shareOriginal` assigns the task
+  *after* `setDownloading(true)` has rendered the button, so the trash stayed visible for
+  the whole download. It now reads an `isDownloading` flag that `setDownloading` sets.
 - **The row is removed from the card's completion, not by the viewer** (§3.1 said the
   viewer). Still reader code — the card is in `Viewer/` — but the closure captures
   `services.store` and `onDeleted` before the request, so a `204` removes the row even if
@@ -387,3 +392,100 @@ tombstones), `Design/FloatingButton.swift` (`TrashGlyphView`),
 Built on SERV2 (Xcode 13.2.1, Debug, floor 12.2) and reported working on the iPhone 5s on
 2026-11-11. The tests of §5 were not reported one by one, so the edge cases — revocation
 with the app open, read-only mount, deleting the last photo left — are still unconfirmed.
+The `isDownloading` fix was confirmed on the iPhone 5s on 2026-11-13: with *Share ›
+Original file* running, the trash stays hidden until the download ends or is cancelled.
+
+---
+
+## 8. Review findings (2026-11-13)
+
+A code review of the delete work (D0–D2 and what came after) found one bug, fixed and
+recorded in §7 (the trash visible during a download). The rest is below: one real problem
+left open (§8.1), one accepted risk (§8.2), and a question it reopened (§8.3).
+
+### 8.1 The tombstones hide a re-sent photo — open
+
+**A deleted photo that is sent again gets the same item id.** The plugin builds the file
+name from the capture time, the device and the 16-hex hash (doc 11 §7), so the same photo
+from the same iPhone lands on the same path, and Jellyfin derives an item's id from its
+path. The id is therefore one the store has already marked as removed.
+
+**`removedIds` lasts until sign-out or the end of the process**, and `write` silently drops
+every row in it, while the upsert still reports success. What follows:
+
+- **Same session.** The upload succeeds and the file is on the server. The grid's arrival
+  check (70 s, then 60 s) waits for a row that never comes, then gives up. The photo is
+  missing from the grid with no error.
+- **After a relaunch — not always back.** The catch-up that dropped the row still raised
+  `syncWatermark` past it (`endCatchUp(committing:)` takes the server date of the run).
+  The tombstones are gone, but the next automatic catch-up only asks for items saved after
+  the watermark, so it skips the photo too. It comes back with a pull-to-refresh within
+  48 h of the upload (`refreshLookback`), and otherwise only with a Resync or the next time
+  the server re-saves the item. If no catch-up ran between the upload and the end of the
+  session, the relaunch does bring it back.
+
+Who hits it: someone who deletes a photo and sends it again without quitting the app,
+either through the picker or by accepting the "Back up everything?" offer. That is rare,
+but the picker case is precisely a deliberate re-add, where the photo is expected to
+appear.
+
+To see it: delete a photo, then pick the same photo in the picker and send it. Today it
+does not appear; a Resync shows it.
+
+**Direction, not decided.** The tombstones only exist to stop a page *already in flight*
+at the moment of the delete from putting the row back, which takes seconds. Expiring each
+id about a minute after `remove` covers that, and cures both cases above: a catch-up after
+the expiry inserts the row like any other. Tied to §8.3, since an explicit re-add is the
+case this has to get right.
+
+### 8.2 `onDeleted` runs before `remove`, and `remove`'s error is dropped — known, left
+
+`performDeletion` calls `onDeleted(itemId)` and then `store.remove(ids:) { _ in }`. The
+order is required: the viewer has to move `currentPhotoId` to the neighbour before the
+store's change lands (§7). If the Core Data delete or save fails, nothing says so. The file
+is gone from the server, the card closes, and the row stays in the grid until a Resync.
+Left as is: a one-row delete and save failing on the background context means the store
+itself is broken, and a message for that one case is not worth it.
+
+### 8.3 Should a deleted photo ever be sent again? — open, for discussion
+
+There are two separate memories here, and the trouble comes from mixing them:
+
+- **A. The index tombstone** (§8.1): it only has to outlast the requests in flight.
+- **B. "Do not send back what I deleted"**: today nothing remembers a delete across
+  launches. Two paths re-send a deleted photo:
+  - **The "Back up everything?" offer.** It comes back on every switch into Automatic
+    and covers the whole library, and `/Have` reports the deleted photo as missing.
+  - **The picker**, if the photo is picked again, knowingly or not.
+
+  The background sweep does not re-send one: `enqueueNewAssets` only takes photos created
+  after its watermark, and a photo on the server was sent before that.
+
+What was proposed on 2026-11-13, with nothing decided:
+
+- **The offer never re-sends a deleted photo. Picking it by hand is an explicit re-add**,
+  which overrides the record and must appear at once (so A expires after about a minute,
+  §8.1).
+- **Where record B lives:**
+  - **On the phone:** a set of the 16-hex hashes, taken from the item's file name at
+    delete time. Simple, but it covers only this iPhone and is lost on reinstall.
+  - **In the plugin:** `/Have` answers "deleted" as well as "missing". It covers every
+    device and survives a reinstall, but it is plugin work and gives the plugin its first
+    stored state; today it keeps no database (doc 11 §6).
+- The v1 answer still stands until this is settled: stated in the confirmation, not
+  prevented (§3.7).
+
+Questions to settle first: **is a deleted photo off-limits only to the automatic paths, or
+never re-sent at all? And does the record live on the phone or in the plugin?**
+
+### 8.4 Checked and kept
+
+Findings that were reviewed and are working as intended, listed so the next review does
+not raise them again:
+
+- **A `404` removes the row.** "Already gone" is by design (§1.1, §3.6).
+- **While deleting, the dimmed card blocks swipes and cannot be dismissed.** Intended (§7).
+- **The trash button loses its highlight before the tap fires.** That is the order UIKit
+  uses, and the button was checked on the device.
+- **The probe runs when Settings or the card opens, not from the grid.** A recorded
+  departure (§7).
