@@ -65,8 +65,10 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
     static let reuseIdentifier = "ZoomablePhotoCell"
     static let gap: CGFloat = 20
 
-    private static let glyphInk = UIColor(white: 1, alpha: 0.45)
-    private static let messageInk = UIColor(white: 1, alpha: 0.75)
+    private static let darkStageGlyphInk = UIColor(white: 1, alpha: 0.45)
+    private static let darkStageMessageInk = UIColor(white: 1, alpha: 0.75)
+    private static let lightStageGlyphInk = UIColor(white: 0, alpha: 0.35)
+    private static let lightStageMessageInk = UIColor(white: 0, alpha: 0.6)
     private static let failureGlyphSide: CGFloat = 44
 
     let imageView = UIImageView()
@@ -119,12 +121,10 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
         single.require(toFail: double)
         scrollView.addGestureRecognizer(single)
 
-        failureGlyph.color = ZoomablePhotoCell.glyphInk
         failureGlyph.translatesAutoresizingMaskIntoConstraints = false
 
         failureLabel.font = Typography.caption
         failureLabel.adjustsFontForContentSizeCategory = true
-        failureLabel.textColor = ZoomablePhotoCell.messageInk
         failureLabel.textAlignment = .center
         failureLabel.numberOfLines = 0
 
@@ -159,6 +159,8 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
             failureStack.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor,
                                                    constant: -40)
         ])
+
+        setStage(dark: Theme.isDark)
     }
 
     required init?(coder: NSCoder) {
@@ -187,6 +189,12 @@ final class ZoomablePhotoCell: UICollectionViewCell, UIScrollViewDelegate {
         thumbnailPixels = 0
         fullPixels = 0
         loader = nil
+    }
+
+    func setStage(dark: Bool) {
+        failureGlyph.color = dark ? ZoomablePhotoCell.darkStageGlyphInk : ZoomablePhotoCell.lightStageGlyphInk
+        failureLabel.textColor = dark ? ZoomablePhotoCell.darkStageMessageInk : ZoomablePhotoCell.lightStageMessageInk
+        spinner.color = dark ? .white : ZoomablePhotoCell.lightStageMessageInk
     }
 
     func configure(itemId: String,

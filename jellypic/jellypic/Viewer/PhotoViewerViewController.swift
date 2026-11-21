@@ -23,6 +23,7 @@ final class PhotoViewerViewController: UIViewController {
     private lazy var playback = VideoPlaybackController(services: services, presenter: self)
 
     private var isChromeVisible = false
+    private var isStageDark = Theme.isDark
     private var wasChromeVisibleBeforeDrag = false
     private var laidOutSize = CGSize.zero
     private var isAdjustingLayout = false
@@ -75,6 +76,7 @@ final class PhotoViewerViewController: UIViewController {
         buildHierarchy()
         updateForCurrentPhoto()
         setChrome(visible: true, animated: false)
+        setStage(dark: Theme.isDark, animated: false)
     }
 
     override func viewDidLayoutSubviews() {
@@ -110,7 +112,7 @@ final class PhotoViewerViewController: UIViewController {
     }
 
     private func buildHierarchy() {
-        backdrop.backgroundColor = .black
+        backdrop.backgroundColor = PhotoViewerViewController.stageColor(dark: isStageDark)
         backdrop.frame = view.bounds
         backdrop.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(backdrop)
@@ -307,7 +309,28 @@ final class PhotoViewerViewController: UIViewController {
     }
 
     @objc private func toggleChrome() {
-        setChrome(visible: !isChromeVisible, animated: true)
+        let showsChrome = !isChromeVisible
+        setChrome(visible: showsChrome, animated: true)
+        setStage(dark: Theme.isDark || !showsChrome, animated: true)
+    }
+
+    private func setStage(dark: Bool, animated: Bool) {
+        isStageDark = dark
+        for case let cell as ZoomablePhotoCell in collectionView.visibleCells {
+            cell.setStage(dark: dark)
+        }
+        let color = PhotoViewerViewController.stageColor(dark: dark)
+        guard animated else {
+            backdrop.backgroundColor = color
+            return
+        }
+        UIView.animate(withDuration: 0.2) {
+            self.backdrop.backgroundColor = color
+        }
+    }
+
+    private static func stageColor(dark: Bool) -> UIColor {
+        return dark ? .black : Theme.palette.surface
     }
 
     @objc private func showDetails() {
@@ -419,6 +442,7 @@ extension PhotoViewerViewController: UICollectionViewDataSource {
                                                       for: indexPath) as! ZoomablePhotoCell
         cell.onSingleTap = { [weak self] in self?.toggleChrome() }
         cell.onSignIn = { [weak self] in self?.onSignInRequested?() }
+        cell.setStage(dark: isStageDark)
         guard let photo = timeline.photoIfPresent(at: indexPath) else { return cell }
         cell.configure(itemId: photo.id,
                        tag: photo.imageTag,

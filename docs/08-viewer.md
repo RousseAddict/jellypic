@@ -164,9 +164,13 @@ stored and the method is re-invoked. When the failure is an expired session
 re-auth card instead: a Retry that cannot succeed is worse than none. The alternative, `reloadItems` on the
 currently visible cell of a paging layout, risks a visual jump for no gain.
 
-The glyph and the message are **hard-coded white-alpha inks** (`0.45` and `0.75`),
-not palette tokens, for the same reason the backdrop is hard-coded black (§7):
-they sit on the fixed black surround, which no theme changes. The *control*,
+The glyph and the message are **stage inks, not palette tokens**: they follow the
+backdrop (§7), which since 2026-11-21 is white or black depending on the chrome, not on
+the theme alone. On black, white at `0.45` and `0.75`; on white, black at `0.35` and
+`0.6`. The viewer pushes the stage to visible cells on every toggle and to each cell
+it dequeues (`ZoomablePhotoCell.setStage(dark:)`), which also recolours the spinner —
+`.white` is the only large style at this floor, so on a white stage it takes the
+message ink through `color`. The *control*,
 however, is a palette citizen — a `SquircleView` (a circle since doc 16) on `palette.surface` with
 `palette.textPrimary`, i.e. the same floating vocabulary as the date pill and the
 conversion pill, both already proven over black. `ActionButton` was tried first
@@ -355,11 +359,23 @@ Same family as the `isAdjustingLayout` lesson (§1) and the viewer's other
 two-owner flags: a flag set by one interval and read by another is restored, never
 reset to a literal.
 
-The backdrop is hard-coded `.black`, not `Theme.palette.background`. A photo is
-judged against black; a light-grey surround shifts its perceived contrast and
-white balance, which is why every photo viewer ever written is black regardless of
-the surrounding app's theme. The cards presented *over* the viewer still follow the
-palette — it is the photo's immediate surround that is fixed, not the whole screen.
+**The backdrop follows Photos (2026-11-21, requested and ratified in chat).** In the
+light theme it is white (`palette.surface`, `0xFFFFFF`, not the off-white
+`background`: Photos uses pure white) while the chrome is shown, and a tap that hides
+the chrome turns it black; the next tap brings both back. In the dark theme it is
+always black. The colour cross-fades in the chrome's own 0.2 s.
+
+This reverses the earlier rule that the backdrop is black whatever the theme, which
+argued that a photo is judged against black. The argument survives as the second
+state: one tap gives the photo a black surround, exactly as in Photos, while the
+first view of a photo matches the white app around it.
+
+**The stage is its own state, not a reading of the chrome** (`isStageDark`, set by
+`setStage(dark:animated:)`). Only the tap moves it. Drag-to-dismiss hides the chrome on
+`.began` too (above), and deriving the colour from `isChromeVisible` would turn a white
+viewer black under the finger at the start of every drag; Photos keeps the colour and
+only fades it, and so does this: the drag animates `backdrop.alpha`, never its colour.
+The cards presented *over* the viewer follow the palette, as before.
 
 The date is `dMMMyyyy` ("3 Sept 2025"), not the full weekday-and-month form. The
 pill sits between the two buttons, and a long date was winning the compression
