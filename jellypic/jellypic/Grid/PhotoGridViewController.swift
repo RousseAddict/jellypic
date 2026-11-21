@@ -599,7 +599,25 @@ final class PhotoGridViewController: UIViewController {
     }
 
     @objc private func showPicker() {
+        guard !PhotoAccess.wasRefused else {
+            reportPhotoAccessOff()
+            return
+        }
         present(AssetPickerViewController(services: services), animated: true, completion: nil)
+    }
+
+    private func reportPhotoAccessOff() {
+        let alert = UIAlertController(title: "Photo access is off",
+                                      message: "Jellypic needs access to your photos to send them to your server. "
+                                          + "You can allow it in Settings.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Not Now", style: .cancel, handler: nil))
+        let open = UIAlertAction(title: "Open Settings", style: .default) { _ in
+            PhotoAccess.openSystemSettings()
+        }
+        alert.addAction(open)
+        alert.preferredAction = open
+        present(alert, animated: true, completion: nil)
     }
 
     @objc private func showMap() {

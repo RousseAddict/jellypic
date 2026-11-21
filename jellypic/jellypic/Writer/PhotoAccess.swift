@@ -23,6 +23,15 @@ enum PhotoAccess {
         return PHPhotoLibrary.authorizationStatus() == .authorized ? .full : .denied
     }
 
+    // LEGACY(ios12): authorizationStatus(for:) arrives at iOS 14 and deprecates the bare form. Freed at iOS 14.
+    static var wasRefused: Bool {
+        let refused: [PHAuthorizationStatus] = [.denied, .restricted]
+        if #available(iOS 14.0, *) {
+            return refused.contains(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+        }
+        return refused.contains(PHPhotoLibrary.authorizationStatus())
+    }
+
     // LEGACY(ios12): requestAuthorization(for:) arrives at iOS 14 and deprecates the bare form. Freed at iOS 14.
     static func request(completion: @escaping (PhotoAccess) -> Void) {
         let deliver: () -> Void = {

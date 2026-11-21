@@ -1094,3 +1094,37 @@ Whether `fetchAssets(in: smartAlbumUserLibrary)` returns the limited subset or a
 empty result is **assumed, not verified on device**. If it comes back empty, all four
 fetch sites need re-pointing at `PHAsset.fetchAssets(with:options:)`. That is the
 first thing to check when testing this.
+
+### Refused access: the picker crashed, and now does not open (2026-11-21)
+
+**The crash.** With Photos set to *Never* on the 5s (iOS 12.4.8), the `+` killed the app
+— three identical `SIGABRT`s, pulled with `idevicecrashreport` and symbolicated against
+the build's UUID: an Objective-C exception raised inside Photos /
+PhotoLibraryServices, called from `AssetPickerViewController.updateItemSize()`. The
+picker's first layout pass runs *before* `PhotoAccess.request` calls back, and
+`updateItemSize` called `imageManager.stopCachingImagesForAllAssets()` on that pass.
+With access granted that is a no-op; with access refused, Photos on iOS 12 throws
+instead of returning nothing. `deinit` made the same call, so the picker would also
+have crashed on dismissal after a "Don't Allow" at the system prompt.
+
+**The fix is structural, not one guard.** Every cache stop now goes through
+`stopCachingThumbnails()`, which does nothing unless `access.allowsLibraryRead` —
+and `access` starts at `.denied` and changes only in the `request` callback, so no
+Photos call can happen before access is known. Creating the `PHCachingImageManager`
+itself never raised, so it stays a constant. The other Photos calls (cells,
+prefetching, the change observer's reload) can only run once assets exist, which is
+after a grant.
+
+**The behaviour.** A refused access no longer opens a full-screen picker onto a line
+of text — that is an entry point opening onto a refusal, which §11 already rules out.
+`PhotoAccess.wasRefused` (`.denied` or `.restricted`, *not* `.notDetermined`) makes
+the `+` show an alert on the grid instead: "Photo access is off", with `Not Now` and
+`Open Settings` (preferred), the latter going through the existing
+`PhotoAccess.openSystemSettings()` to the app's own page, where the Photos switch is.
+`.notDetermined` still opens the picker, because that is where the system prompt
+appears. The picker's own notice stays, for a "Don't Allow" given at that prompt.
+`.restricted` gets the same alert: rare, and Settings explains a greyed-out switch
+itself.
+
+**Not a crash, and easy to mistake for one:** changing a privacy permission in
+Settings makes iOS kill the app if it is running; returning to it is a cold launch.

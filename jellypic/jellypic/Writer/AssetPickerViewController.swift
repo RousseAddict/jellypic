@@ -54,7 +54,7 @@ final class AssetPickerViewController: UIViewController {
     }
 
     deinit {
-        imageManager.stopCachingImagesForAllAssets()
+        stopCachingThumbnails()
         if isObservingLibrary {
             PHPhotoLibrary.shared().unregisterChangeObserver(self)
         }
@@ -307,8 +307,13 @@ final class AssetPickerViewController: UIViewController {
 
         guard thumbnailPixels != pixels else { return }
         thumbnailPixels = pixels
-        imageManager.stopCachingImagesForAllAssets()
+        stopCachingThumbnails()
         collectionView.reloadData()
+    }
+
+    private func stopCachingThumbnails() {
+        guard access.allowsLibraryRead else { return }
+        imageManager.stopCachingImagesForAllAssets()
     }
 
     private func asset(at indexPath: IndexPath) -> PHAsset {
@@ -445,7 +450,7 @@ extension AssetPickerViewController: PHPhotoLibraryChangeObserver {
 
     func photoLibraryDidChange(_ changeInstance: PHChange) {
         DispatchQueue.main.async { [weak self] in
-            self?.imageManager.stopCachingImagesForAllAssets()
+            self?.stopCachingThumbnails()
             self?.loadAssets()
         }
     }
