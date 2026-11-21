@@ -249,3 +249,43 @@ a white photo right under the text). **Ratified: circles and capsules.**
 Built on SERV2 on 2026-11-21. **Not yet checked on the device**: light and dark over a
 dark and a pale photo, limited access with `Add More` at the default and the largest
 text size, the empty capsule absent while the permission prompt is up.
+
+## 14. The Send pill, 2026-11-21 (ratified after the device trial)
+
+**The defect.** The pill was the one floating control left on the card vocabulary: an
+`accent` fill (near-black in light, near-white in dark), no hairline, and the card
+shadow — 24 pt wide at 10 %, invisible on a dark photo. A near-black capsule over a dark
+photo had no edge, and so did a near-white one over a pale photo in the dark theme.
+The user also found the inversion odd, and that instinct names the cause: the
+inversion makes sense for a control on the app's background, but this one floats over
+photos, and the photos are the same in both themes. What it must stand out from does
+not change with the theme, so neither should it.
+
+**Three options were put in chat:** A, keep the inversion and add a rim; B, a fixed
+near-black pill with a white rim in both themes, still monochrome; C, one colour for the
+one primary action. **C was tried on the device and kept; A remains the
+agreed fallback.** Rejected: a gradient or blur behind the bottom (doc 05 §1), and a
+bigger pill, which does not give it an edge.
+
+**What C is.**
+- **`primaryAction` = `0x5563E6`, `onPrimaryAction` = white, identical in both
+  palettes.** It is the icon's middle gradient stop (`0x7C8CFF`) deepened until white
+  text passes WCAG AA: 4.87:1, where the icon's own stop gives 2.98:1. The full icon
+  gradient was rejected: white on its cyan end is 1.77:1. Two tokens rather than a
+  constant, so that A or B is a palette edit, not a hunt.
+- **A 1.5 pt white rim** (`surface.strokeColor = onPrimaryAction`): the edge that
+  survives a dark photo, while the indigo fill carries it over a pale one.
+- **The floating shadow** of §3, like every other control over photos, instead of the
+  card's.
+- **An up arrow** before the count (`UpArrowGlyphView`, 12 × 14, 1.8 pt, beside the other
+  glyphs in `Design/FloatingButton.swift`), so the action reads without the word. The
+  leading padding is 22 against 24 trailing: a glyph's ink sits inside its box, and equal
+  padding made the arrow side look wider.
+- Pressed: the content dims to 0.6, as before. No scale: `setPillVisible` animates the
+  pill's `transform` to slide it in, and a press scale on the same property would fight
+  it.
+
+**This is the first colour in the app's own chrome.** Doc 05 §1 keeps the monochrome
+rule and names this as its single exception.
+
+Built on SERV2 and kept after a look on the iPhone 5s on 2026-11-21. Option A stays the documented fallback.

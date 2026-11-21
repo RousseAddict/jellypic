@@ -15,6 +15,8 @@ struct ThemePalette {
     let separator: UIColor
     let accent: UIColor
     let onAccent: UIColor
+    let primaryAction: UIColor
+    let onPrimaryAction: UIColor
     let danger: UIColor
     let shadowColor: UIColor
     let shadowOpacity: Float
@@ -67,6 +69,8 @@ enum Theme {
         separator: UIColor(hex: 0xE6E6E9),
         accent: UIColor(hex: 0x0B0B0C),
         onAccent: UIColor(hex: 0xFFFFFF),
+        primaryAction: UIColor(hex: 0x5563E6),
+        onPrimaryAction: UIColor(hex: 0xFFFFFF),
         danger: UIColor(hex: 0xC2362B),
         shadowColor: UIColor(hex: 0x0B0B0C),
         shadowOpacity: 0.10,
@@ -88,6 +92,8 @@ enum Theme {
         separator: UIColor(hex: 0x2A2A2E),
         accent: UIColor(hex: 0xF2F2F4),
         onAccent: UIColor(hex: 0x0B0B0C),
+        primaryAction: UIColor(hex: 0x5563E6),
+        onPrimaryAction: UIColor(hex: 0xFFFFFF),
         danger: UIColor(hex: 0xF4A6A0),
         shadowColor: UIColor(hex: 0x000000),
         shadowOpacity: 0.55,

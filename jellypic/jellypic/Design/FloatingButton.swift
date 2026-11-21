@@ -360,6 +360,28 @@ final class PlusGlyphView: GlyphView {
     }
 }
 
+final class UpArrowGlyphView: GlyphView {
+
+    override var naturalSize: CGSize {
+        return CGSize(width: 12, height: 14)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 1.8
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.midX, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.midX, y: box.minY))
+        path.move(to: CGPoint(x: box.minX, y: box.minY + box.width / 2))
+        path.addLine(to: CGPoint(x: box.midX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.minY + box.width / 2))
+        return path
+    }
+}
+
 final class BrokenImageGlyphView: GlyphView {
 
     override var naturalSize: CGSize {

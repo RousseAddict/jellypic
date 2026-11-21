@@ -20,7 +20,9 @@ Translated into constraints:
   Depth comes from that one elevation step, not from layering.
 - **Monochrome.** The accent is near-black (`0x0B0B0C`) in light mode and
   near-white (`0xF2F2F4`) in dark. Nothing competes with the photos, which are
-  the only colour the app should ever show.
+  the only colour the app should ever show. **One exception, since 2026-11-21:** the picker's
+  `Send` pill is `primaryAction` (`0x5563E6`, the icon's middle stop deepened), the
+  same in both themes — doc 16 §14.
 
 ## 2. Squircle by hand
 

@@ -691,7 +691,11 @@ private final class SendPillButton: UIControl, Themed {
 
     static let height: CGFloat = 48
 
+    private static let rimWidth: CGFloat = 1.5
+
     private let surface = SquircleView()
+    private let content = UIStackView()
+    private let arrow = UpArrowGlyphView()
     private let label = UILabel()
     private var palette = Theme.palette
 
@@ -704,6 +708,7 @@ private final class SendPillButton: UIControl, Themed {
         backgroundColor = .clear
 
         surface.isCapsule = true
+        surface.strokeWidth = SendPillButton.rimWidth
         surface.isUserInteractionEnabled = false
         surface.translatesAutoresizingMaskIntoConstraints = false
         addSubview(surface)
@@ -711,9 +716,15 @@ private final class SendPillButton: UIControl, Themed {
         label.font = Typography.button
         label.adjustsFontForContentSizeCategory = true
         label.textAlignment = .center
-        label.isUserInteractionEnabled = false
-        label.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(label)
+
+        content.axis = .horizontal
+        content.alignment = .center
+        content.spacing = 8
+        content.isUserInteractionEnabled = false
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.addArrangedSubview(arrow)
+        content.addArrangedSubview(label)
+        addSubview(content)
 
         NSLayoutConstraint.activate([
             heightAnchor.constraint(equalToConstant: SendPillButton.height),
@@ -723,9 +734,12 @@ private final class SendPillButton: UIControl, Themed {
             surface.trailingAnchor.constraint(equalTo: trailingAnchor),
             surface.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24)
+            arrow.widthAnchor.constraint(equalToConstant: arrow.glyphSize.width),
+            arrow.heightAnchor.constraint(equalToConstant: arrow.glyphSize.height),
+
+            content.centerYAnchor.constraint(equalTo: centerYAnchor),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 22),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24)
         ])
 
         applyTheme(palette)
@@ -739,16 +753,18 @@ private final class SendPillButton: UIControl, Themed {
         didSet {
             guard isHighlighted != oldValue else { return }
             UIView.animate(withDuration: 0.12) {
-                self.label.alpha = self.isHighlighted ? 0.6 : 1
+                self.content.alpha = self.isHighlighted ? 0.6 : 1
             }
         }
     }
 
     func applyTheme(_ palette: ThemePalette) {
         self.palette = palette
-        surface.fillColor = palette.accent
-        surface.applyShadow(palette)
-        label.textColor = palette.onAccent
+        surface.fillColor = palette.primaryAction
+        surface.strokeColor = palette.onPrimaryAction
+        surface.applyFloatingShadow(palette)
+        arrow.color = palette.onPrimaryAction
+        label.textColor = palette.onPrimaryAction
     }
 }
 
