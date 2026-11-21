@@ -399,7 +399,7 @@ final class AssetPickerViewController: UIViewController {
 
     private func scrubTo(_ progress: CGFloat) {
         guard let travel = scrollableHeight() else { return }
-        let y = -collectionView.contentInset.top + travel * progress
+        let y = -collectionView.adjustedContentInset.top + travel * progress
         collectionView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
         scrubber.setTitle(topVisibleMonthTitle())
     }
@@ -407,14 +407,14 @@ final class AssetPickerViewController: UIViewController {
     private func scrollableHeight() -> CGFloat? {
         let travel = collectionView.contentSize.height
             - collectionView.bounds.height
-            + collectionView.contentInset.top
-            + collectionView.contentInset.bottom
+            + collectionView.adjustedContentInset.top
+            + collectionView.adjustedContentInset.bottom
         return travel > 0 ? travel : nil
     }
 
     private func scrubberProgress() -> CGFloat {
         guard let travel = scrollableHeight() else { return 0 }
-        let offset = collectionView.contentOffset.y + collectionView.contentInset.top
+        let offset = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
         return min(max(offset / travel, 0), 1)
     }
 

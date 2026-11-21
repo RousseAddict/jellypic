@@ -592,6 +592,17 @@ measured from the pill instead of the button. It is static rather than following
 the pill's visibility: a travel that changes length under a selection would move
 the thumb while nobody touched it.
 
+**The maths reads `adjustedContentInset`, never `contentInset`.** The collection view
+rests on its `contentInset` *plus* the safe area that `contentInsetAdjustmentBehavior`
+adds on top. `scrubTo`, `scrollableHeight` and `scrubberProgress` used `contentInset`
+alone, so the top of the scrubber's travel mapped to an offset short of the real top by
+exactly the safe-area inset: 20 pt under the 5s's status bar, which went unnoticed,
+47 to 59 pt under a notch, which hides the first month title behind the band. The grid
+was fixed on 2026-11-10 (`5a868ac`, which also fixed the wordmark's fade, read the same
+way); the picker carried the same three lines and was fixed on 2026-11-21, after it was
+seen on a recent iPhone. **Any new scroll maths in either file reads
+`adjustedContentInset`.**
+
 **It does not steal touches from the grid.** The view is 40 pt wide so the thumb
 is grabbable, which would otherwise swallow every tap in the right-hand column.
 `point(inside:with:)` is overridden to accept only touches landing within the
