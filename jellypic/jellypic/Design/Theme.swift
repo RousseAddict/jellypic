@@ -127,6 +127,10 @@ enum Typography {
         return scaled(size: 17, weight: .semibold, style: .headline)
     }
 
+    static var capsule: UIFont {
+        return scaled(size: 15, weight: .semibold, style: .subheadline)
+    }
+
     private static func scaled(size: CGFloat,
                                weight: UIFont.Weight,
                                style: UIFont.TextStyle) -> UIFont {

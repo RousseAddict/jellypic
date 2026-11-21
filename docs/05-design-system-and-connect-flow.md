@@ -69,8 +69,11 @@ iOS 12 has neither dynamic `UIColor` nor `userInterfaceStyle`, so:
   `UIView.applyThemeRecursively(_:)`, which walks the hierarchy and calls
   `applyTheme` on anything conforming to `Themed`.
 
-Typography is five roles (title / headline / body / caption / button), all run
-through `UIFontMetrics` so Dynamic Type works without per-label code.
+Typography is six roles (title / headline / body / caption / button / capsule), all run
+through `UIFontMetrics` so Dynamic Type works without per-label code. `capsule` (15 pt
+semibold, subheadline) arrived on 2026-11-21 for text drawn inside a 36 pt capsule over
+photos (doc 16 §13): `button` at 17 pt made the picker's band overflow a 5s in limited
+access.
 
 **Light `textSecondary` is `0x6B6B72`, not `0x7A7A80`.** The original failed
 WCAG AA: ≈ 4.0:1 on `0xF7F7F8` where normal text needs 4.5:1 — and it is normal

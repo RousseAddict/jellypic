@@ -213,3 +213,39 @@ outlived it.
 Fixed by giving `FloatingButton` **required compression resistance** on both axes: it can
 no longer shrink below 44 pt, but it can still grow, which the play button's 64 pt needs —
 a pinned width would have conflicted with it. The label wraps, as it did before doc 16.
+
+## 13. The picker's band, 2026-11-21
+
+**What was missed.** §2's inventory listed what was drawn over content *as a control or a
+pill*; the picker's band was three bare texts — `Cancel`, the count, `Add More` — and fell
+through. The photos scroll under it (`contentInset.top` is the band, not a background), so
+black text sat on whatever photo passed, and on a dark one it vanished: the exact reason
+§5 gave the grid its circles. Options weighed in chat: an opaque nav-bar band (costs
+56 pt of a 568 pt screen for good and makes the picker the one screen whose top does not
+float) and a top gradient (transparency, which doc 05 §1 rules out, and it still loses to
+a white photo right under the text). **Ratified: circles and capsules.**
+
+- **`Cancel` is the ✕ circle** — `FloatingButton(glyph: CloseGlyphView())`, the viewer's,
+  the map's and the bucket's, at the viewer's 12 pt inset. Since the durable queue (W4)
+  the button only dismisses; doc 12 §11's "`Cancel` becomes `Stop`" describes the W3
+  picker and no longer exists, so the ✕ means exactly what it means everywhere else.
+- **The count is a capsule** built like the viewer's date pill: opaque `surface`, 0.5 pt
+  `hairline`, floating shadow, text in `textPrimary` — it is the screen's title, not a
+  caption. Hidden until its first text, so a pending or denied permission shows no empty
+  capsule, as the empty label showed nothing before.
+- **`Add More` is a `CapsuleTextButton`** (private to the picker): the same capsule, with
+  `FloatingButton`'s press (0.94 scale, fill to `discFill`) and a touch area grown 4 pt
+  above and below to 44 pt.
+- **Both capsules are 36 pt tall at the default size** (9 pt padding around 15 pt text),
+  the circle's diameter beside them, and grow with Dynamic Type.
+- **Width on a 5s in limited access** decided the font. At `button`'s 17 pt the count
+  capsule could not fit between the ✕ and `Add More`; at the new `Typography.capsule`
+  (15 pt semibold) "Select photos" fits with room. The count is also centred only at
+  `defaultHigh` and truncates first: `Add More` has required compression resistance, so
+  the action never loses letters to the label.
+- The month headers' `Select` / `Deselect` stay bare `BandTextButton`s: they scroll with
+  the content and always sit on the background, never on a photo.
+
+Built on SERV2 on 2026-11-21. **Not yet checked on the device**: light and dark over a
+dark and a pale photo, limited access with `Add More` at the default and the largest
+text size, the empty capsule absent while the permission prompt is up.

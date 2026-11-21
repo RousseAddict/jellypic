@@ -391,6 +391,9 @@ when the SDK rises.
   card sheet leaves ~380 pt of scroll and a scrubber with no useful travel. Its band
   reuses the grid's 56 pt geometry: `Cancel` on the left where the brand lives, the count
   centred.
+  **Since 2026-11-21 the band floats like the grid's** (doc 16 §13): `Cancel` is the ✕
+  circle, the count and `Add More` are capsules. Bare text over the photos scrolling
+  beneath it became unreadable on a dark one.
 - **Selected = inset 6 pt + a check badge bottom-right.** The inset opens a visible
   gutter, so selection reads as a *shape* and survives a white photo as well as a black
   one — the defect already fixed once on the grid's ⋯ button. The badge is a 22 pt accent

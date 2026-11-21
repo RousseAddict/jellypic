@@ -21,8 +21,9 @@ final class AssetPickerViewController: UIViewController {
 
     private let layout = UICollectionViewFlowLayout()
     private var collectionView: UICollectionView!
-    private let cancelButton = BandTextButton()
-    private let addMoreButton = BandTextButton()
+    private let cancelButton = FloatingButton(glyph: CloseGlyphView())
+    private let addMoreButton = CapsuleTextButton()
+    private let countPill = SquircleView()
     private let countLabel = UILabel()
     private let noticeLabel = UILabel()
     private let pill = SendPillButton()
@@ -110,7 +111,6 @@ final class AssetPickerViewController: UIViewController {
         scrubber.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrubber)
 
-        cancelButton.title = "Cancel"
         cancelButton.addTarget(self, action: #selector(cancel), for: .touchUpInside)
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(cancelButton)
@@ -121,11 +121,22 @@ final class AssetPickerViewController: UIViewController {
         addMoreButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(addMoreButton)
 
-        countLabel.font = Typography.headline
+        countPill.isCapsule = true
+        countPill.strokeWidth = 0.5
+        countPill.isHidden = true
+        countPill.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(countPill)
+
+        countLabel.font = Typography.capsule
         countLabel.adjustsFontForContentSizeCategory = true
         countLabel.textAlignment = .center
+        countLabel.lineBreakMode = .byTruncatingTail
+        countLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         countLabel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(countLabel)
+        countPill.addSubview(countLabel)
+
+        let centeredCount = countPill.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        centeredCount.priority = .defaultHigh
 
         pill.alpha = 0
         pill.addTarget(self, action: #selector(send), for: .touchUpInside)
@@ -134,17 +145,28 @@ final class AssetPickerViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            cancelButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            cancelButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor,
+                                                  constant: 12),
 
             addMoreButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
-            addMoreButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            addMoreButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor,
+                                                    constant: -12),
 
-            countLabel.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
-            countLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            countLabel.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor,
-                                                constant: 8),
-            countLabel.trailingAnchor.constraint(lessThanOrEqualTo: addMoreButton.leadingAnchor,
-                                                 constant: -8),
+            countPill.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            centeredCount,
+            countPill.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor,
+                                               constant: 8),
+            countPill.trailingAnchor.constraint(lessThanOrEqualTo: addMoreButton.leadingAnchor,
+                                                constant: -8),
+
+            countLabel.leadingAnchor.constraint(equalTo: countPill.leadingAnchor,
+                                                constant: CapsuleTextButton.horizontalPadding),
+            countLabel.trailingAnchor.constraint(equalTo: countPill.trailingAnchor,
+                                                 constant: -CapsuleTextButton.horizontalPadding),
+            countLabel.topAnchor.constraint(equalTo: countPill.topAnchor,
+                                            constant: CapsuleTextButton.verticalPadding),
+            countLabel.bottomAnchor.constraint(equalTo: countPill.bottomAnchor,
+                                               constant: -CapsuleTextButton.verticalPadding),
 
             noticeLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             noticeLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -168,6 +190,9 @@ final class AssetPickerViewController: UIViewController {
         view.backgroundColor = palette.background
         collectionView.backgroundColor = palette.background
         noticeLabel.textColor = palette.textSecondary
+        countPill.fillColor = palette.surface
+        countPill.strokeColor = palette.hairline
+        countPill.applyFloatingShadow(palette)
         countLabel.textColor = palette.textPrimary
         view.applyThemeRecursively(palette)
     }
@@ -296,6 +321,7 @@ final class AssetPickerViewController: UIViewController {
 
     private func updateCount() {
         countLabel.text = order.isEmpty ? "Select photos" : "\(order.count) selected"
+        countPill.isHidden = false
     }
 
     private static func monthActionTitle(for section: MonthSection) -> String {
@@ -565,6 +591,88 @@ private final class BandTextButton: UIControl, Themed {
     }
 
     func applyTheme(_ palette: ThemePalette) {
+        label.textColor = palette.textPrimary
+    }
+}
+
+private final class CapsuleTextButton: UIControl, Themed {
+
+    static let horizontalPadding: CGFloat = 14
+    static let verticalPadding: CGFloat = 9
+
+    private let surface = SquircleView()
+    private let label = UILabel()
+    private var palette = Theme.palette
+
+    var touchInsets = UIEdgeInsets(top: -4, left: -2, bottom: -4, right: -2)
+
+    var title: String = "" {
+        didSet { label.text = title }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        surface.isCapsule = true
+        surface.strokeWidth = 0.5
+        surface.isUserInteractionEnabled = false
+        surface.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(surface)
+
+        label.font = Typography.capsule
+        label.adjustsFontForContentSizeCategory = true
+        label.textAlignment = .center
+        label.isUserInteractionEnabled = false
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            surface.topAnchor.constraint(equalTo: topAnchor),
+            surface.leadingAnchor.constraint(equalTo: leadingAnchor),
+            surface.trailingAnchor.constraint(equalTo: trailingAnchor),
+            surface.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: CapsuleTextButton.horizontalPadding),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -CapsuleTextButton.horizontalPadding),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: CapsuleTextButton.verticalPadding),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -CapsuleTextButton.verticalPadding)
+        ])
+
+        applyTheme(palette)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        return bounds.inset(by: touchInsets).contains(point)
+    }
+
+    override var isHighlighted: Bool {
+        didSet {
+            guard isHighlighted != oldValue else { return }
+            surface.fillColor = fill
+            UIView.animate(withDuration: 0.12) {
+                self.transform = self.isHighlighted
+                    ? CGAffineTransform(scaleX: 0.94, y: 0.94)
+                    : .identity
+            }
+        }
+    }
+
+    private var fill: UIColor {
+        return isHighlighted ? palette.discFill : palette.surface
+    }
+
+    func applyTheme(_ palette: ThemePalette) {
+        self.palette = palette
+        surface.fillColor = fill
+        surface.strokeColor = palette.hairline
+        surface.applyFloatingShadow(palette)
         label.textColor = palette.textPrimary
     }
 }
