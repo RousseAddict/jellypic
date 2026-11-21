@@ -642,6 +642,20 @@ the whole library otherwise queues thousands of requests, each of which makes th
 index paths inside `performWithoutAnimation`, which re-runs `configure` and lets
 the loads it skipped start for real.
 
+**A detent per month (2026-11-21, requested).** While the thumb is dragged, each change
+of the bubble's month plays a selection tick — `UISelectionFeedbackGenerator`, the
+detent of a picker wheel — so the library reads as notched by months under the
+finger. It lives in `MonthScrubberView.setTitle`, so the grid and the picker get it
+from the one class, and it fires on the label because the label is read back from
+what is on screen (above): a tick can only mean the month actually changed. The
+first title of a drag sets the baseline and does not tick, so grabbing the thumb
+is silent even if the bubble still holds the previous drag's month. The generator
+lives only for the drag: created and `prepare()`d on `.began` (the Taptic Engine
+idles otherwise and the first tick would lag), re-prepared after each tick, dropped
+on release. iOS 10 API, below the floor, so no `#available` and no `LEGACY` marker.
+Phones without a Taptic Engine — the 5s, every phone before the 7 — ignore it
+silently, so it is untestable on the 5s and needs a 7 or later.
+
 ## 7. Not done yet
 
 - No prefetching (`UICollectionViewDataSourcePrefetching`). Worth measuring on

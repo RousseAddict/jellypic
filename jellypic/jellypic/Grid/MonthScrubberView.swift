@@ -17,6 +17,8 @@ final class MonthScrubberView: UIView, Themed {
     private var thumbCenterY: NSLayoutConstraint!
     private var idleTimer: Timer?
     private var progress: CGFloat = 0
+    private var detentFeedback: UISelectionFeedbackGenerator?
+    private var scrubbedTitle: String?
 
     private(set) var isScrubbing = false
 
@@ -98,6 +100,11 @@ final class MonthScrubberView: UIView, Themed {
 
     func setTitle(_ title: String?) {
         bubbleLabel.text = title
+        guard isScrubbing, let title = title else { return }
+        defer { scrubbedTitle = title }
+        guard let previous = scrubbedTitle, previous != title else { return }
+        detentFeedback?.selectionChanged()
+        detentFeedback?.prepare()
     }
 
     func reveal() {
@@ -140,6 +147,9 @@ final class MonthScrubberView: UIView, Themed {
         switch recognizer.state {
         case .began:
             isScrubbing = true
+            scrubbedTitle = nil
+            detentFeedback = UISelectionFeedbackGenerator()
+            detentFeedback?.prepare()
             idleTimer?.invalidate()
             onScrubbingChanged?(true)
             UIView.animate(withDuration: 0.16) {
@@ -154,6 +164,7 @@ final class MonthScrubberView: UIView, Themed {
             onScrub?(progress)
         case .ended, .cancelled, .failed:
             isScrubbing = false
+            detentFeedback = nil
             onScrubbingChanged?(false)
             UIView.animate(withDuration: 0.2,
                            animations: {
