@@ -385,11 +385,28 @@ final class SettingsViewController: CardSheetViewController {
         signOutRow.isEnabled = false
         signOutRow.detail = "Signing out…"
         allowsUserDismissal = false
-        services.signOut { [weak self] in
+        services.signOut { [weak self] serverEndedSession in
             guard let self = self else { return }
             self.onDismissed = self.onSignedOut
+            guard serverEndedSession else {
+                self.reportSessionLeftOnServer()
+                return
+            }
             self.dismissCard()
         }
+    }
+
+    private func reportSessionLeftOnServer() {
+        let alert = UIAlertController(title: "Server not reached",
+                                      message: "You are signed out on this iPhone, but the server could not be reached, "
+                                          + "so it still accepts this session. To revoke it, an administrator can delete "
+                                          + "this iPhone's JellyPic entry in the Jellyfin dashboard, under Devices. "
+                                          + "Signing back in to the same account from this iPhone also revokes it.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
+            self?.dismissCard()
+        })
+        present(alert, animated: true, completion: nil)
     }
 
     private func applyPalette() {

@@ -97,9 +97,9 @@ final class AppServices {
         NotificationCenter.default.post(name: AppServices.sessionExpiredNotification, object: nil)
     }
 
-    func signOut(completion: @escaping () -> Void) {
+    func signOut(completion: @escaping (_ serverEndedSession: Bool) -> Void) {
         sync.cancel()
-        client.logout { [weak self] _ in
+        client.logout { [weak self] result in
             guard let self = self else { return }
             self.authStore.clear()
             self.client.credentials = nil
@@ -111,7 +111,16 @@ final class AppServices {
             self.store.reset()
             self.images.clearCaches()
             Preferences.clearLibrary()
-            completion()
+            completion(AppServices.sessionIsDeadOnServer(after: result))
+        }
+    }
+
+    private static func sessionIsDeadOnServer(after logout: Result<Void, JellyfinError>) -> Bool {
+        switch logout {
+        case .success, .failure(.unauthorized), .failure(.notAuthenticated):
+            return true
+        default:
+            return false
         }
     }
 }

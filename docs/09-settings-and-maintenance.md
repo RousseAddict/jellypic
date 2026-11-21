@@ -200,6 +200,22 @@ before local, or the token lingers in the server's device list with no way to
 revoke it from the phone. The wipe clears credentials, preferences and the index;
 the image caches go with it.
 
+**The wipe happens whatever the server says, but a failure is no longer silent**
+(2026-11-20). Refusing to sign out while the server is unreachable would trap the
+user on a server that may be gone for good, so the local wipe stays unconditional.
+What changed is that `AppServices.signOut` now reports whether the session is dead
+on the server, and when it is not, the card shows a "Server not reached" alert
+before leaving, naming the Jellyfin dashboard's Devices page as the place to
+revoke it. Three outcomes count as dead: a 2xx (the server deleted the device), a
+401 (the token was already rejected), and `notAuthenticated` (the app holds no
+token any more, normally because a 401 already cleared it, so there is nothing
+left to revoke from here). Everything else — unreachable, a transport error, any other status —
+means the server may still accept the token, and a Jellyfin token never expires.
+Retrying later was rejected: it would mean keeping the token after sign-out, the
+one thing sign-out promises not to do. The alert also says that signing back in
+to the same account from this iPhone revokes it, since the server logs out every
+earlier token for the same `DeviceId` (doc 04 §3).
+
 **It confirms, with a destructive button** (ratified). Sign out is one tap on a
 row inside a card that also holds a harmless cache reset — the row is red, but
 red is a colour, not a speed bump. The alert uses

@@ -155,7 +155,9 @@ the re-auth card, §6.3 — branches on `session.username == nil` to decide whet
 to ask for a name. An empty string would have passed that test and produced a
 card that demands a password for an account it cannot name.
 
-`accessToken` is only half-revoked by `clear()`. `AppServices.signOut` calls `POST /Sessions/Logout` **first** and wipes local state in the completion regardless of the outcome — order matters, because wiping first would strand a live token that can no longer be revoked. The token surviving a failed network call is the lesser evil; it at least remains revocable from the Jellyfin admin UI.
+`accessToken` is only half-revoked by `clear()`. `AppServices.signOut` calls `POST /Sessions/Logout` **first** and wipes local state in the completion regardless of the outcome — order matters, because wiping first would strand a live token that can no longer be revoked. The token surviving a failed network call is the lesser evil; it at least remains revocable from the Jellyfin admin UI. Since 2026-11-20 the user is told when that happens (doc 09 §5): a Jellyfin token never expires, so a silent failure meant a live session nobody knew to revoke.
+
+Verified in `SessionManager` at v12.4: `POST /Sessions/Logout` resolves the token to its `Device` row and deletes it, which is the revocation. And `AuthenticateByName` first logs out every `Device` with the same `DeviceId` for that user before minting a token — so a stranded token also dies the next time the same account signs in from this iPhone, which is why `deviceId` must survive `clear()`.
 
 ---
 
