@@ -578,6 +578,20 @@ under the chrome, it is only the *travel* that starts lower. The handle is then
 no longer pixel-aligned with the top of the content, which is invisible in use —
 the mapping stays proportional over the travel it has.
 
+**In the picker it clears both ends (2026-11-21).** The picker's band sits at the
+grid's height and its scrubber starts at the same 72 pt, so the top was already
+clear: the ✕ circle and the capsules end 48 pt below the safe area (52 with the
+capsule's touch area, 58 with the thumb's 14 pt grab inset at the top of its
+travel), and the bubble is centred on the thumb, never above it. The bottom was
+not. The travel ran to 16 pt above the safe area, and the `Send` pill sits 24 pt
+above it, 48 pt tall and centred; the bubble hangs 10 pt left of the thumb, so at
+the end of the travel a "Sep 2026" bubble covered the right third of `Send 12`,
+and more of the wider `Sending 3 of 12`. The travel now ends `pillBottomInset +
+SendPillButton.height + 20` above the safe area — the grid's 20 pt of air,
+measured from the pill instead of the button. It is static rather than following
+the pill's visibility: a travel that changes length under a selection would move
+the thumb while nobody touched it.
+
 **It does not steal touches from the grid.** The view is 40 pt wide so the thumb
 is grabbable, which would otherwise swallow every tap in the right-hand column.
 `point(inside:with:)` is overridden to accept only touches landing within the

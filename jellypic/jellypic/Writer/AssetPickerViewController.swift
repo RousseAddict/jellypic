@@ -16,6 +16,8 @@ final class AssetPickerViewController: UIViewController {
 
     private static let bandHeight: CGFloat = 56
     private static let scrubberInset: CGFloat = 72
+    private static let scrubberClearance: CGFloat = 20
+    private static let pillBottomInset: CGFloat = 24
 
     private let services: AppServices
 
@@ -176,12 +178,15 @@ final class AssetPickerViewController: UIViewController {
             scrubber.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
                                           constant: AssetPickerViewController.scrubberInset),
             scrubber.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
-                                             constant: -16),
+                                             constant: -(AssetPickerViewController.pillBottomInset
+                                                 + SendPillButton.height
+                                                 + AssetPickerViewController.scrubberClearance)),
             scrubber.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scrubber.widthAnchor.constraint(equalToConstant: MonthScrubberView.width),
 
             pill.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            pill.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24)
+            pill.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                                         constant: -AssetPickerViewController.pillBottomInset)
         ])
     }
 
@@ -684,6 +689,8 @@ private final class CapsuleTextButton: UIControl, Themed {
 
 private final class SendPillButton: UIControl, Themed {
 
+    static let height: CGFloat = 48
+
     private let surface = SquircleView()
     private let label = UILabel()
     private var palette = Theme.palette
@@ -709,7 +716,7 @@ private final class SendPillButton: UIControl, Themed {
         addSubview(label)
 
         NSLayoutConstraint.activate([
-            heightAnchor.constraint(equalToConstant: 48),
+            heightAnchor.constraint(equalToConstant: SendPillButton.height),
 
             surface.topAnchor.constraint(equalTo: topAnchor),
             surface.leadingAnchor.constraint(equalTo: leadingAnchor),
