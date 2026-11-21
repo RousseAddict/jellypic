@@ -186,9 +186,15 @@ VideoToolbox exists.
   largest piece of UI in the project, for a screen the system already ships.
 - **The audio session is set to `.playback`.** The default category respects the ring/
   silent switch, so a video played with the switch on would be mute and look broken.
-- **`api_key` in the stream URL, not an `Authorization` header.** `AVURLAsset` has no
+- **`ApiKey` in the stream URL, not an `Authorization` header.** `AVURLAsset` has no
   supported way to attach headers, and Jellyfin builds its own `TranscodingUrl` with
-  `api_key` — the server expects it on stream URLs.
+  `ApiKey` (`StreamInfo.ToUrl`) — the server expects it on stream URLs. **Never
+  `api_key`:** that spelling is legacy authorization, which Jellyfin 12.0 turns off by
+  default *and* by migration on upgraded installs. The stream request then arrives
+  anonymous, gets a 401, and `AVPlayer` shows a black frame with no error the app can
+  see. Until 2026-11-20 the direct-play URL used `api_key`, so direct play broke on 12
+  while transcoded playback, carrying the server's own `ApiKey`, kept working. See
+  doc 04 §2.3.
 - **A re-entrancy guard, not a spinner.** `play(itemId:)` returns early while a request
   is in flight, and `onBusyChanged` dims the button so the tap does not feel dead.
   Without the guard, an impatient double-tap opens two players.

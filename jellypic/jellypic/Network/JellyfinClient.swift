@@ -246,7 +246,7 @@ final class JellyfinClient: JellyfinAPI {
         guard let credentials = credentials else { return nil }
         var query = [
             URLQueryItem(name: "static", value: "true"),
-            URLQueryItem(name: "api_key", value: credentials.accessToken)
+            URLQueryItem(name: "ApiKey", value: credentials.accessToken)
         ]
         if let mediaSourceId = mediaSourceId {
             query.append(URLQueryItem(name: "mediaSourceId", value: mediaSourceId))
