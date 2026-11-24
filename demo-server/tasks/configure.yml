@@ -1,0 +1,356 @@
+# Tagged always, with the admin sign-in below: every other phase talks to
+# the API as admin, so `--tags seed` alone still needs the token.
+- name: Jellyfin is up
+  ansible.builtin.include_tasks:
+    file: wait-jellyfin.yml
+    apply:
+      tags: [always]
+  tags: [always]
+
+- name: Setup wizard
+  when: not jellyfin_public.json.StartupWizardCompleted
+  module_defaults:
+    ansible.builtin.uri:
+      method: POST
+      headers:
+        Authorization: "{{ jellyfin_auth_base }}"
+      body_format: json
+      status_code: 204
+  block:
+    - name: Wizard, server identity
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Startup/Configuration"
+        body:
+          ServerName: "{{ jellyfin_server_name }}"
+          UICulture: en-US
+          MetadataCountryCode: US
+          PreferredMetadataLanguage: en
+
+    # GET is what creates the first user; the POST below then names it.
+    - name: Wizard, first user
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Startup/User"
+        method: GET
+        status_code: 200
+
+    - name: Wizard, admin account
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Startup/User"
+        body:
+          Name: "{{ jellyfin_admin_user }}"
+          Password: "{{ jellyfin_admin_password }}"
+      no_log: true
+
+    - name: Wizard, done
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Startup/Complete"
+
+- name: Sign in as admin
+  changed_when: false
+  ansible.builtin.uri:
+    url: "{{ jellyfin_api }}/Users/AuthenticateByName"
+    method: POST
+    headers:
+      Authorization: "{{ jellyfin_auth_base }}"
+    body_format: json
+    body:
+      Username: "{{ jellyfin_admin_user }}"
+      Pw: "{{ jellyfin_admin_password }}"
+  register: admin_session
+  no_log: true
+  tags: [always]
+
+- name: Admin token
+  ansible.builtin.set_fact:
+    jellyfin_admin_auth: '{{ jellyfin_auth_base }}, Token="{{ admin_session.json.AccessToken }}"'
+  no_log: true
+  tags: [always]
+
+- name: As admin
+  module_defaults:
+    ansible.builtin.uri:
+      headers:
+        Authorization: "{{ jellyfin_admin_auth }}"
+      body_format: json
+      return_content: true
+  block:
+    - name: Network configuration, read
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/System/Configuration/network"
+      register: network_now
+
+    - name: Network configuration, write
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/System/Configuration/network"
+        method: POST
+        body: "{{ network_now.json | combine(jellyfin_network) }}"
+        status_code: 204
+      when: network_now.json | combine(jellyfin_network) != network_now.json
+      register: network_written
+
+    - name: Plugin repositories, read
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Repositories"
+      register: repositories_now
+
+    # POST /Repositories replaces the whole list, so the existing entries
+    # (Jellyfin's own catalogue) are sent back with ours appended.
+    - name: Plugin repositories, add ours
+      changed_when: true
+      vars:
+        missing: >-
+          {{ jellyfin_plugins | map(attribute='repository')
+             | rejectattr('Url', 'in', repositories_now.json | map(attribute='Url') | list)
+             | list }}
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Repositories"
+        method: POST
+        body: "{{ repositories_now.json + missing }}"
+        status_code: 204
+      when: missing | length > 0
+
+    - name: Plugins, read
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Plugins"
+      register: plugins_now
+
+    # Jellyfin downloads the zip named in the manifest and refuses it unless
+    # its MD5 matches the manifest's checksum (InstallationManager, v12.4).
+    - name: Plugins, install from their catalogues
+      changed_when: true
+      ansible.builtin.uri:
+        url: >-
+          {{ jellyfin_api }}/Packages/Installed/{{ item.name | urlencode }}?assemblyGuid={{ item.guid
+          }}&version={{ item.version }}&repositoryUrl={{ item.repository.Url | urlencode }}
+        method: POST
+        status_code: 204
+      loop: "{{ jellyfin_plugins }}"
+      loop_control:
+        label: "{{ item.name }} {{ item.version }}"
+      when: >-
+        plugins_now.json
+        | selectattr('Id', 'equalto', item.guid | replace('-', ''))
+        | selectattr('Version', 'equalto', item.version)
+        | list | length == 0
+      register: plugins_installed
+
+- name: Restart Jellyfin for the network settings and plugins
+  ansible.builtin.include_tasks: restart-jellyfin.yml
+  when: network_written is changed or plugins_installed is changed
+
+- name: As admin, after the restart
+  module_defaults:
+    ansible.builtin.uri:
+      headers:
+        Authorization: "{{ jellyfin_admin_auth }}"
+      body_format: json
+      return_content: true
+  block:
+    - name: Plugins, check they loaded
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Plugins"
+      register: plugins_loaded
+
+    - name: Plugins, active at the pinned version
+      ansible.builtin.assert:
+        that: >-
+          plugins_loaded.json
+          | selectattr('Id', 'equalto', item.guid | replace('-', ''))
+          | selectattr('Version', 'equalto', item.version)
+          | selectattr('Status', 'equalto', 'Active')
+          | list | length == 1
+        fail_msg: "{{ item.name }} {{ item.version }} is not active"
+        quiet: true
+      loop: "{{ jellyfin_plugins }}"
+      loop_control:
+        label: "{{ item.name }} {{ item.version }}"
+
+    - name: Libraries, read
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Library/VirtualFolders"
+      register: libraries_now
+
+    - name: Library as it stands
+      ansible.builtin.set_fact:
+        library_now: "{{ libraries_now.json | selectattr('Name', 'equalto', library_name) | first | default({}) }}"
+
+    # A library's type lives in two places that can disagree. VirtualFolders
+    # reports the "<type>.collection" file on disk; resolution uses the type
+    # stored on the library's item, which Jellyfin sets when it first creates
+    # that item and never updates (SpecialFolderResolver, Folder, v12.4).
+    - name: Library item, as Jellyfin resolves it
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Items?ids={{ library_now.ItemId }}"
+      register: library_item_now
+      when: library_now | length > 0
+
+    # An API-created library cannot be typed "photos": CollectionTypeOptions
+    # (v12.4) has no such value, and an unknown one is dropped, leaving an
+    # untyped library that resolves no photo at all. "homevideos" with
+    # EnablePhotos is the type that holds photos, and also resolves videos.
+    - name: Library type, on disk and in use
+      ansible.builtin.set_fact:
+        library_wrong: >-
+          {{ library_now | length > 0 and (
+               library_now.CollectionType | default('') != library_collection_type
+               or library_item_now.json.Items | map(attribute='CollectionType', default='') | list
+                  != [library_collection_type]) }}
+
+    # refreshLibrary=true is what makes the replacement work. It runs the
+    # top-level validation before answering, which drops the library's item;
+    # with false the item survives, and since the id derives from the name,
+    # the recreated library inherits it, old type included (measured).
+    - name: Photo library, remove one of the wrong type
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Library/VirtualFolders?name={{ library_name | urlencode }}&refreshLibrary=true"
+        method: DELETE
+        timeout: 300
+        status_code: 204
+      when: library_wrong | bool
+
+    # Several minutes on a busy two-core VPS; uri's default 30 s is not enough.
+    # The scan it starts finds an empty folder on a first deploy, and the
+    # existing files when a library of the wrong type is being replaced.
+    - name: Photo library
+      changed_when: true
+      ansible.builtin.uri:
+        url: >-
+          {{ jellyfin_api }}/Library/VirtualFolders?name={{ library_name | urlencode
+          }}&collectionType={{ library_collection_type }}&paths={{ library_path | urlencode }}&refreshLibrary=true
+        method: POST
+        timeout: 300
+        body:
+          LibraryOptions:
+            EnablePhotos: true
+        status_code: 204
+      when: library_now | length == 0 or library_wrong | bool
+
+    - name: Libraries, read again
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Library/VirtualFolders"
+      register: libraries_after
+
+    - name: Library id
+      ansible.builtin.set_fact:
+        library_id: "{{ (libraries_after.json | selectattr('Name', 'equalto', library_name) | first).ItemId }}"
+
+    - name: Library item, read again
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Items?ids={{ library_id }}"
+      register: library_item_after
+
+    - name: Library resolves as {{ library_collection_type }}
+      ansible.builtin.assert:
+        that: >-
+          library_item_after.json.Items | map(attribute='CollectionType', default='') | list
+          == [library_collection_type]
+        fail_msg: >-
+          Jellyfin resolves {{ library_name }} as
+          {{ library_item_after.json.Items | map(attribute='CollectionType', default='none') | list }}
+        quiet: true
+
+    - name: Upload for Jelly configuration, read
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Plugins/{{ upload_plugin_guid }}/Configuration"
+      register: upload_config_now
+
+    - name: Upload for Jelly, open the demo library to uploads
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Plugins/{{ upload_plugin_guid }}/Configuration"
+        method: POST
+        body: "{{ upload_config_now.json | combine({'AllowedLibraryIds': [library_id]}) }}"
+        status_code: 204
+      when: upload_config_now.json.AllowedLibraryIds | default([]) != [library_id]
+
+    - name: Users, read
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Users"
+      register: users_now
+
+    - name: Demo account
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Users/New"
+        method: POST
+        body:
+          Name: "{{ demo_user }}"
+          Password: "{{ jellyfin_demo_password }}"
+      when: demo_user not in (users_now.json | map(attribute='Name') | list)
+      no_log: true
+
+    - name: Users, read again
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Users"
+      register: users_after
+
+    - name: Accounts
+      ansible.builtin.set_fact:
+        demo_account: "{{ users_after.json | selectattr('Name', 'equalto', demo_user) | first }}"
+        admin_account: "{{ users_after.json | selectattr('Name', 'equalto', jellyfin_admin_user) | first }}"
+
+    - name: Demo account policy
+      changed_when: true
+      vars:
+        wanted: "{{ demo_account.Policy | combine(demo_policy, {'EnabledFolders': [library_id]}) }}"
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Users/{{ demo_account.Id }}/Policy"
+        method: POST
+        body: "{{ wanted }}"
+        status_code: 204
+      when: wanted != demo_account.Policy
+
+    - name: Admin account policy
+      changed_when: true
+      vars:
+        wanted: "{{ admin_account.Policy | combine(admin_policy) }}"
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Users/{{ admin_account.Id }}/Policy"
+        method: POST
+        body: "{{ wanted }}"
+        status_code: 204
+      when: wanted != admin_account.Policy
+
+    # Signing in is the check: it proves the password and the policy together.
+    - name: Demo password, check
+      changed_when: false
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Users/AuthenticateByName"
+        method: POST
+        headers:
+          Authorization: "{{ jellyfin_auth_base }}"
+        body:
+          Username: "{{ demo_user }}"
+          Pw: "{{ jellyfin_demo_password }}"
+        status_code: [200, 401]
+      register: demo_sign_in
+      no_log: true
+
+    - name: Demo password, set
+      changed_when: true
+      ansible.builtin.uri:
+        url: "{{ jellyfin_api }}/Users/Password?userId={{ demo_account.Id }}"
+        method: POST
+        body:
+          NewPw: "{{ jellyfin_demo_password }}"
+          ResetPassword: false
+        status_code: 204
+      when: demo_sign_in.status == 401
+      no_log: true

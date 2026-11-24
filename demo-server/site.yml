@@ -1,0 +1,55 @@
+- name: Jellypic demo server
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  vars_files:
+    - vars.yml
+    - secrets.local.yml
+    - seed/library.yml
+
+  handlers:
+    - name: Reload firewall
+      ansible.builtin.systemd_service:
+        name: nftables
+        state: reloaded
+
+    - name: Restart resolved
+      ansible.builtin.systemd_service:
+        name: systemd-resolved
+        state: restarted
+
+    - name: Reload Caddy
+      ansible.builtin.systemd_service:
+        name: caddy
+        state: reloaded
+
+  tasks:
+    - name: Base system and firewall
+      ansible.builtin.import_tasks: tasks/base.yml
+      tags: [base]
+
+    # The firewall must be live before Jellyfin is installed: until its setup
+    # wizard is completed, Jellyfin hands the admin account to whoever reaches
+    # it first, with no network check (FirstTimeSetupHandler, v12.4).
+    - name: Apply the firewall now
+      ansible.builtin.meta: flush_handlers
+
+    - name: Jellyfin package
+      ansible.builtin.import_tasks: tasks/jellyfin.yml
+      tags: [jellyfin]
+
+    - name: Jellyfin configuration, through its API
+      ansible.builtin.import_tasks: tasks/configure.yml
+      tags: [configure]
+
+    - name: Demo library, built from seed/library.yml
+      ansible.builtin.import_tasks: tasks/seed.yml
+      tags: [seed]
+
+    # Last on purpose: Caddy is what exposes Jellyfin, so it only goes up once
+    # the wizard is closed and the accounts are in shape.
+    - name: Caddy in front
+      ansible.builtin.import_tasks: tasks/caddy.yml
+      tags: [caddy]

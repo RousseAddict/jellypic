@@ -1,0 +1,9 @@
+# Managed by demo-server/site.yml. Edits made on the server are overwritten.
+#
+# Caddy obtains and renews the certificate itself. It sets X-Forwarded-For from
+# the connection and ignores any the client sends, which is what lets Jellyfin
+# trust it as its one known proxy.
+
+{{ demo_domain }} {
+	reverse_proxy 127.0.0.1:8096
+}

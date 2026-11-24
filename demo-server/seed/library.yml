@@ -1,0 +1,721 @@
+# The demo library: what build-seed.py downloads, checks and writes.
+#
+# Every source is a US National Park Service work on Wikimedia Commons, public
+# domain as a work of the US federal government (PD-USGov-NPS); `page` is its
+# Commons description page. sha1 is the hash Commons publishes for the original
+# file, and a download that does not match it is refused.
+#
+# Capture dates and coordinates are invented: a year of trips through the parks
+# the photos were taken in. `taken` is wall-clock time written to EXIF
+# DateTimeOriginal, as a camera does; `created_utc` is a video's creation_time,
+# which is UTC, as an iPhone writes it. Coordinates are the Commons ones where
+# the file has them, otherwise the park's centre with a fixed per-file offset.
+
+seed_photos:
+  - path: "2026/2026-01/20260117-085427_joshua.jpg"
+    taken: "2026-01-17 08:54:27"
+    lat: 33.87608
+    lon: -115.89308
+    url: "https://upload.wikimedia.org/wikipedia/commons/2/25/A_rare_foggy_morning_in_Joshua_Tree_National_Park%2C_December_3%2C_2014_%2815374351573%29.jpg"
+    sha1: 2c9262dbae779768ec7b9d080ce36d6002024368
+    page: "https://commons.wikimedia.org/wiki/File:A_rare_foggy_morning_in_Joshua_Tree_National_Park,_December_3,_2014_(15374351573).jpg"
+  - path: "2026/2026-01/20260117-120551_joshua.jpg"
+    taken: "2026-01-17 12:05:51"
+    lat: 33.87704
+    lon: -115.87238
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/80/A_rare_foggy_morning_in_Joshua_Tree_National_Park%2C_December_3%2C_2014_%2815806600238%29.jpg"
+    sha1: ef31a8c321b191eb55780a426cbaf20382a84c26
+    page: "https://commons.wikimedia.org/wiki/File:A_rare_foggy_morning_in_Joshua_Tree_National_Park,_December_3,_2014_(15806600238).jpg"
+  - path: "2026/2026-01/20260117-152612_joshua.jpg"
+    taken: "2026-01-17 15:26:12"
+    lat: 33.85148
+    lon: -115.86848
+    url: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Dead_Joshua_tree_%28Yucca_brevifolia%29%3B_Covington_Flats.jpg"
+    sha1: c09231b4deee9c7e5dff2070675af8d56a528729
+    page: "https://commons.wikimedia.org/wiki/File:Dead_Joshua_tree_(Yucca_brevifolia);_Covington_Flats.jpg"
+  - path: "2026/2026-01/20260118-084207_joshua.jpg"
+    taken: "2026-01-18 08:42:07"
+    lat: 33.88968
+    lon: -115.89056
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/f8/Fallen_Joshua_tree_%28Yucca_brevifolia%29%3B_Pleasant_Valley.jpg"
+    sha1: 7eda341f75f1de3dc666b9dbb2a25a148c50be0b
+    page: "https://commons.wikimedia.org/wiki/File:Fallen_Joshua_tree_(Yucca_brevifolia);_Pleasant_Valley.jpg"
+  - path: "2026/2026-01/20260118-121318_joshua.jpg"
+    taken: "2026-01-18 12:13:18"
+    lat: 33.85812
+    lon: -115.8788
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/f4/Photographer_and_Joshua_tree_sunset_%2849623124428%29.jpg"
+    sha1: 8f7a535ac135c9f150a6b78d0b4ebc8caf80ee30
+    page: "https://commons.wikimedia.org/wiki/File:Photographer_and_Joshua_tree_sunset_(49623124428).jpg"
+  - path: "2026/2026-01/20260118-153554_joshua.jpg"
+    taken: "2026-01-18 15:35:54"
+    lat: 33.87956
+    lon: -115.88252
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/71/Snow_at_Joshua_Tree_%2812489476433%29.jpg"
+    sha1: 5136e172021381b72b067632f83cfdff8c4d7c7d
+    page: "https://commons.wikimedia.org/wiki/File:Snow_at_Joshua_Tree_(12489476433).jpg"
+  - path: "2026/2026-03/20260314-085437_grandcanyon.jpg"
+    taken: "2026-03-14 08:54:37"
+    lat: 36.05908
+    lon: -112.14094
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/88/Grand_Canyon_Crystal_Rapid_-_Flickr_-_Grand_Canyon_NPS.jpg"
+    sha1: 12eb56fd58d280809927486b4948c23d6e9e393e
+    page: "https://commons.wikimedia.org/wiki/File:Grand_Canyon_Crystal_Rapid_-_Flickr_-_Grand_Canyon_NPS.jpg"
+  - path: "2026/2026-03/20260314-121535_grandcanyon.jpg"
+    taken: "2026-03-14 12:15:35"
+    lat: 36.04458
+    lon: -112.05981
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/83/Grand_Canyon_National_Park%2C_Summer_Thunderstorm_Crossing_Canyon._-_Flickr_-_Grand_Canyon_NPS.jpg"
+    sha1: 192712670b935cc056dad9006a302db751e8af5f
+    page: "https://commons.wikimedia.org/wiki/File:Grand_Canyon_National_Park,_Summer_Thunderstorm_Crossing_Canyon._-_Flickr_-_Grand_Canyon_NPS.jpg"
+  - path: "2026/2026-03/20260314-152310_grandcanyon.jpg"
+    taken: "2026-03-14 15:23:10"
+    lat: 36.0716
+    lon: -112.15168
+    url: "https://upload.wikimedia.org/wikipedia/commons/d/da/Grand_Canyon_National_Park%2C_Sunset_Before_the_2013_Winter_Solstice_-_Flickr_-_Grand_Canyon_NPS.jpg"
+    sha1: fb51bab6718ef0ecca6d557f93d42edf8d0ca0f8
+    page: "https://commons.wikimedia.org/wiki/File:Grand_Canyon_National_Park,_Sunset_Before_the_2013_Winter_Solstice_-_Flickr_-_Grand_Canyon_NPS.jpg"
+  - path: "2026/2026-03/20260315-084315_grandcanyon.jpg"
+    taken: "2026-03-15 08:43:15"
+    lat: 36.06306
+    lon: -112.20956
+    url: "https://upload.wikimedia.org/wikipedia/commons/a/aa/Grand_Canyon_National_Park%2C_View_from_Hermits_Rest_4235_-_Flickr_-_Grand_Canyon_NPS.jpg"
+    sha1: 4b85dcbb10effaee08836913622af90c42213633
+    page: "https://commons.wikimedia.org/wiki/File:Grand_Canyon_National_Park,_View_from_Hermits_Rest_4235_-_Flickr_-_Grand_Canyon_NPS.jpg"
+  - path: "2026/2026-03/20260315-121359_grandcanyon.jpg"
+    taken: "2026-03-15 12:13:59"
+    lat: 36.04476
+    lon: -112.11532
+    url: "https://upload.wikimedia.org/wikipedia/commons/5/5e/Grand_Canyon_Pollux_Temple_2150_-_Flickr_-_Grand_Canyon_NPS.jpg"
+    sha1: 9da4aba73bb0d4985481ecf3a96fbe86ccb5de57
+    page: "https://commons.wikimedia.org/wiki/File:Grand_Canyon_Pollux_Temple_2150_-_Flickr_-_Grand_Canyon_NPS.jpg"
+  - path: "2026/2026-03/20260316-085349_zion.jpg"
+    taken: "2026-03-16 08:53:49"
+    lat: 37.32976
+    lon: -112.96762
+    url: "https://upload.wikimedia.org/wikipedia/commons/6/60/East_Zion_Backcountry_%285205534294%29.jpg"
+    sha1: 8f10534de2288d1edebc6751fbdbd5f4770a8709
+    page: "https://commons.wikimedia.org/wiki/File:East_Zion_Backcountry_(5205534294).jpg"
+  - path: "2026/2026-03/20260317-085118_bryce.jpg"
+    taken: "2026-03-17 08:51:18"
+    lat: 37.57612
+    lon: -112.23102
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/7a/Bryce_Canyon_National_Park_BRCA3804.jpg"
+    sha1: 8e1f66b20820bd13236638a901eb3ba09faaab19
+    page: "https://commons.wikimedia.org/wiki/File:Bryce_Canyon_National_Park_BRCA3804.jpg"
+  - path: "2026/2026-03/20260318-085102_arches.jpg"
+    taken: "2026-03-18 08:51:02"
+    lat: 38.72918
+    lon: -109.53952
+    url: "https://upload.wikimedia.org/wikipedia/commons/6/68/Arches_Landscape_%2835678281025%29.jpg"
+    sha1: 05d85a06ccd6c5e8bb023f73024a0305380543f2
+    page: "https://commons.wikimedia.org/wiki/File:Arches_Landscape_(35678281025).jpg"
+  - path: "2026/2026-03/20260318-135528_arches.jpg"
+    taken: "2026-03-18 13:55:28"
+    lat: 38.70862
+    lon: -109.5427
+    url: "https://upload.wikimedia.org/wikipedia/commons/4/43/Arches_Overview_%2835638858576%29.jpg"
+    sha1: 41e5b224f0dc594fae27c76a6ba5f6b0fb7d053d
+    page: "https://commons.wikimedia.org/wiki/File:Arches_Overview_(35638858576).jpg"
+  - path: "2026/2026-03/20260319-085140_arches.jpg"
+    taken: "2026-03-19 08:51:40"
+    lat: 38.7491
+    lon: -109.6168
+    url: "https://upload.wikimedia.org/wikipedia/commons/b/bc/Climber_in_Arches_%2835508630182%29.jpg"
+    sha1: 86981b489b2c2d593b962fc13b512b09fc145825
+    page: "https://commons.wikimedia.org/wiki/File:Climber_in_Arches_(35508630182).jpg"
+  - path: "2026/2026-03/20260319-134836_arches.jpg"
+    taken: "2026-03-19 13:48:36"
+    lat: 38.71054
+    lon: -109.5847
+    url: "https://upload.wikimedia.org/wikipedia/commons/0/07/Delicate_Arch_in_Arches_National_Park._NPS-Damon_Joyce_%2818686376391%29.jpg"
+    sha1: bb2650c4ee93c2919dd06b3259d8ff48c67f961b
+    page: "https://commons.wikimedia.org/wiki/File:Delicate_Arch_in_Arches_National_Park._NPS-Damon_Joyce_(18686376391).jpg"
+  - path: "2026/2026-05/20260509-084532_smokies.jpg"
+    taken: "2026-05-09 08:45:32"
+    lat: 35.64428
+    lon: -83.50108
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Great_Smoky_Mountains_National_Park_%2831845579-eea0-4a37-ac09-156b15c69d77%29.jpg"
+    sha1: 8eebbc347d145ec7ec4f158618c105e23da24bd4
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(31845579-eea0-4a37-ac09-156b15c69d77).jpg"
+  - path: "2026/2026-05/20260509-105234_smokies.jpg"
+    taken: "2026-05-09 10:52:34"
+    lat: 35.62756
+    lon: -83.53318
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/12/Great_Smoky_Mountains_National_Park_%284e1fb9f8-fe3c-491b-aeaa-7a529b2a20fa%29.jpg"
+    sha1: 8ce70152a98c98ac794f3d36557f598b7c4bc86a
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(4e1fb9f8-fe3c-491b-aeaa-7a529b2a20fa).jpg"
+  - path: "2026/2026-05/20260509-124556_smokies.jpg"
+    taken: "2026-05-09 12:45:56"
+    lat: 35.60524
+    lon: -83.44624
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c2/Great_Smoky_Mountains_National_Park_%28547607f4-4093-4840-9bba-a876ccd822d0%29.jpg"
+    sha1: dc2e48e4f46581789d96ff5ff8ec8a4a59a036d4
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(547607f4-4093-4840-9bba-a876ccd822d0).jpg"
+  - path: "2026/2026-05/20260509-144957_smokies.jpg"
+    taken: "2026-05-09 14:49:57"
+    lat: 35.60368
+    lon: -83.5222
+    url: "https://upload.wikimedia.org/wikipedia/commons/6/6a/Great_Smoky_Mountains_National_Park_%285723903f-dd9c-4a28-b652-5b77bd7f4841%29.jpg"
+    sha1: 51d7bbbdc50610426ba130d7800a810988b964c2
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(5723903f-dd9c-4a28-b652-5b77bd7f4841).jpg"
+  - path: "2026/2026-05/20260509-164610_smokies.jpg"
+    taken: "2026-05-09 16:46:10"
+    lat: 35.585
+    lon: -83.53096
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/16/Great_Smoky_Mountains_National_Park_%286f10cd42-afba-4d0a-a68b-8f6fb0aeea30%29.jpg"
+    sha1: 9d822dda9e17cf0fbc62c6a86080e8d312819ece
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(6f10cd42-afba-4d0a-a68b-8f6fb0aeea30).jpg"
+  - path: "2026/2026-05/20260510-084732_smokies.jpg"
+    taken: "2026-05-10 08:47:32"
+    lat: 35.63228
+    lon: -83.53516
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/f4/Great_Smoky_Mountains_National_Park_%287e5e47db-4a80-46b6-99e0-515860494bee%29.jpg"
+    sha1: e6fc7ff8dff74e30113ab2c2b5d812006d216848
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(7e5e47db-4a80-46b6-99e0-515860494bee).jpg"
+  - path: "2026/2026-05/20260510-104217_smokies.jpg"
+    taken: "2026-05-10 10:42:17"
+    lat: 35.59728
+    lon: -83.50078
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/70/Great_Smoky_Mountains_National_Park_%28808ae3c2-eeb4-44e6-84e8-fe46ca8834b2%29.jpg"
+    sha1: 0b92e67d4d8150296353749099bbd7861c24dd0a
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(808ae3c2-eeb4-44e6-84e8-fe46ca8834b2).jpg"
+  - path: "2026/2026-05/20260510-125606_smokies.jpg"
+    taken: "2026-05-10 12:56:06"
+    lat: 35.64404
+    lon: -83.45668
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/8d/Great_Smoky_Mountains_National_Park_%28a0f57eed-8f15-4a7c-b94a-acceb403303d%29.jpg"
+    sha1: 133b5e0e124bbd071be1d9c8f64a5006a90adf35
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(a0f57eed-8f15-4a7c-b94a-acceb403303d).jpg"
+  - path: "2026/2026-05/20260510-145608_smokies.jpg"
+    taken: "2026-05-10 14:56:08"
+    lat: 35.60412
+    lon: -83.48884
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/cd/Great_Smoky_Mountains_National_Park_%28aa2ea228-087e-4cf7-9dc6-0fdaf63cc677%29.jpg"
+    sha1: 32e79918af4a583684c5c437fb389f7661c0f0af
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(aa2ea228-087e-4cf7-9dc6-0fdaf63cc677).jpg"
+  - path: "2026/2026-05/20260510-164952_smokies.jpg"
+    taken: "2026-05-10 16:49:52"
+    lat: 35.58668
+    lon: -83.45068
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/9e/Great_Smoky_Mountains_National_Park_%28b6bdc1a7-c2cb-45dd-9b9e-b22d5a22cf25%29.jpg"
+    sha1: d97c7d24d4d6013408bd4057525807d9f0103381
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(b6bdc1a7-c2cb-45dd-9b9e-b22d5a22cf25).jpg"
+  - path: "2026/2026-05/20260511-084421_smokies.jpg"
+    taken: "2026-05-11 08:44:21"
+    lat: 35.57184
+    lon: -83.4529
+    url: "https://upload.wikimedia.org/wikipedia/commons/b/bb/Great_Smoky_Mountains_National_Park_%28d7abec0d-3908-4c41-b5f3-59004ff69315%29.jpg"
+    sha1: 3eb252d139d9aeb475f6dfc26779aa68499d162c
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(d7abec0d-3908-4c41-b5f3-59004ff69315).jpg"
+  - path: "2026/2026-05/20260511-104338_smokies.jpg"
+    taken: "2026-05-11 10:43:38"
+    lat: 35.63652
+    lon: -83.51428
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/f1/Great_Smoky_Mountains_National_Park_%28e47c93eb-29da-4cdd-9d30-4fcee8e144ea%29.jpg"
+    sha1: 9c90dda23f5da3a1257083995b455b0ac1c4d54e
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(e47c93eb-29da-4cdd-9d30-4fcee8e144ea).jpg"
+  - path: "2026/2026-05/20260511-124318_smokies.jpg"
+    taken: "2026-05-11 12:43:18"
+    lat: 35.63812
+    lon: -83.44708
+    url: "https://upload.wikimedia.org/wikipedia/commons/2/29/Great_Smoky_Mountains_National_Park_%28e72fcfaf-e01c-4d5c-8404-3dd5b72346d6%29.jpg"
+    sha1: 27c25eba2420bc0397ec5a67ab16812cfef72e7a
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(e72fcfaf-e01c-4d5c-8404-3dd5b72346d6).jpg"
+  - path: "2026/2026-05/20260511-144157_smokies.jpg"
+    taken: "2026-05-11 14:41:57"
+    lat: 35.64448
+    lon: -83.49982
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c7/Great_Smoky_Mountains_National_Park_%28feb06e33-140a-4c3a-b87e-cbf83371c8c8%29.jpg"
+    sha1: dad9e049e8dfb449a499efbd7c0d2a031d95296c
+    page: "https://commons.wikimedia.org/wiki/File:Great_Smoky_Mountains_National_Park_(feb06e33-140a-4c3a-b87e-cbf83371c8c8).jpg"
+  - path: "2026/2026-06/20260620-085250_glacier.jpg"
+    taken: "2026-06-20 08:52:50"
+    lat: 48.7536
+    lon: -113.80644
+    url: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Glacier_National_Park_GLAC3823.jpg"
+    sha1: c5d621921cb4f17966fed0f534e631b385c17b91
+    page: "https://commons.wikimedia.org/wiki/File:Glacier_National_Park_GLAC3823.jpg"
+  - path: "2026/2026-06/20260620-120911_glacier.jpg"
+    taken: "2026-06-20 12:09:11"
+    lat: 48.74964
+    lon: -113.76252
+    url: "https://upload.wikimedia.org/wikipedia/commons/6/63/Glacier_National_Park_May_snow_4-30-2014_%2814084699004%29.jpg"
+    sha1: 8402048fedc5ca3675ed0146440c9210ac64ec43
+    page: "https://commons.wikimedia.org/wiki/File:Glacier_National_Park_May_snow_4-30-2014_(14084699004).jpg"
+  - path: "2026/2026-06/20260620-152845_glacier.jpg"
+    taken: "2026-06-20 15:28:45"
+    lat: 48.731
+    lon: -113.73492
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/ff/Glacier_National_Park_May_snow_5-1-2014_%2813904735699%29.jpg"
+    sha1: 1a59e26d36f811210d1afa266408c99196cc926a
+    page: "https://commons.wikimedia.org/wiki/File:Glacier_National_Park_May_snow_5-1-2014_(13904735699).jpg"
+  - path: "2026/2026-06/20260621-085244_glacier.jpg"
+    taken: "2026-06-21 08:52:44"
+    lat: 48.76856
+    lon: -113.80302
+    url: "https://upload.wikimedia.org/wikipedia/commons/d/d4/Glacier_National_Park_May_snow_5-1-2014_%2814068277646%29.jpg"
+    sha1: 1321eff84f9f13b26af4b7649b8bf52c953b4bc9
+    page: "https://commons.wikimedia.org/wiki/File:Glacier_National_Park_May_snow_5-1-2014_(14068277646).jpg"
+  - path: "2026/2026-06/20260621-120302_glacier.jpg"
+    taken: "2026-06-21 12:03:02"
+    lat: 48.76528
+    lon: -113.83506
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/72/Glacier_National_Park_May_snow_5-16-2014_%2814245389414%29.jpg"
+    sha1: ae573e3614c5fd291a6e79077ab4fc57b9fca248
+    page: "https://commons.wikimedia.org/wiki/File:Glacier_National_Park_May_snow_5-16-2014_(14245389414).jpg"
+  - path: "2026/2026-06/20260621-152316_glacier.jpg"
+    taken: "2026-06-21 15:23:16"
+    lat: 48.79384
+    lon: -113.8011
+    url: "https://upload.wikimedia.org/wikipedia/commons/6/60/Glacier_National_Park_May_snow_5-20-2014_%2814059132909%29.jpg"
+    sha1: 6430ec70c999cc27d3127301623bcf996ead9b8a
+    page: "https://commons.wikimedia.org/wiki/File:Glacier_National_Park_May_snow_5-20-2014_(14059132909).jpg"
+  - path: "2026/2026-06/20260623-085410_yellowstone.jpg"
+    taken: "2026-06-23 08:54:10"
+    lat: 44.5813
+    lon: -110.4901
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/9c/Bison_at_Yellowstone_National_Park_%28f97b587e-f8a3-4c2f-8f22-b4cbb915d78d%29.jpg"
+    sha1: 5b227bf22867756c1f6e4d708cae0213e2d534da
+    page: "https://commons.wikimedia.org/wiki/File:Bison_at_Yellowstone_National_Park_(f97b587e-f8a3-4c2f-8f22-b4cbb915d78d).jpg"
+  - path: "2026/2026-06/20260623-134919_yellowstone.jpg"
+    taken: "2026-06-23 13:49:19"
+    lat: 44.42316
+    lon: -110.6134
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/1f/Looking_south_over_Yellowstone_from_Gallatin_National_Forest_%2814924610824%29.jpg"
+    sha1: 1261cb1f20aca4bd5159c1272d51894b7e2e4e72
+    page: "https://commons.wikimedia.org/wiki/File:Looking_south_over_Yellowstone_from_Gallatin_National_Forest_(14924610824).jpg"
+  - path: "2026/2026-06/20260624-084813_yellowstone.jpg"
+    taken: "2026-06-24 08:48:13"
+    lat: 44.43892
+    lon: -110.53534
+    url: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Yellowstone_National_Park_-_40829371363.jpg"
+    sha1: ce8772e9d70b6bb98f30fb700421402ca69f220f
+    page: "https://commons.wikimedia.org/wiki/File:Yellowstone_National_Park_-_40829371363.jpg"
+  - path: "2026/2026-06/20260624-135055_yellowstone.jpg"
+    taken: "2026-06-24 13:50:55"
+    lat: 44.13472
+    lon: -110.66617
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c1/Yellowstone_National_Park_South_Entrance_2008.JPG"
+    sha1: 75bd5b7b9a988ed7a5fde4f19f60a9c3670a1b2d
+    page: "https://commons.wikimedia.org/wiki/File:Yellowstone_National_Park_South_Entrance_2008.JPG"
+  - path: "2026/2026-07/20260725-084206_olympic.jpg"
+    taken: "2026-07-25 08:42:06"
+    lat: 47.81994
+    lon: -123.62258
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/f8/Columia_Lily_Olympic_NP_cbubar_%2817301066002%29.jpg"
+    sha1: 3fce4fc61c097995c9aae754986ac472219e050a
+    page: "https://commons.wikimedia.org/wiki/File:Columia_Lily_Olympic_NP_cbubar_(17301066002).jpg"
+  - path: "2026/2026-07/20260725-103253_olympic.jpg"
+    taken: "2026-07-25 10:32:53"
+    lat: 47.82022
+    lon: -123.60764
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/71/Indian_Paintbrush_Olympic_NP_cbubar_%2817301063632%29.jpg"
+    sha1: 228a102d1723efe9dd6b6c399186e1efb1cca58b
+    page: "https://commons.wikimedia.org/wiki/File:Indian_Paintbrush_Olympic_NP_cbubar_(17301063632).jpg"
+  - path: "2026/2026-07/20260725-120826_olympic.jpg"
+    taken: "2026-07-25 12:08:26"
+    lat: 47.84154
+    lon: -123.61394
+    url: "https://upload.wikimedia.org/wikipedia/commons/d/d2/MHC6518_High_Mountains_from_Hurricane_Hill_Olympic_NP_Washington_%2822508802627%29.jpg"
+    sha1: 750bce52ddacb5311bcbec4b8798cfea9cea4000
+    page: "https://commons.wikimedia.org/wiki/File:MHC6518_High_Mountains_from_Hurricane_Hill_Olympic_NP_Washington_(22508802627).jpg"
+  - path: "2026/2026-07/20260725-135326_olympic.jpg"
+    taken: "2026-07-25 13:53:26"
+    lat: 47.83434
+    lon: -123.59426
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/74/Mountains_of_Olympic_National_Park.jpg"
+    sha1: 8d418e9ed805a48a1a056ac180a2736439ff9a73
+    page: "https://commons.wikimedia.org/wiki/File:Mountains_of_Olympic_National_Park.jpg"
+  - path: "2026/2026-07/20260725-153150_olympic.jpg"
+    taken: "2026-07-25 15:31:50"
+    lat: 47.8417
+    lon: -123.63824
+    url: "https://upload.wikimedia.org/wikipedia/commons/2/24/Northern_pygmy_owl%2C_Olympic_National_Park_%2822535842819%29.jpg"
+    sha1: eca0242677759ecd7c7dd68cb0c33db59f9749f7
+    page: "https://commons.wikimedia.org/wiki/File:Northern_pygmy_owl,_Olympic_National_Park_(22535842819).jpg"
+  - path: "2026/2026-07/20260725-171318_olympic.jpg"
+    taken: "2026-07-25 17:13:18"
+    lat: 47.79002
+    lon: -123.64424
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c5/Olympic_National_Park_%2817300910252%29.jpg"
+    sha1: 34c6823adf94a2991109277a3b15c1f8fbef5545
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(17300910252).jpg"
+  - path: "2026/2026-07/20260726-085614_olympic.jpg"
+    taken: "2026-07-26 08:56:14"
+    lat: 47.81466
+    lon: -123.63572
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/88/Olympic_National_Park_%2822351579953%29.jpg"
+    sha1: 2f6bf172d7b224cabea4b63f716de9d58eff2667
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22351579953).jpg"
+  - path: "2026/2026-07/20260726-102426_olympic.jpg"
+    taken: "2026-07-26 10:24:26"
+    lat: 47.84074
+    lon: -123.57554
+    url: "https://upload.wikimedia.org/wikipedia/commons/0/08/Olympic_National_Park_%2822351609723%29.jpg"
+    sha1: 2d58cb6e803bb5671861ae72ce987cd51e7c4944
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22351609723).jpg"
+  - path: "2026/2026-07/20260726-120120_olympic.jpg"
+    taken: "2026-07-26 12:01:20"
+    lat: 47.8389
+    lon: -123.6425
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/94/Olympic_National_Park_%2822451246554%29.jpg"
+    sha1: e6c1e990fedcbcb4770943d8a4da6f19b9eabd36
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22451246554).jpg"
+  - path: "2026/2026-07/20260726-135449_olympic.jpg"
+    taken: "2026-07-26 13:54:49"
+    lat: 47.78326
+    lon: -123.55922
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/85/Olympic_National_Park_%2822476446344%29.jpg"
+    sha1: a3c9c981d8cf5f953c57dc81af03ef13006c8e1d
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22476446344).jpg"
+  - path: "2026/2026-07/20260726-152901_olympic.jpg"
+    taken: "2026-07-26 15:29:01"
+    lat: 47.78934
+    lon: -123.61538
+    url: "https://upload.wikimedia.org/wikipedia/commons/e/ec/Olympic_National_Park_%2822476957334%29.jpg"
+    sha1: 81fb8db9a306d8d7aeaaed869b55ac1c49e33114
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22476957334).jpg"
+  - path: "2026/2026-07/20260726-171602_olympic.jpg"
+    taken: "2026-07-26 17:16:02"
+    lat: 47.80378
+    lon: -123.6143
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c3/Olympic_National_Park_%2822508439057%29.jpg"
+    sha1: 8f2b1bc2d5eb6f4e6a145d871a48995f621b8c5b
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22508439057).jpg"
+  - path: "2026/2026-07/20260727-085118_olympic.jpg"
+    taken: "2026-07-27 08:51:18"
+    lat: 47.79402
+    lon: -123.63164
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c7/Olympic_National_Park_%2822508507488%29.jpg"
+    sha1: 2db8924e0b82d3208b527cffd6628de2477c32fb
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22508507488).jpg"
+  - path: "2026/2026-07/20260727-103518_olympic.jpg"
+    taken: "2026-07-27 10:35:18"
+    lat: 47.79482
+    lon: -123.55172
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/8c/Olympic_National_Park_%2822535033059%29.jpg"
+    sha1: c290b2a28bcab7dca348195cde6a7b2e5d856e5b
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22535033059).jpg"
+  - path: "2026/2026-07/20260727-121241_olympic.jpg"
+    taken: "2026-07-27 12:12:41"
+    lat: 47.77894
+    lon: -123.56126
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c2/Olympic_National_Park_%2822554406127%29.jpg"
+    sha1: 6b633f75212bf0333268b41c0861e073c4815258
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22554406127).jpg"
+  - path: "2026/2026-07/20260727-134615_olympic.jpg"
+    taken: "2026-07-27 13:46:15"
+    lat: 47.7675
+    lon: -123.65756
+    url: "https://upload.wikimedia.org/wikipedia/commons/4/44/Olympic_National_Park_%2822680677547%29.jpg"
+    sha1: 68c012977b91d0760bcb8d34476c78cd80eb7a14
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22680677547).jpg"
+  - path: "2026/2026-07/20260727-153633_olympic.jpg"
+    taken: "2026-07-27 15:36:33"
+    lat: 47.79942
+    lon: -123.58268
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/9f/Olympic_National_Park_%2822680819368%29.jpg"
+    sha1: ea8a9615dd239166e1a35aadfb6e0ab9d7ebef1e
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22680819368).jpg"
+  - path: "2026/2026-07/20260727-170657_olympic.jpg"
+    taken: "2026-07-27 17:06:57"
+    lat: 47.80518
+    lon: -123.6566
+    url: "https://upload.wikimedia.org/wikipedia/commons/2/23/Olympic_National_Park_%2822900835806%29.jpg"
+    sha1: 38a81345c64405b3760f447f9685c8c9ebb2e9ee
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22900835806).jpg"
+  - path: "2026/2026-07/20260728-085024_olympic.jpg"
+    taken: "2026-07-28 08:50:24"
+    lat: 47.78146
+    lon: -123.5678
+    url: "https://upload.wikimedia.org/wikipedia/commons/4/42/Olympic_National_Park_%2822937920151%29.jpg"
+    sha1: df18d4b4b12d3b33fb71175440b495c0fb0e9fc0
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22937920151).jpg"
+  - path: "2026/2026-07/20260728-103532_olympic.jpg"
+    taken: "2026-07-28 10:35:32"
+    lat: 47.79298
+    lon: -123.65204
+    url: "https://upload.wikimedia.org/wikipedia/commons/2/2e/Olympic_National_Park_%2822937982211%29.jpg"
+    sha1: 72c5737446edea7ca50eb67dda6fc977149125de
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22937982211).jpg"
+  - path: "2026/2026-07/20260728-121442_olympic.jpg"
+    taken: "2026-07-28 12:14:42"
+    lat: 47.79338
+    lon: -123.61064
+    url: "https://upload.wikimedia.org/wikipedia/commons/b/bb/Olympic_National_Park_%2822983473981%29.jpg"
+    sha1: b25506ee6e648b13bdfe5e56c5a6a911cdee72c6
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22983473981).jpg"
+  - path: "2026/2026-07/20260728-134944_olympic.jpg"
+    taken: "2026-07-28 13:49:44"
+    lat: 47.82946
+    lon: -123.57428
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/9d/Olympic_National_Park_%2822983558161%29.jpg"
+    sha1: 2068f6348785905a4630761d51e3dc6bffe2fcf8
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(22983558161).jpg"
+  - path: "2026/2026-07/20260728-152508_olympic.jpg"
+    taken: "2026-07-28 15:25:08"
+    lat: 47.79602
+    lon: -123.62516
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/92/Olympic_National_Park_%2823072440966%29.jpg"
+    sha1: 43b4f5b0ddf19419a088af19ed417e191259e165
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(23072440966).jpg"
+  - path: "2026/2026-07/20260728-171249_olympic.jpg"
+    taken: "2026-07-28 17:12:49"
+    lat: 47.78086
+    lon: -123.57254
+    url: "https://upload.wikimedia.org/wikipedia/commons/4/40/Olympic_National_Park_%2823072441736%29.jpg"
+    sha1: 2a6c5bd56c02bceaa370f19629b61b0cd00b3a17
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(23072441736).jpg"
+  - path: "2026/2026-07/20260729-085027_olympic.jpg"
+    taken: "2026-07-29 08:50:27"
+    lat: 47.77118
+    lon: -123.6029
+    url: "https://upload.wikimedia.org/wikipedia/commons/5/5b/Olympic_National_Park_%2823072470376%29.jpg"
+    sha1: 808b0c03d49994e1edb363d76cebe14e2ad24ce6
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(23072470376).jpg"
+  - path: "2026/2026-07/20260729-103326_olympic.jpg"
+    taken: "2026-07-29 10:33:26"
+    lat: 47.81194
+    lon: -123.65294
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/18/Olympic_National_Park_%2823073661386%29.jpg"
+    sha1: efc4f84ebd8d6d0d8c72407e7a6f7221f3268a1b
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(23073661386).jpg"
+  - path: "2026/2026-07/20260729-121310_olympic.jpg"
+    taken: "2026-07-29 12:13:10"
+    lat: 47.7769
+    lon: -123.57854
+    url: "https://upload.wikimedia.org/wikipedia/commons/4/47/Olympic_National_Park_%2823074631565%29.jpg"
+    sha1: 277b3e928f8a2bf3b2f3217fd94579b331802d85
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(23074631565).jpg"
+  - path: "2026/2026-07/20260729-134147_olympic.jpg"
+    taken: "2026-07-29 13:41:47"
+    lat: 47.82398
+    lon: -123.58238
+    url: "https://upload.wikimedia.org/wikipedia/commons/4/42/Olympic_National_Park_%2823130534325%29.jpg"
+    sha1: 5fdebf8bf9c3e051a40264473485a1a99cb13f24
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(23130534325).jpg"
+  - path: "2026/2026-07/20260729-153016_olympic.jpg"
+    taken: "2026-07-29 15:30:16"
+    lat: 47.77554
+    lon: -123.59798
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/9e/Olympic_National_Park_%2823130535515%29.jpg"
+    sha1: 09e69cb0582c3c29b1b8e4e698fea746021e6369
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(23130535515).jpg"
+  - path: "2026/2026-07/20260729-171337_olympic.jpg"
+    taken: "2026-07-29 17:13:37"
+    lat: 47.83718
+    lon: -123.63302
+    url: "https://upload.wikimedia.org/wikipedia/commons/2/21/Olympic_National_Park_%2824341272011%29.jpg"
+    sha1: 1d5c5b0597223fde34e2b1b844f1cb0bb6e991e6
+    page: "https://commons.wikimedia.org/wiki/File:Olympic_National_Park_(24341272011).jpg"
+  - path: "2026/2026-08/20260801-085517_rainier.jpg"
+    taken: "2026-08-01 08:55:17"
+    lat: 46.79606
+    lon: -121.74139
+    url: "https://upload.wikimedia.org/wikipedia/commons/3/3a/Mount_Rainier%27s_wildflowers_%286851616406%29.jpg"
+    sha1: 6c69113958de5afc00672470623f1016efe23417
+    page: "https://commons.wikimedia.org/wiki/File:Mount_Rainier%27s_wildflowers_(6851616406).jpg"
+  - path: "2026/2026-08/20260801-111827_rainier.jpg"
+    taken: "2026-08-01 11:18:27"
+    lat: 46.91842
+    lon: -121.62129
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/92/Mount_Rainier_and_Sunrise_%28163a05fa-3224-4103-937d-dfb5ca310c0f%29.JPG"
+    sha1: 62e3bc2710f9a4d5a607a4080c290bfe3f1096c9
+    page: "https://commons.wikimedia.org/wiki/File:Mount_Rainier_and_Sunrise_(163a05fa-3224-4103-937d-dfb5ca310c0f).JPG"
+  - path: "2026/2026-08/20260801-134318_rainier.jpg"
+    taken: "2026-08-01 13:43:18"
+    lat: 46.83062
+    lon: -121.73996
+    url: "https://upload.wikimedia.org/wikipedia/commons/e/e9/Mount_Rainier_and_lake_reflection.jpg"
+    sha1: eb83d8bac184e2c3c2aee54ddbde98c0596c8e47
+    page: "https://commons.wikimedia.org/wiki/File:Mount_Rainier_and_lake_reflection.jpg"
+  - path: "2026/2026-08/20260801-161706_rainier.jpg"
+    taken: "2026-08-01 16:17:06"
+    lat: 46.86614
+    lon: -121.81772
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c2/Mount_Rainier_during_Regional_Director_Lenertz_Visit_%28e93589114f434cfcb2b6ab4a8481eac6%29.JPG"
+    sha1: cdd0dd029b44894fdc5cc1e863319d6419023eba
+    page: "https://commons.wikimedia.org/wiki/File:Mount_Rainier_during_Regional_Director_Lenertz_Visit_(e93589114f434cfcb2b6ab4a8481eac6).JPG"
+  - path: "2026/2026-08/20260802-084751_rainier.jpg"
+    taken: "2026-08-02 08:47:51"
+    lat: 46.82314
+    lon: -121.7534
+    url: "https://upload.wikimedia.org/wikipedia/commons/5/5b/Mount_Rainier_from_Pinnacle_Peak._%2829d6e7d6-8f8c-424e-8c00-b1280e48fea4%29.jpeg"
+    sha1: 85ae5aef2888f68ed98602b98d91c32d50f62e48
+    page: "https://commons.wikimedia.org/wiki/File:Mount_Rainier_from_Pinnacle_Peak._(29d6e7d6-8f8c-424e-8c00-b1280e48fea4).jpeg"
+  - path: "2026/2026-08/20260802-111350_rainier.jpg"
+    taken: "2026-08-02 11:13:50"
+    lat: 46.8727
+    lon: -121.76684
+    url: "https://upload.wikimedia.org/wikipedia/commons/e/e3/Mount_Rainier_from_the_Longmire_Meadow_%28243429ef-e191-49eb-a3f9-cad1cfda80dd%29.jpeg"
+    sha1: fad75ae6e3f9df8172bcae994c0330611612449a
+    page: "https://commons.wikimedia.org/wiki/File:Mount_Rainier_from_the_Longmire_Meadow_(243429ef-e191-49eb-a3f9-cad1cfda80dd).jpeg"
+  - path: "2026/2026-08/20260802-135015_rainier.jpg"
+    taken: "2026-08-02 13:50:15"
+    lat: 46.8441
+    lon: -121.76138
+    url: "https://upload.wikimedia.org/wikipedia/commons/3/3d/Mount_Rainier_in_Winter_%28522c96a0-9a05-47b1-8d9a-c11597f8793f%29.JPG"
+    sha1: 11f1367b04d21d2898b0f42bf3e602c8e969ca63
+    page: "https://commons.wikimedia.org/wiki/File:Mount_Rainier_in_Winter_(522c96a0-9a05-47b1-8d9a-c11597f8793f).JPG"
+  - path: "2026/2026-08/20260822-085641_denali.jpg"
+    taken: "2026-08-22 08:56:41"
+    lat: 63.12524
+    lon: -151.13698
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/1f/Bear_Digging_and_Denali_%2811330360484%29.jpg"
+    sha1: 66c63afd98ffb26eb7d1950606b526bed4c0a2f4
+    page: "https://commons.wikimedia.org/wiki/File:Bear_Digging_and_Denali_(11330360484).jpg"
+  - path: "2026/2026-08/20260822-120118_denali.jpg"
+    taken: "2026-08-22 12:01:18"
+    lat: 63.12192
+    lon: -151.24978
+    url: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Caribou_and_Denali_%2811330240034%29.jpg"
+    sha1: a2d8fb9aa487f50d4e4bcbcc0df0f00197ca034e
+    page: "https://commons.wikimedia.org/wiki/File:Caribou_and_Denali_(11330240034).jpg"
+  - path: "2026/2026-08/20260822-153036_denali.jpg"
+    taken: "2026-08-22 15:30:36"
+    lat: 63.07864
+    lon: -151.2463
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/11/Denali_%28cd01387d-12ab-439e-9d9c-58f8711d6f02%29.JPG"
+    sha1: e1994c208cf1e3889e254b864560205adbdb3a05
+    page: "https://commons.wikimedia.org/wiki/File:Denali_(cd01387d-12ab-439e-9d9c-58f8711d6f02).JPG"
+  - path: "2026/2026-08/20260823-084341_denali.jpg"
+    taken: "2026-08-23 08:43:41"
+    lat: 63.07724
+    lon: -151.23136
+    url: "https://upload.wikimedia.org/wikipedia/commons/b/b5/Denali_National_Park_and_Preserve_AK2006-0363.jpg"
+    sha1: 7d88142d63b8d50f5429133659ffed738434500a
+    page: "https://commons.wikimedia.org/wiki/File:Denali_National_Park_and_Preserve_AK2006-0363.jpg"
+  - path: "2026/2026-08/20260823-121625_denali.jpg"
+    taken: "2026-08-23 12:16:25"
+    lat: 63.147
+    lon: -151.13458
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/73/Denali_National_Park_and_Preserve_AK2006-0377.jpg"
+    sha1: e28efd6da4b35e26820c535cff3ed8580d98cc8d
+    page: "https://commons.wikimedia.org/wiki/File:Denali_National_Park_and_Preserve_AK2006-0377.jpg"
+  - path: "2026/2026-10/20261010-084736_acadia.jpg"
+    taken: "2026-10-10 08:47:36"
+    lat: 44.33604
+    lon: -68.24468
+    url: "https://upload.wikimedia.org/wikipedia/commons/9/9a/Acadia_National_Park%2C_Beech_Mountain_Trail.jpg"
+    sha1: a6af2ff8b6f7b4c876c3f23f97654229a85af644
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_Beech_Mountain_Trail.jpg"
+  - path: "2026/2026-10/20261010-102955_acadia.jpg"
+    taken: "2026-10-10 10:29:55"
+    lat: 44.3008
+    lon: -68.26118
+    url: "https://upload.wikimedia.org/wikipedia/commons/4/4a/Acadia_National_Park%2C_Echo_Lake_from_Beech_Cliff_Trail.jpg"
+    sha1: 4d4b91679d2819711795589b8a0155d57b74669c
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_Echo_Lake_from_Beech_Cliff_Trail.jpg"
+  - path: "2026/2026-10/20261010-121150_acadia.jpg"
+    taken: "2026-10-10 12:11:50"
+    lat: 44.3166
+    lon: -68.27522
+    url: "https://upload.wikimedia.org/wikipedia/commons/3/3b/Acadia_National_Park%2C_Jonah_crab.jpg"
+    sha1: 418c47c211bbb7a66b246908bc6510cd65b41346
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_Jonah_crab.jpg"
+  - path: "2026/2026-10/20261010-134901_acadia.jpg"
+    taken: "2026-10-10 13:49:01"
+    lat: 44.30184
+    lon: -68.2697
+    url: "https://upload.wikimedia.org/wikipedia/commons/6/6b/Acadia_National_Park%2C_Maine_%2848720c98-06e9-4c2f-81d1-8d410373a9d6%29.jpg"
+    sha1: 610da4b194a0aa75899355478a22962443c2a3d9
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_Maine_(48720c98-06e9-4c2f-81d1-8d410373a9d6).jpg"
+  - path: "2026/2026-10/20261010-152503_acadia.jpg"
+    taken: "2026-10-10 15:25:03"
+    lat: 44.34592
+    lon: -68.31332
+    url: "https://upload.wikimedia.org/wikipedia/commons/2/25/Acadia_National_Park%2C_Maine_%284d428215-9f80-40f0-ad77-8a134fe43efe%29.jpg"
+    sha1: 09ce6caf455ee3b3f09d47a8910c4b0892728404
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_Maine_(4d428215-9f80-40f0-ad77-8a134fe43efe).jpg"
+  - path: "2026/2026-10/20261010-171225_acadia.jpg"
+    taken: "2026-10-10 17:12:25"
+    lat: 44.3492
+    lon: -68.25848
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/fc/Acadia_National_Park%2C_Maine_%2853986913-b179-46ef-9380-8351ac583893%29.jpg"
+    sha1: 46b57d812054922f2cc153aa3cd99cd2d4676e5e
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_Maine_(53986913-b179-46ef-9380-8351ac583893).jpg"
+  - path: "2026/2026-10/20261011-084832_acadia.jpg"
+    taken: "2026-10-11 08:48:32"
+    lat: 44.32388
+    lon: -68.24528
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/fb/Acadia_National_Park%2C_Maine_%28f972caca-3dcd-4f36-8990-a1097841ebb6%29.jpg"
+    sha1: fb27d8d8ce37711b75efcaad3451285a24d664cb
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_Maine_(f972caca-3dcd-4f36-8990-a1097841ebb6).jpg"
+  - path: "2026/2026-10/20261011-103624_acadia.jpg"
+    taken: "2026-10-11 10:36:24"
+    lat: 44.32276
+    lon: -68.27282
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/78/Acadia_National_Park%2C_wood_frog.jpg"
+    sha1: cf2780dc057c339854cc7bf674256bc22b7d1178
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park,_wood_frog.jpg"
+  - path: "2026/2026-10/20261011-120238_acadia.jpg"
+    taken: "2026-10-11 12:02:38"
+    lat: 44.34252
+    lon: -68.30222
+    url: "https://upload.wikimedia.org/wikipedia/commons/e/e4/Acadia_National_Park_%280174e7d4-9fb6-4f12-bc5d-ca9f313af3d2%29.jpg"
+    sha1: 2376b0ea22b2a06c75c630cf623c9d16743ad12b
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(0174e7d4-9fb6-4f12-bc5d-ca9f313af3d2).jpg"
+  - path: "2026/2026-10/20261011-134029_acadia.jpg"
+    taken: "2026-10-11 13:40:29"
+    lat: 44.34136
+    lon: -68.27726
+    url: "https://upload.wikimedia.org/wikipedia/commons/e/e0/Acadia_National_Park_%280819c03d-dd5a-47e7-be7f-eb7b7c9f5a4e%29.jpg"
+    sha1: 263330edb402624d7a4720b88248270b27f62f66
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(0819c03d-dd5a-47e7-be7f-eb7b7c9f5a4e).jpg"
+  - path: "2026/2026-10/20261011-152828_acadia.jpg"
+    taken: "2026-10-11 15:28:28"
+    lat: 44.34292
+    lon: -68.30654
+    url: "https://upload.wikimedia.org/wikipedia/commons/f/f0/Acadia_National_Park_%280a019bb1-ff42-4aa2-a8d0-387f18083f67%29.jpg"
+    sha1: f71ff6a4457cc8f512bde8e8bc7c84b7cdea2f4e
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(0a019bb1-ff42-4aa2-a8d0-387f18083f67).jpg"
+  - path: "2026/2026-10/20261011-171430_acadia.jpg"
+    taken: "2026-10-11 17:14:30"
+    lat: 44.3694
+    lon: -68.27582
+    url: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Acadia_National_Park_%2816a518b5-8b59-4f03-a092-409e3abd18aa%29.jpg"
+    sha1: 55cf76fa8b9a4a3f3939e993f2f198f7b5fc2863
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(16a518b5-8b59-4f03-a092-409e3abd18aa).jpg"
+  - path: "2026/2026-10/20261012-085205_acadia.jpg"
+    taken: "2026-10-12 08:52:05"
+    lat: 44.3652
+    lon: -68.33138
+    url: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Acadia_National_Park_%281f87ffc8-606e-447a-a7ad-73a8fde4ce87%29.jpg"
+    sha1: 86480081b09ec9d9e8ffd8e3fc180caeb5d75bc1
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(1f87ffc8-606e-447a-a7ad-73a8fde4ce87).jpg"
+  - path: "2026/2026-10/20261012-103100_acadia.jpg"
+    taken: "2026-10-12 10:31:00"
+    lat: 44.3338
+    lon: -68.2295
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/14/Acadia_National_Park_%282033524d-7c64-49d3-9939-2c31ffeb73ae%29.jpg"
+    sha1: 41a41730e998ba4961fcad76da8ef6e581a17f92
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(2033524d-7c64-49d3-9939-2c31ffeb73ae).jpg"
+  - path: "2026/2026-10/20261012-121244_acadia.jpg"
+    taken: "2026-10-12 12:12:44"
+    lat: 44.31396
+    lon: -68.22932
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/8f/Acadia_National_Park_%283641b445-0782-4af0-bb6b-cbc62ad69f3d%29.jpg"
+    sha1: 8738acb00d14085699005a6876a2a4cf17656018
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(3641b445-0782-4af0-bb6b-cbc62ad69f3d).jpg"
+  - path: "2026/2026-10/20261012-135208_acadia.jpg"
+    taken: "2026-10-12 13:52:08"
+    lat: 44.36612
+    lon: -68.27114
+    url: "https://upload.wikimedia.org/wikipedia/commons/8/83/Acadia_National_Park_%28dae8f41f-ecf8-43f3-82f0-e37ae57ed326%29.jpg"
+    sha1: 96c2e7a81e0bf56cd1b1d0621839fc62babd31e9
+    page: "https://commons.wikimedia.org/wiki/File:Acadia_National_Park_(dae8f41f-ecf8-43f3-82f0-e37ae57ed326).jpg"
+
+seed_videos:
+  - path: "2026/2026-06/20260621-134207_glacier.mp4"
+    created_utc: "2026-06-21T19:42:07Z"
+    codec: hevc
+    url: "https://upload.wikimedia.org/wikipedia/commons/6/68/Baring_Falls_%2826105285641%29.webm"
+    sha1: ed047df8d1f708d3ec3857de4dcfe78781d077c5
+    page: "https://commons.wikimedia.org/wiki/File:Baring_Falls_(26105285641).webm"
+  - path: "2026/2026-06/20260624-110531_yellowstone.mp4"
+    created_utc: "2026-06-24T17:05:31Z"
+    codec: h264
+    url: "https://upload.wikimedia.org/wikipedia/commons/7/79/Upper_Falls_of_the_Yellowstone_River_%2824503121190%29.webm"
+    sha1: e785d7589d7488af79e28795597619deafefecf3
+    page: "https://commons.wikimedia.org/wiki/File:Upper_Falls_of_the_Yellowstone_River_(24503121190).webm"

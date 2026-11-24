@@ -1,0 +1,7 @@
+- name: Restart Jellyfin
+  ansible.builtin.systemd_service:
+    name: jellyfin
+    state: restarted
+
+- name: Wait for Jellyfin after the restart
+  ansible.builtin.include_tasks: wait-jellyfin.yml

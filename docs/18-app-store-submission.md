@@ -35,8 +35,8 @@ App Store Connect help, and Jellyfin's branding page, all read on 2026-11-13.
 | **EU trader status** | **open decision**, required even without EU distribution | §3.3 |
 | Accessibility Nutrition Labels | optional for now; left empty | §2.5 |
 | Device tests the review depends on | not done | §4 |
-| Review notes | drafted, waiting for the server | 13 §3 |
-| Demo server | parked since 2026-09-26 | 13 §2, §4 |
+| Review notes | written; only the password left to paste | 13 §3 |
+| Demo server | **live since 2026-11-23**, `https://demo.rousseaddict.online`, built by `demo-server/` | 13 §4, 19 |
 
 Everything above the review notes can be done without the demo server. The two open
 decisions come first: the name appears everywhere else in the listing, and an app with
@@ -246,12 +246,12 @@ one — **open decision**.
 
 | Guideline | The risk here | The answer | State |
 |---|---|---|---|
-| 2.1 App completeness | the reviewer has no Jellyfin server | a demo server and the notes that hand it over; a demo mode is not an option (below) | parked (13) |
+| 2.1 App completeness | the reviewer has no Jellyfin server | a demo server and the notes that hand it over; a demo mode is not an option (below) | server live (19); notes need the password pasted |
 | 2.3.1(a) Notes for review | *"generic descriptions will be rejected"* | 13 §3 walks through every feature by name | drafted |
 | 2.5.5 IPv6 | review runs on an IPv6-only network with NAT64/DNS64 | a host name in the notes; an AAAA record on the demo server | notes fixed (13 §3) |
 | 2.5.19 Hidden features | *"Don't include any hidden, dormant, or undocumented features"* (added 2026-10-16) | nothing hidden; rules out a secret demo-mode trigger | done |
 | 2.3.1 Accurate metadata | Backup needs a plugin the reviewer may not have | said in the description and in the notes | open (13 §4) |
-| 4.2 Minimum functionality | a client of a server the reviewer cannot see reads as empty | a live demo with real content | depends on the server |
+| 4.2 Minimum functionality | a client of a server the reviewer cannot see reads as empty | a live demo with real content | 99 photos, 2 videos, 7 months, 12 places (19 §6) |
 | 5.1.1(i) Privacy policy | must be in App Store Connect *and* in the app | `PRIVACY.md`, Settings › About | done |
 | 5.1.1(iv) Refused permissions | the app must stay usable with every permission refused | browsing needs no photo access | not tested on a device |
 | 5.2.1 Intellectual property | "Jellyfin" in the listing | descriptive only, never "official" | done in the drafts |

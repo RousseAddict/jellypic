@@ -1,0 +1,13 @@
+# While it starts, Jellyfin answers from a loading app: first a 503, then for a
+# while a 200 whose body is not the real one. Only the real public info carries
+# StartupWizardCompleted. First boot takes over three minutes of migrations.
+- name: Wait for Jellyfin to answer
+  ansible.builtin.uri:
+    url: "{{ jellyfin_api }}/System/Info/Public"
+    return_content: true
+  register: jellyfin_public
+  until: >-
+    jellyfin_public.status == 200
+    and 'StartupWizardCompleted' in (jellyfin_public.json | default({}))
+  retries: 150
+  delay: 2

@@ -1,0 +1,17 @@
+- name: Caddy
+  ansible.builtin.apt:
+    name: caddy
+
+- name: Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    mode: "0644"
+    validate: caddy validate --adapter caddyfile --config %s
+  notify: Reload Caddy
+
+- name: Caddy running
+  ansible.builtin.systemd_service:
+    name: caddy
+    enabled: true
+    state: started

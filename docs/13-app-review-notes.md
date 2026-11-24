@@ -66,7 +66,9 @@ is made writable, it wants a size cap and a periodic wipe.
 
 ## 3. The notes themselves
 
-Placeholders in `<>` are filled once the server exists. Keep it short — review
+The server exists since 2026-11-23 (doc 19); the one placeholder left is the
+password, which lives only in `demo-server/secrets.local.yml` and is pasted into
+App Store Connect, never into a tracked file. Keep it short — review
 notes are read fast — but specific: since 2026-10-16, guideline 2.3.1(a) says
 *"generic descriptions will be rejected"*, which is why the walkthrough names every
 feature and where to find it. Brought up to date with the app on 2026-11-13.
@@ -90,15 +92,15 @@ a reverse proxy such as Caddy in front of Jellyfin obtains one by itself.
 > **Jellypic browses and backs up photos on a Jellyfin server that the user
 > hosts themselves. It has no content of its own, so a demo server is provided.**
 >
-> Server address: `<host name, https:// recommended>`
-> Username: `<user>`
+> Server address: `https://demo.rousseaddict.online`
+> Username: `demo`
 > Password: `<password>`
 >
 > **Getting in (about 30 seconds):**
 > 1. On the first screen, type the server address **exactly as written above**
 >    and tap Continue. The app tries port 8096 automatically if no port is given.
 > 2. Enter the username and password, tap Continue.
-> 3. Pick the library named `<library>`, tap "Use this library".
+> 3. Pick the library named `Photos`, tap "Use this library".
 > 4. The photo grid appears and begins indexing. It is usable while it indexes.
 >
 > **Where the features are.**
@@ -114,10 +116,10 @@ a reverse proxy such as Caddy in front of Jellyfin obtains one by itself.
 > - **Settings** — the person button at the top of the grid: Backup, appearance,
 >   storage, account, and the privacy policy under About.
 > - **Backup** — needs the Upload for Jelly plugin on the server, which is
->   `<installed / not installed>` on this demo server. `<If installed: set Backup
->   to Manual in Settings, then tap + on the grid to choose photos.>`
+>   installed on this demo server. Set Backup to Manual in Settings, then tap +
+>   on the grid to choose photos.
 > - **Delete** — offered only to accounts the server allows to delete. The demo
->   account `<can / cannot>`; Settings › Account says which.
+>   account cannot; Settings › Account says which.
 >
 > **Photo library access.** Jellypic asks for the photo library only to *upload*
 > photos to your own server, and only when you open the photo picker (the +
@@ -147,17 +149,23 @@ Two sentences carry an obligation:
   within two months (a "Send my latest photo" button that no longer exists, and
   grid buttons that no longer fade on scroll).
 
-## 4. Not settled
+## 4. Settled on 2026-11-23
 
-- **Where the server runs.** Parked 2026-09-26. Whatever it is, it has to stay
-  up for as long as the app is on the store, not just until the first approval —
-  every update is re-reviewed against these same notes.
-- **Whether Backup is exercisable on it** (§2).
-- The demo account should be a **non-admin Jellyfin user**, so the notes cannot
-  hand anyone the dashboard.
-- **Whether the demo account may delete.** Recommended: no. Every reviewer who
-  tries the trash button would shrink the demo library for the next one, and
-  Settings › Account already says plainly that deleting is off for that account.
-- **A name and an AAAA record for the server**, decided before it is built: the
-  name is what §3 hands over, and the AAAA record keeps the review independent of
-  NAT64 altogether.
+Every question this section used to hold was answered by building the server;
+doc 19 has the reasoning, this is the record.
+
+- **Where the server runs:** an OVH VPS of the user's, built from
+  `demo-server/` by one command, so a move or a rebuild is a re-run, not a
+  reconstruction. It has to stay up for as long as the app is on the store: every
+  update is re-reviewed against these same notes.
+- **Backup is exercisable.** Upload for Jelly is installed from its catalogue and
+  the demo library is opted in. HEIC for Jelly is installed too, and it is not
+  optional once Backup is open: a reviewer's iPhone uploads HEIC originals, which
+  would otherwise be accepted and never appear in the grid.
+- **The demo account is not an administrator**, cannot sign in to anything but its
+  one library, and **cannot delete**. The admin account cannot sign in from the
+  internet at all.
+- **Name and AAAA record:** `demo.rousseaddict.online`, A and AAAA, https.
+- **The library is typed Home videos, not Photos** — the API cannot create the
+  latter (doc 19 §4). §2's "typed Photos or Home videos" still describes what the
+  app accepts.

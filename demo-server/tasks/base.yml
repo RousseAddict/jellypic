@@ -1,0 +1,37 @@
+- name: Base packages
+  ansible.builtin.apt:
+    name: [nftables, curl]
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Firewall rules
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: "0755"
+    validate: nft -c -f %s
+  notify: Reload firewall
+
+- name: Firewall loaded at boot
+  ansible.builtin.systemd_service:
+    name: nftables
+    enabled: true
+    state: started
+
+- name: resolved drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: "0755"
+
+# systemd-resolved answers LLMNR on 0.0.0.0:5355 by default: a LAN protocol,
+# open to the whole internet on a VPS.
+- name: No LLMNR or mDNS
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/jellypic-demo.conf
+    mode: "0644"
+    content: |
+      [Resolve]
+      LLMNR=no
+      MulticastDNS=no
+  notify: Restart resolved

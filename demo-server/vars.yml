@@ -1,0 +1,84 @@
+demo_domain: demo.rousseaddict.online
+
+# Pinned on purpose: a Jellyfin upgrade can break a plugin, and a broken demo
+# during a re-review pulls the app. Every version since 10.10.7 stays in the
+# repo's pool, so this pin can always be reinstalled.
+jellyfin_version: "12.4+deb13"
+
+# The key repo.jellyfin.org serves, checked byte for byte on 2026-11-23 against
+# the copy Debian signs and ships in extrepo-offline-data (trixie, 1.0.6~deb13u1).
+jellyfin_key_url: https://repo.jellyfin.org/jellyfin_team.gpg.key
+jellyfin_key_sha256: a0cde241ae297fa6f0265c0bf15ce9eb9ee97c008904a59ab367a67d59532839
+
+jellyfin_api: http://127.0.0.1:8096
+jellyfin_server_name: Jellypic Demo
+jellyfin_auth_base: >-
+  MediaBrowser Client="jellypic-demo-provisioner", Device="ansible",
+  DeviceId="jellypic-demo-provisioner", Version="1.0"
+
+# Merged into Jellyfin's own network configuration, every other key untouched.
+# KnownProxies is what makes a request through Caddy count as remote: without it
+# every visitor arrives from 127.0.0.1, and the admin's remote-access ban below
+# would silently do nothing.
+jellyfin_network:
+  LocalNetworkAddresses: ["127.0.0.1"]
+  KnownProxies: ["127.0.0.1"]
+  EnableRemoteAccess: true
+  AutoDiscovery: false
+  EnableUPnP: false
+
+demo_root: /srv/jellypic-demo
+library_name: Photos
+library_path: "{{ demo_root }}/library"
+library_collection_type: homevideos
+
+demo_user: demo
+
+# Merged into the demo account's policy. LoginAttemptsBeforeLockout -1 means
+# never: with lockout on, anyone who guesses the user name can disable the
+# reviewer's account with three wrong passwords. EnabledFolders is added at run
+# time, once the library's id exists.
+demo_policy:
+  IsAdministrator: false
+  IsHidden: true
+  IsDisabled: false
+  EnableRemoteAccess: true
+  EnableAllFolders: false
+  EnableContentDeletion: false
+  EnableContentDeletionFromFolders: []
+  EnableContentDownloading: true
+  EnableMediaPlayback: true
+  EnableVideoPlaybackTranscoding: true
+  EnablePlaybackRemuxing: true
+  EnablePublicSharing: false
+  EnableLiveTvAccess: false
+  EnableLiveTvManagement: false
+  EnableCollectionManagement: false
+  EnableSubtitleManagement: false
+  EnableLyricManagement: false
+  EnableRemoteControlOfOtherUsers: false
+  EnableSharedDeviceControl: false
+  LoginAttemptsBeforeLockout: -1
+
+# The admin signs in from the VPS itself only (ssh tunnel to 127.0.0.1:8096).
+admin_policy:
+  IsHidden: true
+  EnableRemoteAccess: false
+
+jellyfin_plugins:
+  - name: HEIC for Jelly
+    guid: e0ca1e89-983f-495a-a3ce-7dba998cb21e
+    version: 1.0.1.0
+    repository:
+      Name: HEIC for Jelly
+      Url: https://raw.githubusercontent.com/RousseAddict/heic-for-jelly/main/manifest.json
+      Enabled: true
+  - name: Upload for Jelly
+    guid: f85a21b6-831f-41be-bc52-0831f45355ab
+    version: 0.2.1.0
+    repository:
+      Name: Upload for Jelly
+      Url: https://raw.githubusercontent.com/RousseAddict/upload-for-jelly/main/manifest.json
+      Enabled: true
+
+upload_plugin_guid: "{{ (jellyfin_plugins | selectattr('name', 'equalto', 'Upload for Jelly') | first).guid }}"

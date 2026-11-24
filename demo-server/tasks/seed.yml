@@ -1,0 +1,70 @@
+- name: Seed tools
+  ansible.builtin.apt:
+    name: [libimage-exiftool-perl, rsync]
+    install_recommends: false
+
+- name: Seed directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ demo_root }}/cache"
+    - "{{ demo_root }}/seed"
+    - /usr/local/lib/jellypic-demo
+
+- name: Seed builder
+  ansible.builtin.copy:
+    src: build-seed.py
+    dest: /usr/local/lib/jellypic-demo/build-seed.py
+    mode: "0755"
+
+- name: Seed manifest, as JSON for the builder
+  ansible.builtin.copy:
+    content: "{{ {'photos': seed_photos, 'videos': seed_videos} | to_json }}"
+    dest: "{{ demo_root }}/seed.json"
+    mode: "0644"
+
+# First run downloads ~350 MB and transcodes two videos: several minutes.
+- name: Build the seed
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -I
+      - /usr/local/lib/jellypic-demo/build-seed.py
+      - --manifest={{ demo_root }}/seed.json
+      - --cache={{ demo_root }}/cache
+      - --out={{ demo_root }}/seed
+      - --ffmpeg=/usr/lib/jellyfin-ffmpeg/ffmpeg
+  register: seed_build
+  changed_when: seed_build.stdout == 'changed'
+
+# The library is the seed, exactly: whatever was uploaded since goes. Upload
+# for Jelly's staging directory is left alone; it recreates it per upload and
+# cleans its own partial files.
+- name: Library reset to the seed
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - --archive
+      - --delete
+      - --itemize-changes
+      - --chown=jellyfin:jellyfin
+      - --exclude=/.build-state.json
+      - --exclude=/.upload-for-jelly/
+      - "{{ demo_root }}/seed/"
+      - "{{ library_path }}/"
+  register: library_reset
+  changed_when: library_reset.stdout | length > 0
+
+- name: Library scan
+  ansible.builtin.uri:
+    url: "{{ jellyfin_api }}/Library/Refresh"
+    method: POST
+    headers:
+      Authorization: "{{ jellyfin_admin_auth }}"
+    status_code: 204
+  when: library_reset is changed
+  changed_when: true

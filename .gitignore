@@ -30,3 +30,7 @@ audit.md
 # Local scratch: signing leftovers (CSRs, exported certificates) land here while
 # following docs/14. Never commit.
 tmp/
+
+# Demo server credentials: Jellyfin admin and demo passwords. Never commit.
+# (demo-server/.env.local, the ssh password, is covered by .env.local above.)
+demo-server/secrets.local.yml

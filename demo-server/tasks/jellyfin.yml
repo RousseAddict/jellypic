@@ -1,0 +1,64 @@
+- name: Keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Jellyfin signing key, refused unless it matches the pinned hash
+  ansible.builtin.get_url:
+    url: "{{ jellyfin_key_url }}"
+    dest: /etc/apt/keyrings/jellyfin.asc
+    checksum: "sha256:{{ jellyfin_key_sha256 }}"
+    mode: "0644"
+
+- name: Jellyfin repository
+  ansible.builtin.deb822_repository:
+    name: jellyfin
+    types: deb
+    uris: https://repo.jellyfin.org/debian
+    suites: "{{ ansible_facts.distribution_release }}"
+    components: main
+    architectures: amd64
+    signed_by: /etc/apt/keyrings/jellyfin.asc
+  register: jellyfin_repo
+
+# The jellyfin meta package depends on server and web without a version, so
+# pinning it alone would still pull the newest of both.
+- name: Jellyfin, at the pinned version
+  ansible.builtin.apt:
+    name:
+      - "jellyfin={{ jellyfin_version }}"
+      - "jellyfin-server={{ jellyfin_version }}"
+      - "jellyfin-web={{ jellyfin_version }}"
+    update_cache: "{{ jellyfin_repo.changed }}"
+    allow_change_held_packages: true
+
+- name: Held, so no apt run moves it
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: [jellyfin, jellyfin-server, jellyfin-web]
+
+- name: Demo root
+  ansible.builtin.file:
+    path: "{{ demo_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Owned by jellyfin: Upload for Jelly writes into the library from the
+# Jellyfin process.
+- name: Library directory
+  ansible.builtin.file:
+    path: "{{ library_path }}"
+    state: directory
+    owner: jellyfin
+    group: jellyfin
+    mode: "0755"
+
+- name: Jellyfin running
+  ansible.builtin.systemd_service:
+    name: jellyfin
+    enabled: true
+    state: started

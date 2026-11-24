@@ -1,0 +1,31 @@
+#!/usr/sbin/nft -f
+# Managed by demo-server/site.yml. Edits made on the server are overwritten.
+#
+# In: ssh, and http/https for Caddy (udp 443 is HTTP/3, which Caddy advertises).
+# Jellyfin's 8096 and its discovery port are never reachable from outside.
+
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        ct state established,related accept
+        ct state invalid drop
+        iif "lo" accept
+
+        meta l4proto { icmp, ipv6-icmp } accept
+        udp sport 67 udp dport 68 accept
+
+        tcp dport { 22, 80, 443 } accept
+        udp dport 443 accept
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}
