@@ -9,7 +9,7 @@ from a blank Debian to a signed-in grid, with one command. This file is the *why
 | Address | `https://demo.rousseaddict.online` — A and AAAA records, Let's Encrypt certificate |
 | Machine | OVH VPS, Debian 13 (trixie), 2 vCPU, 3.7 GB RAM, 40 GB disk, IPv4 + IPv6 |
 | Jellyfin | **12.4**, from Jellyfin's apt repository, pinned and held |
-| Plugins | HEIC for Jelly 1.0.1.0 and Upload for Jelly 0.2.1.0, installed **from their published catalogues** |
+| Plugins | HEIC for Jelly 1.1.0.0 and Upload for Jelly 0.2.1.0, installed **from their published catalogues** |
 | Library | `Photos`, typed `homevideos` with photos enabled: 99 photos and 2 videos |
 | Accounts | `admin` (cannot sign in from the internet), `demo` (the one the review notes hand over) |
 

@@ -68,7 +68,7 @@ admin_policy:
 jellyfin_plugins:
   - name: HEIC for Jelly
     guid: e0ca1e89-983f-495a-a3ce-7dba998cb21e
-    version: 1.0.1.0
+    version: 1.1.0.0
     repository:
       Name: HEIC for Jelly
       Url: https://raw.githubusercontent.com/RousseAddict/heic-for-jelly/main/manifest.json
