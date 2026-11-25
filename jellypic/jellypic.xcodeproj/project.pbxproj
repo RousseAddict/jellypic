@@ -66,6 +66,8 @@
 		1A00000000000000000000142 /* LibraryCatchUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000141 /* LibraryCatchUp.swift */; };
 		1A00000000000000000000144 /* PhotoAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000143 /* PhotoAccess.swift */; };
 		1A00000000000000000000146 /* DeleteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000145 /* DeleteService.swift */; };
+		1A0000000000000000000014A /* ServerSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000149 /* ServerSetup.swift */; };
+		1A0000000000000000000014C /* OnboardingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000014B /* OnboardingViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -130,6 +132,8 @@
 		1A00000000000000000000141 /* LibraryCatchUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCatchUp.swift; sourceTree = "<group>"; };
 		1A00000000000000000000143 /* PhotoAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAccess.swift; sourceTree = "<group>"; };
 		1A00000000000000000000145 /* DeleteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteService.swift; sourceTree = "<group>"; };
+		1A00000000000000000000149 /* ServerSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSetup.swift; sourceTree = "<group>"; };
+		1A0000000000000000000014B /* OnboardingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -271,6 +275,8 @@
 				1A00000000000000000000141 /* LibraryCatchUp.swift */,
 				1A00000000000000000000143 /* PhotoAccess.swift */,
 				1A00000000000000000000145 /* DeleteService.swift */,
+				1A00000000000000000000149 /* ServerSetup.swift */,
+				1A0000000000000000000014B /* OnboardingViewController.swift */,
 			);
 			path = Writer;
 			sourceTree = "<group>";
@@ -440,6 +446,8 @@
 				1A00000000000000000000142 /* LibraryCatchUp.swift in Sources */,
 				1A00000000000000000000144 /* PhotoAccess.swift in Sources */,
 				1A00000000000000000000146 /* DeleteService.swift in Sources */,
+				1A0000000000000000000014A /* ServerSetup.swift in Sources */,
+				1A0000000000000000000014C /* OnboardingViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

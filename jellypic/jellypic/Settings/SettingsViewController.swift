@@ -35,6 +35,7 @@ final class SettingsViewController: CardSheetViewController {
 
     var onSignedOut: (() -> Void)?
     var onResyncRequested: (() -> Void)?
+    var onServerSetupRequested: (() -> Void)?
 
     init(services: AppServices) {
         self.services = services
@@ -83,6 +84,8 @@ final class SettingsViewController: CardSheetViewController {
         buildIdentity()
         buildBackupControl()
         buildThemeControl()
+
+        backupNote.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(openServerSetup)))
 
         photoAccessRow.title = "Allow access to all photos"
         photoAccessRow.addTarget(self, action: #selector(openPhotoSettings), for: .touchUpInside)
@@ -216,6 +219,15 @@ final class SettingsViewController: CardSheetViewController {
         }
         photoAccessGroup.isHidden = access != .limited
         backupNote.text = backupNoteText()
+
+        let needsSetup = services.upload.availability.unavailableReason != nil
+        backupNote.action = needsSetup ? "Set up your server ›" : nil
+        backupNote.isUserInteractionEnabled = needsSetup
+    }
+
+    @objc private func openServerSetup() {
+        onServerSetupRequested?()
+        dismissCard()
     }
 
     private func backupNoteText() -> String {
@@ -501,9 +513,14 @@ final class SettingsGroupView: UIView, Themed {
 final class SettingsNoteView: UIView, Themed {
 
     private let label = UILabel()
+    private var palette = Theme.palette
 
     var text: String? {
-        didSet { label.text = text }
+        didSet { render() }
+    }
+
+    var action: String? {
+        didSet { render() }
     }
 
     override init(frame: CGRect) {
@@ -531,7 +548,26 @@ final class SettingsNoteView: UIView, Themed {
     }
 
     func applyTheme(_ palette: ThemePalette) {
-        label.textColor = palette.textSecondary
+        self.palette = palette
+        render()
+    }
+
+    private func render() {
+        guard let action = action else {
+            label.attributedText = nil
+            label.text = text
+            label.textColor = palette.textSecondary
+            return
+        }
+        let caption = Typography.caption
+        let emphasis = UIFont.systemFont(ofSize: caption.pointSize, weight: .semibold)
+        let note = NSMutableAttributedString(string: text.map { $0 + "\n" } ?? "",
+                                             attributes: [.font: caption,
+                                                          .foregroundColor: palette.textSecondary])
+        note.append(NSAttributedString(string: action,
+                                       attributes: [.font: emphasis,
+                                                    .foregroundColor: palette.textPrimary]))
+        label.attributedText = note
     }
 }
 

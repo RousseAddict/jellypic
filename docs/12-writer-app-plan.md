@@ -166,6 +166,14 @@ Sign-out resets the mode to Off. Everything else about the account is destroyed 
 inheriting "Automatic" into the next account is the one failure that would upload without
 being asked.
 
+**Amended 2026-11-24 (onboarding, doc 20):** the target is the browsed library and only it.
+`JellyfinUploadService.resolve` used to fall back to `targets.first` when the browsed library
+was not among the targets, which filled a library the grid never shows. A browsed library
+that is absent, or listed with `NOT_CONFIGURED`, is now its own state,
+`BackupAvailability.notConfigured`, which reads "“Photos” is not open for upload on your
+server" and, like `blocked`, does not grey the control. When the plugin is not ready, the
+note under the control gains a *Set up your server ›* line and opens the onboarding's step 1.
+
 ## 5. Reading an asset, and why the obvious API is the wrong one
 
 `PHImageManager.requestImageDataAndOrientation` can hand back a re-encoded rendition. We

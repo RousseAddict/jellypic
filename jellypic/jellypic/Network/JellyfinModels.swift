@@ -37,10 +37,20 @@ struct PublicSystemInfo: Decodable {
 struct JellyfinUser: Decodable {
     let id: String
     let name: String
+    let policy: JellyfinUserPolicy?
 
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case name = "Name"
+        case policy = "Policy"
+    }
+}
+
+struct JellyfinUserPolicy: Decodable {
+    let isAdministrator: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case isAdministrator = "IsAdministrator"
     }
 }
 

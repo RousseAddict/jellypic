@@ -13,6 +13,7 @@ enum Preferences {
         static let syncWatermark = "syncWatermark"
         static let syncRunStart = "syncRunStart"
         static let indexSchemaVersion = "indexSchemaVersion"
+        static let isAdministrator = "isAdministrator"
     }
 
     private static let defaults = UserDefaults.standard
@@ -69,6 +70,11 @@ enum Preferences {
     static var indexSchemaVersion: Int {
         get { return defaults.integer(forKey: Key.indexSchemaVersion) }
         set { defaults.set(newValue, forKey: Key.indexSchemaVersion) }
+    }
+
+    static var isAdministrator: Bool? {
+        get { return defaults.object(forKey: Key.isAdministrator) as? Bool }
+        set { defaults.set(newValue, forKey: Key.isAdministrator) }
     }
 
     static func clearSync() {

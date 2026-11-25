@@ -74,6 +74,7 @@ final class AppServices {
             deletion.reset()
             Preferences.clearLibrary()
         }
+        Preferences.isAdministrator = result.user.policy?.isAdministrator
 
         client.credentials = credentials
         client.cachedImageBaseURL = baseURL
@@ -111,6 +112,7 @@ final class AppServices {
             self.store.reset()
             self.images.clearCaches()
             Preferences.clearLibrary()
+            Preferences.isAdministrator = nil
             completion(AppServices.sessionIsDeadOnServer(after: result))
         }
     }

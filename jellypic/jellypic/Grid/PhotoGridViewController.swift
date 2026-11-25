@@ -35,6 +35,8 @@ final class PhotoGridViewController: UIViewController {
     private var isQueueBannerVisible = false
     private var didSyncFail = false
     private var didIntroduceScrubber = false
+    private var didOfferOnboarding = false
+    private var opensServerSetupAfterSettings = false
     private var sentSeen = 0
     private var arrivingCount = 0
     private var arrivalBaseline: Int?
@@ -96,6 +98,7 @@ final class PhotoGridViewController: UIViewController {
         refreshSendButton()
         updateQueueBanner()
         introduceScrubber()
+        offerOnboardingIfNeeded()
     }
 
     override func viewDidLayoutSubviews() {
@@ -569,11 +572,37 @@ final class PhotoGridViewController: UIViewController {
         let settings = SettingsViewController(services: services)
         settings.onSignedOut = { [weak self] in self?.onSignedOut?() }
         settings.onResyncRequested = { [weak self] in self?.restartSync() }
+        settings.onServerSetupRequested = { [weak self] in self?.opensServerSetupAfterSettings = true }
         settings.onDismissed = { [weak self] in
-            self?.catchUp()
-            self?.refreshSendButton()
+            guard let self = self else { return }
+            self.catchUp()
+            self.refreshSendButton()
+            guard self.opensServerSetupAfterSettings else { return }
+            self.opensServerSetupAfterSettings = false
+            self.presentOnboarding(startsAtServer: true)
         }
         settings.present(over: self)
+    }
+
+    private func offerOnboardingIfNeeded() {
+        guard !didOfferOnboarding, !isSessionExpired, services.upload.needsOnboarding else { return }
+        didOfferOnboarding = true
+        presentOnboarding(startsAtServer: false)
+    }
+
+    private func presentOnboarding(startsAtServer: Bool) {
+        OnboardingViewController.prepare(services) { [weak self] in
+            guard let self = self,
+                  !self.isSessionExpired,
+                  self.view.window != nil,
+                  !self.children.contains(where: { $0 is CardSheetViewController }) else { return }
+            let onboarding = OnboardingViewController(services: self.services, startsAtServer: startsAtServer)
+            onboarding.onDismissed = { [weak self] in
+                self?.services.upload.markOnboardingSeen()
+                self?.refreshSendButton()
+            }
+            onboarding.present(over: self)
+        }
     }
 
     private func refreshSendButton() {

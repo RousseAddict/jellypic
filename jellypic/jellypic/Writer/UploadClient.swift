@@ -56,6 +56,11 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         let missing: [String]
     }
 
+    private struct HeicStatusPayload: Decodable {
+        let decoding: Bool
+        let reason: String?
+    }
+
     var credentials: JellyfinCredentials?
     var onTokenRejected: (() -> Void)?
     var onUploadFinished: ((String, Result<UploadReceipt, UploadFailure>) -> Void)?
@@ -105,6 +110,24 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             self.finish(self.outcome(data: data, response: response, error: error), completion)
+        }
+        task.resume()
+        return task
+    }
+
+    @discardableResult
+    func heicStatus(completion: @escaping (HeicStatus) -> Void) -> URLSessionTask? {
+        guard let credentials = credentials else {
+            finish(HeicStatus.unknown, completion)
+            return nil
+        }
+        var request = URLRequest(url: credentials.baseURL.appendingPathComponent("HeicForJelly/Status"))
+        request.setValue(jellyfinAuthorization(identity: identity, token: credentials.accessToken),
+                         forHTTPHeaderField: "Authorization")
+
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
+            self.finish(self.heicOutcome(data: data, response: response, error: error), completion)
         }
         task.resume()
         return task
@@ -363,6 +386,24 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
         return .success(payload.targets.map {
             UploadTarget(id: $0.id, name: $0.name, isWritable: $0.writable, reason: $0.reason)
         })
+    }
+
+    private func heicOutcome(data: Data?, response: URLResponse?, error: Error?) -> HeicStatus {
+        guard error == nil, let http = response as? HTTPURLResponse else { return .unknown }
+
+        if HTTPStatus.rejectsToken(http.statusCode) {
+            DispatchQueue.main.async { self.onTokenRejected?() }
+            return .unknown
+        }
+        if http.statusCode == 404 {
+            return .notInstalled
+        }
+        guard (200..<300).contains(http.statusCode),
+              let data = data,
+              let payload = try? JSONDecoder().decode(HeicStatusPayload.self, from: data) else {
+            return .unknown
+        }
+        return payload.decoding ? .decoding : .off(payload.reason)
     }
 
     private func finish<T>(_ result: T, _ completion: @escaping (T) -> Void) {

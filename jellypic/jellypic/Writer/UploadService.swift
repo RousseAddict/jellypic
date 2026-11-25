@@ -12,6 +12,7 @@ enum BackupAvailability {
     case unknown
     case notInstalled
     case incompatible
+    case notConfigured
     case blocked(String)
     case ready(UploadTarget)
 
@@ -19,7 +20,7 @@ enum BackupAvailability {
         switch self {
         case .notInstalled, .incompatible:
             return false
-        case .unknown, .blocked, .ready:
+        case .unknown, .notConfigured, .blocked, .ready:
             return true
         }
     }
@@ -30,12 +31,24 @@ enum BackupAvailability {
             return "Requires the upload plugin on your server"
         case .incompatible:
             return "Update the upload plugin on your server"
+        case .notConfigured:
+            guard let library = Preferences.libraryName else {
+                return BackupUploadError.refusalText("NOT_CONFIGURED")
+            }
+            return "“\(library)” is not open for upload on your server"
         case .blocked(let reason):
             return reason
         case .unknown, .ready:
             return nil
         }
     }
+}
+
+enum HeicStatus: Equatable {
+    case unknown
+    case notInstalled
+    case decoding
+    case off(String?)
 }
 
 enum BackupUploadError: Error {
@@ -126,6 +139,8 @@ protocol UploadService: AnyObject {
 
     var mode: BackupMode { get set }
     var availability: BackupAvailability { get }
+    var heicStatus: HeicStatus { get }
+    var needsOnboarding: Bool { get }
     var queueState: UploadQueueState { get }
     var lastSweepAt: Date? { get }
     var lastSweepResult: String? { get }
@@ -134,6 +149,9 @@ protocol UploadService: AnyObject {
     func beginCatchUp()
     func declineCatchUp()
     func refreshAvailability(completion: @escaping () -> Void)
+    func refreshHeicStatus(completion: @escaping () -> Void)
+    func markOnboardingSeen()
+    func localPhotoCount() -> Int?
     func enqueue(_ assets: [PHAsset]) -> Bool
     func resumeQueue()
     func stopQueue()
@@ -151,6 +169,7 @@ final class JellyfinUploadService: UploadService {
         static let watermarkIdentifier = "backupWatermarkIdentifier"
         static let lastSweepAt = "backupLastSweepAt"
         static let lastSweepResult = "backupLastSweepResult"
+        static let onboardingSeen = "backupOnboardingSeen"
     }
 
     private let client: UploadClient
@@ -160,6 +179,7 @@ final class JellyfinUploadService: UploadService {
     private let defaults = UserDefaults.standard
 
     private(set) var availability: BackupAvailability = .unknown
+    private(set) var heicStatus: HeicStatus = .unknown
 
     init(identity: DeviceIdentity) {
         let client = UploadClient(identity: identity)
@@ -273,6 +293,34 @@ final class JellyfinUploadService: UploadService {
         }
     }
 
+    func refreshHeicStatus(completion: @escaping () -> Void) {
+        client.heicStatus { [weak self] status in
+            guard let self = self else { return }
+            if status != .unknown {
+                self.heicStatus = status
+            }
+            completion()
+        }
+    }
+
+    var needsOnboarding: Bool {
+        return mode == .off && !defaults.bool(forKey: Key.onboardingSeen)
+    }
+
+    func markOnboardingSeen() {
+        defaults.set(true, forKey: Key.onboardingSeen)
+    }
+
+    func localPhotoCount() -> Int? {
+        guard PhotoAccess.current.allowsLibraryRead,
+              let library = PHAssetCollection.fetchAssetCollections(with: .smartAlbum,
+                                                                    subtype: .smartAlbumUserLibrary,
+                                                                    options: nil).firstObject else { return nil }
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+        return PHAsset.fetchAssets(in: library, options: options).count
+    }
+
     func enqueue(_ assets: [PHAsset]) -> Bool {
         guard case .ready(let target) = availability else { return false }
         queue.enqueue(assets.map { $0.localIdentifier }, targetId: target.id)
@@ -336,6 +384,8 @@ final class JellyfinUploadService: UploadService {
         catchUpEngine.reset()
         mode = .off
         availability = .unknown
+        heicStatus = .unknown
+        defaults.removeObject(forKey: Key.onboardingSeen)
         defaults.removeObject(forKey: Key.watermark)
         defaults.removeObject(forKey: Key.watermarkIdentifier)
         defaults.removeObject(forKey: Key.lastSweepAt)
@@ -408,8 +458,9 @@ final class JellyfinUploadService: UploadService {
     }
 
     private static func resolve(_ targets: [UploadTarget]) -> BackupAvailability {
-        guard let target = targets.first(where: { $0.id == Preferences.libraryId }) ?? targets.first else {
-            return .blocked(BackupUploadError.refusalText("NOT_CONFIGURED"))
+        guard let target = targets.first(where: { $0.id == Preferences.libraryId }),
+              target.reason != "NOT_CONFIGURED" else {
+            return .notConfigured
         }
         guard target.isWritable else {
             return .blocked(BackupUploadError.refusalText(target.reason))

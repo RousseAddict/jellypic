@@ -32,6 +32,18 @@ class CardSheetViewController: UIViewController {
     private var bottomSheetConstraints: [NSLayoutConstraint] = []
     private var fullSheetConstraints: [NSLayoutConstraint] = []
     private var appliedFullSheet: Bool?
+    private var fixedBodyHeight: NSLayoutConstraint?
+    private var fitBodyHeight: NSLayoutConstraint?
+    private var sheetTopConstraint: NSLayoutConstraint?
+
+    var sheetSpacing: CGFloat {
+        get { return sheet.spacing }
+        set { sheet.spacing = newValue }
+    }
+
+    var sheetTopPadding: CGFloat = CardSheetViewController.padding {
+        didSet { sheetTopConstraint?.constant = sheetTopPadding }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,6 +66,22 @@ class CardSheetViewController: UIViewController {
 
     func addAccessory(_ button: GlyphButton) {
         accessories.insertArrangedSubview(button, at: 0)
+    }
+
+    func setFixedBodyHeight(_ height: CGFloat) {
+        fitBodyHeight?.isActive = false
+        if let constraint = fixedBodyHeight {
+            constraint.constant = height
+            return
+        }
+        let constraint = scrollView.heightAnchor.constraint(equalToConstant: height)
+        constraint.priority = UILayoutPriority(700)
+        constraint.isActive = true
+        fixedBodyHeight = constraint
+    }
+
+    func scrollBodyToTop() {
+        scrollView.setContentOffset(.zero, animated: false)
     }
 
     func present(over parent: UIViewController) {
@@ -182,6 +210,7 @@ class CardSheetViewController: UIViewController {
 
         let fit = scrollView.heightAnchor.constraint(equalTo: body.heightAnchor)
         fit.priority = UILayoutPriority(500)
+        fitBodyHeight = fit
 
         NSLayoutConstraint.activate([
             body.topAnchor.constraint(equalTo: scrollView.topAnchor),
@@ -200,10 +229,13 @@ class CardSheetViewController: UIViewController {
         let overhang = CardSheetViewController.overhang
         let padding = CardSheetViewController.padding
 
+        let sheetTop = sheet.topAnchor.constraint(equalTo: card.topAnchor, constant: sheetTopPadding)
+        sheetTopConstraint = sheetTop
+
         bottomSheetConstraints = [
             card.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor,
                                       constant: CardSheetViewController.topGap),
-            sheet.topAnchor.constraint(equalTo: card.topAnchor, constant: padding),
+            sheetTop,
             sheet.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: padding),
             sheet.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -padding)
         ]

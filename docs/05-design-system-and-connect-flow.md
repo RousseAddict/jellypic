@@ -223,6 +223,30 @@ phone is turned lens-left.
 `verticalSizeClass`, not `bounds.width > bounds.height`: an iPad in landscape
 has plenty of height and correctly stays a bottom sheet.
 
+### A fixed height, for a flow of pages
+
+The card sizes itself to its body; the footer sits outside the scroll view, so a button in
+it never scrolls. A flow of pages in one card (the onboarding, doc 20 §5) needs one more
+thing: the same card height on every page, or the button lands somewhere else each time.
+`setFixedBodyHeight(_:)` pins the scroll view's height, and two details of it were found on
+the 5s the hard way:
+
+- **It deactivates the fit-to-body constraint.** Left at 500, that constraint keeps pulling
+  the body to the scroll view's height, and Auto Layout honours it by stretching whatever
+  in the body hugs least — on the first build, the *Off* row grew to 98 pt and its
+  description fell to the bottom. Without it the body keeps its natural height, top-aligned.
+  The content size still comes from the body's edges pinned to the scroll view.
+- **Its priority is 700, below the 750 compression resistance of the footer's button.** At
+  750 the two tied, and when the tallest page did not fit, the engine squeezed the *Done*
+  button to 27 pt instead of letting the body scroll.
+
+So the cap (the required top gap) wins on a small screen and the content scrolls under the
+fixed footer. The page computes the height itself (the tallest of its pages, measured
+detached with `systemLayoutSizeFitting`) and only ever grows it. `sheetSpacing` and
+`sheetTopPadding` let such a card tighten the 22 pt between header, body and footer and the
+24 pt above its top bar. **The top gap is 64 pt below the safe area, not the screen**: on
+the 5s that is 84 pt from the top, which leaves the card 484 pt, not 504.
+
 ### Why the X, and where
 
 Swipe-down is on the card, so a scroll view in the middle of it eats the

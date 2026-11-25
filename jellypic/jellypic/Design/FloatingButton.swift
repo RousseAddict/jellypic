@@ -339,6 +339,48 @@ final class CloseGlyphView: GlyphView {
     }
 }
 
+final class ExclamationGlyphView: GlyphView {
+
+    override var naturalSize: CGSize {
+        return CGSize(width: 2, height: 12)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 2
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY + 1))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - 5))
+        path.move(to: CGPoint(x: rect.midX, y: rect.maxY - 1))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - 0.99))
+        return path
+    }
+}
+
+final class ExternalLinkGlyphView: GlyphView {
+
+    override var naturalSize: CGSize {
+        return CGSize(width: 11, height: 11)
+    }
+
+    override var strokeWidth: CGFloat {
+        return 1.5
+    }
+
+    override func path(in rect: CGRect) -> UIBezierPath {
+        let box = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: box.minX, y: box.maxY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.minY))
+        path.move(to: CGPoint(x: box.minX + box.width * 0.35, y: box.minY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.minY))
+        path.addLine(to: CGPoint(x: box.maxX, y: box.minY + box.height * 0.65))
+        return path
+    }
+}
+
 final class PlusGlyphView: GlyphView {
 
     override var naturalSize: CGSize {
