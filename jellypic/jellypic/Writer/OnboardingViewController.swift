@@ -84,6 +84,7 @@ final class OnboardingViewController: CardSheetViewController {
         super.viewDidLoad()
         sheetTopPadding = 8
         sheetSpacing = 8
+        footerSpacing = 16
         body.spacing = 0
         buildTopBar()
         buildServerPage()
@@ -150,7 +151,7 @@ final class OnboardingViewController: CardSheetViewController {
         let savedFootnote = footnote.text
         if tallestBackup {
             automaticRow.isExpanded = true
-            footnote.text = backupConcepts()
+            footnote.text = automaticFootnote()
         }
         let height = page.systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
                                                   withHorizontalFittingPriority: .required,
@@ -320,8 +321,7 @@ final class OnboardingViewController: CardSheetViewController {
 
     private func updateChrome() {
         let canGoBack = page == .howTo || (page == .backup && hasServerStep)
-        backButton.alpha = canGoBack ? 1 : 0
-        backButton.isUserInteractionEnabled = canGoBack
+        backButton.isHidden = !canGoBack
 
         stepIndicator.isHidden = !hasServerStep
         stepIndicator.update(current: page == .backup ? 1 : 0, reachable: 1, animated: false)
@@ -419,12 +419,16 @@ final class OnboardingViewController: CardSheetViewController {
         case .manual:
             return backupConcepts()
         case .automatic:
-            guard UIApplication.shared.backgroundRefreshStatus == .available else {
-                return backupConcepts()
-                    + "\nBackground App Refresh is off for Jellypic: new photos go only while the app is open."
-            }
-            return backupConcepts()
+            return automaticFootnote()
         }
+    }
+
+    private func automaticFootnote() -> String {
+        guard UIApplication.shared.backgroundRefreshStatus == .available else {
+            return backupConcepts()
+                + "\nBackground App Refresh is off for Jellypic: new photos go only while the app is open."
+        }
+        return backupConcepts()
     }
 
     private func backupConcepts() -> String {
@@ -1033,11 +1037,11 @@ private final class TextLinkControl: UIControl, Themed {
     private let label = UILabel()
 
     override var isHighlighted: Bool {
-        didSet { alpha = isHighlighted ? 0.5 : 1 }
+        didSet { updateAlpha() }
     }
 
     override var isEnabled: Bool {
-        didSet { alpha = isEnabled ? 1 : 0.4 }
+        didSet { updateAlpha() }
     }
 
     init(title: String) {
@@ -1068,6 +1072,10 @@ private final class TextLinkControl: UIControl, Themed {
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         return bounds.insetBy(dx: -8, dy: -6).contains(point)
+    }
+
+    private func updateAlpha() {
+        alpha = isEnabled ? (isHighlighted ? 0.5 : 1) : 0.4
     }
 
     func applyTheme(_ palette: ThemePalette) {

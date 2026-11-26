@@ -244,7 +244,8 @@ So the cap (the required top gap) wins on a small screen and the content scrolls
 fixed footer. The page computes the height itself (the tallest of its pages, measured
 detached with `systemLayoutSizeFitting`) and only ever grows it. `sheetSpacing` and
 `sheetTopPadding` let such a card tighten the 22 pt between header, body and footer and the
-24 pt above its top bar. **The top gap is 64 pt below the safe area, not the screen**: on
+24 pt above its top bar; `footerSpacing` sets the body-to-footer gap alone, so a footnote
+ending the tallest page does not read as a caption of the button. **The top gap is 64 pt below the safe area, not the screen**: on
 the 5s that is 84 pt from the top, which leaves the card 484 pt, not 504.
 
 ### Why the X, and where

@@ -368,6 +368,28 @@ page's internal spacing is tighter (step 2: 10 between blocks, 6 between rows). 
 content at the default text size against the 340 pt the body gets: Automatic chosen 330,
 step 1 with the non-admin subtitle 326, *How to install* 324.
 
+**Second device test (5s and 13 Pro Max on iOS 18, every page), and what it changed.**
+Nothing moves between pages on either phone. Two fixes and one copy change:
+
+- The back arrow came back on step 1 after tapping it, visible but dead. `GlyphButton`
+  sets its alpha from the highlight, and UIKit clears the highlight *after* running the
+  tap's action, so the action's `alpha = 0` was undone. The arrow is now hidden, not faded.
+  *Check again* had the same race against its disabled look; its alpha now derives from
+  both states.
+- The status lines read as a state of the server ("Not installed — shows iPhone photos").
+  They now say what the plugin is for: *Not installed — needed to send photos*, *Missing or
+  outdated — needed for iPhone photos*. "Outdated" because 1.0.x has no status route and
+  answers 404 like an absent plugin; the step now says *install or update* for that case,
+  as the table in §3 planned.
+- On the 13 Pro Max the footnote under an expanded Automatic sat 11 pt above *Done* and
+  14 pt below the rows, so it read as the button's caption. The body-to-footer gap is now
+  16 pt (`footerSpacing`, doc 05 §4.1); the header-to-body gap stays 8. That spends 8 of
+  the ~11 pt the 5s had left.
+- The tallest-page measurement used the plain footnote, so with Background App Refresh off
+  the warning fell below the fold. It now measures the footnote Automatic would really
+  show. A large phone grows the card to fit; the 5s hits its cap and step 2 scrolls by
+  a few points, the button still fixed.
+
 **Known gaps, accepted for now:**
 
 - The Settings note only becomes the way back in when the **upload** plugin is not ready.

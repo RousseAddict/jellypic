@@ -58,7 +58,7 @@ struct ServerSetup {
         let title = ServerSetup.uploadName
         switch availability {
         case .notInstalled:
-            return ServerSetupLine(title: title, detail: "Not installed — sends your photos", badge: .missing)
+            return ServerSetupLine(title: title, detail: "Not installed — needed to send photos", badge: .missing)
         case .incompatible:
             return ServerSetupLine(title: title, detail: "Needs an update", badge: .attention)
         case .notConfigured:
@@ -76,7 +76,7 @@ struct ServerSetup {
         let title = ServerSetup.heicName
         switch heic {
         case .notInstalled:
-            return ServerSetupLine(title: title, detail: "Not installed — shows iPhone photos", badge: .missing)
+            return ServerSetupLine(title: title, detail: "Missing or outdated — needed for iPhone photos", badge: .missing)
         case .decoding:
             return ServerSetupLine(title: title, detail: "Ready", badge: .ready)
         case .off("FFMPEG_TOO_OLD"?):
@@ -126,7 +126,7 @@ struct ServerSetup {
             steps.append(missing.count == 2
                 ? "In Jellyfin, open Plugins › Repositories and add both links."
                 : "In Jellyfin, open Plugins › Repositories and add the link.")
-            let verb = availability.isIncompatible ? "install or update" : "install"
+            let verb = availability.isIncompatible || heic == .notInstalled ? "install or update" : "install"
             let what = missing.count == 2 ? "both" : missing[0]
             steps.append("In the Catalogue, \(verb) \(what), then restart the server.")
         }

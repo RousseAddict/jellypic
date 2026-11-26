@@ -41,6 +41,11 @@ class CardSheetViewController: UIViewController {
         set { sheet.spacing = newValue }
     }
 
+    var footerSpacing: CGFloat {
+        get { return sheet.customSpacing(after: scrollView) }
+        set { sheet.setCustomSpacing(newValue, after: scrollView) }
+    }
+
     var sheetTopPadding: CGFloat = CardSheetViewController.padding {
         didSet { sheetTopConstraint?.constant = sheetTopPadding }
     }
