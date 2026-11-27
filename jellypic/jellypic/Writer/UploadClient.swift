@@ -87,7 +87,7 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
 
         let backgroundConfiguration = URLSessionConfiguration
             .background(withIdentifier: UploadClient.backgroundSessionIdentifier)
-        backgroundConfiguration.allowsCellularAccess = false
+        backgroundConfiguration.allowsCellularAccess = true
         backgroundConfiguration.isDiscretionary = false
         backgroundConfiguration.sessionSendsLaunchEvents = true
         backgroundConfiguration.httpMaximumConnectionsPerHost = 3
@@ -166,8 +166,9 @@ final class UploadClient: NSObject, URLSessionDataDelegate {
     }
 
     @discardableResult
-    func send(_ export: AssetExport, targetId: String, identifier: String) -> Bool {
-        guard let request = itemsRequest(export: export, targetId: targetId) else { return false }
+    func send(_ export: AssetExport, targetId: String, identifier: String, allowsCellular: Bool) -> Bool {
+        guard var request = itemsRequest(export: export, targetId: targetId) else { return false }
+        request.allowsCellularAccess = allowsCellular
         let task = backgroundSession.uploadTask(with: request, fromFile: export.fileURL)
         task.taskDescription = identifier
         task.resume()

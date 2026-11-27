@@ -240,7 +240,7 @@ final class LibraryCatchUp {
             case .success(let missing):
                 let identifiers = missing.compactMap { owners[$0] }
                 if !identifiers.isEmpty {
-                    self.queue.enqueue(identifiers, targetId: targetId)
+                    self.queue.enqueue(identifiers, targetId: targetId, picked: false)
                     self.defaults.set(self.defaults.integer(forKey: Key.found) + identifiers.count,
                                       forKey: Key.found)
                 }

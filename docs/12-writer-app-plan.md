@@ -272,7 +272,9 @@ system, rather than a begged-for background task, does the scheduling — §13.
 - A single background `URLSession` with a **stable identifier**, recreated at launch with
   that same identifier. Two sessions sharing an identifier is a hard failure, so the
   instance is owned by `AppServices` and created once. Built in W5, §13.
-- `allowsCellularAccess = false`. Not overridable: nothing in the UI offers it.
+- ~~`allowsCellularAccess = false`. Not overridable: nothing in the UI offers it.~~
+  **Reversed 2026-11-26: photos picked with `+` may use cellular, Automatic stays on
+  Wi-Fi.** The session allows cellular and each request decides. §16.
 - ~~`isDiscretionary = true` in Automatic, never in Manual.~~ **Reversed in W5:
   `isDiscretionary = false` always.** A `URLSessionConfiguration` is *copied* at session
   construction and a background session cannot be reconfigured, so one session could never
@@ -596,7 +598,7 @@ beg for, and the run reassembles itself after a launch it did not ask for.
 ### One background session, and `isDiscretionary` reversed
 
 `com.rousseaddict.jellypic.uploads`, shared by Manual and Automatic,
-`allowsCellularAccess = false`, `sessionSendsLaunchEvents = true`,
+`allowsCellularAccess = false` (`true` since §16, decided per request), `sessionSendsLaunchEvents = true`,
 `httpMaximumConnectionsPerHost = 3`, and **`isDiscretionary = false`**, which reverses §6.
 Two reasons, and the second is decisive: a personal backup that defers for hours reads as
 broken; and a `URLSessionConfiguration` is *copied* at session construction while a
@@ -1136,3 +1138,79 @@ itself.
 
 **Not a crash, and easy to mistake for one:** changing a privacy permission in
 Settings makes iOS kill the app if it is running; returning to it is a cold launch.
+
+## 16. Cellular for picked photos (2026-11-26)
+
+Ratified in chat: **a photo picked with `+` may go over cellular, always, with no setting.**
+You chose those photos and tapped Send; you expect them to leave now. Automatic and the
+*Back up everything?* catch-up stay on Wi-Fi: both can mean thousands of photos nobody
+looked at. Settings › Jellypic › Cellular Data already turns cellular off for the whole app,
+so a switch of our own would duplicate it. Low Data Mode is not consulted: a picked photo
+is the one transfer the user asked for by name.
+
+### The session allows cellular, each request narrows it
+
+A background session's configuration is copied when the session is built and cannot change
+afterwards (the trap that reversed `isDiscretionary` in §13), and Manual and Automatic share
+that one session. Apple's rule is that a request can be stricter than its session, never
+looser. So the session is `allowsCellularAccess = true` and `UploadClient.send` writes
+`request.allowsCellularAccess` on **every** request from an `allowsCellular` argument. It
+has to be written every time: a `URLRequest` allows cellular by default, so a forgotten
+assignment would put Automatic on cellular without any visible sign.
+
+The decision is taken at send time, in `UploadQueue.start`, from the queue's `picked` set —
+not when the photo is queued — so a photo picked while it was still exporting or backing
+off leaves with cellular allowed.
+
+### The queue knows which photos were picked
+
+`pending` stays one ordered list; `picked` is the subset that came from `+`. It is saved in
+`queue.json` as an optional `picked` array, so a file written before this change still
+loads, as all Wi-Fi only, without a version bump (a bump would have thrown away the queue).
+A photo both swept and picked counts as picked. Picked photos go to the **front** of
+`pending`, in the order picked.
+
+### Two windows, so a waiting upload cannot block a picked one
+
+A background session does not fail an upload that may not use the network it is on; it
+**waits for connectivity** (Apple forum reports, not documentation). On cellular, three
+Automatic uploads would sit in the window of three indefinitely and a picked photo behind
+them would never start. So the pump fills two windows: up to three picked uploads, then
+Automatic ones up to three in total. On cellular that means at most three waiting plus three
+going; on Wi-Fi at most six tasks, and `httpMaximumConnectionsPerHost = 3` still caps the
+connections. Enqueueing while the pump is armed now calls `pump` directly: before, new
+photos were picked up at the next completion, which never comes while everything in flight
+is waiting.
+
+A photo picked while it is already in flight as an Automatic upload is cancelled and
+restarted with cellular allowed (`repicked`). The restart happens only in the cancel's
+callback, after the staged file is discarded, so the new export never shares the staged name
+with the old one. If the old upload completes first, its result counts as usual; if its
+answer is the "no Wi-Fi" error below, it is treated as the Automatic upload it was.
+
+### "No Wi-Fi" holds Automatic, not the queue
+
+`NSURLErrorDataNotAllowed` (-1020, `UploadFailure.offline`) used to halt the queue and
+cancel its peers. Whether a background session ever reports it, rather than waiting, is not
+known. When it does, on an Automatic photo it now **holds Automatic for the rest of the run**
+(`heldForWiFi`): that photo stays pending, no other Automatic photo starts, picked photos
+keep going, and once nothing is in flight the run ends with *Waiting for Wi-Fi to send your
+photos.* Holding the whole class, not just the one photo, matters: otherwise every remaining
+Automatic photo would be exported only to fail the same way, thousands of exports on a
+catch-up. On a picked photo the error means cellular is refused for the whole app, and it
+halts the queue as before.
+
+### Not measured
+
+- That a background upload task honours a request-level `allowsCellularAccess = false`
+  when the session allows cellular. Apple documents the narrowing direction; nobody
+  documents it for background sessions.
+- Whether such a task waits or fails with -1020 on cellular.
+- An Automatic upload created by an earlier build, under a session that refused cellular,
+  is adopted after the update by a session that allows it, and its request never set the
+  flag. At most three photos, once.
+
+Device tests, Wi-Fi off and cellular on: a picked photo goes out; a new photo in Automatic
+waits and leaves when Wi-Fi returns, app closed; a mix gets the picked photos out first;
+picking a photo the sweep already started sends it now; Settings › Jellypic › Cellular Data
+off makes a picked send wait or end with *Waiting for Wi-Fi*, never fail a photo.

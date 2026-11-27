@@ -124,7 +124,7 @@ that too.
 > • Manual: pick the photos to send. Automatic: new photos are sent in the background,
 >   even with the app closed.
 > • Originals are sent untouched — a HEIC stays a HEIC — and nothing is sent twice.
-> • Wi-Fi only.
+> • Automatic backup waits for Wi-Fi; the photos you pick are sent on cellular too.
 > • Backing up needs the free Upload for Jelly plugin on your server. Showing HEIC
 >   photos needs the free HEIC for Jelly plugin.
 >

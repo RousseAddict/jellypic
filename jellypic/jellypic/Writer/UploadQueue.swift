@@ -26,6 +26,7 @@ final class UploadQueue {
         case stored(created: Bool)
         case failItem(BackupUploadError)
         case retry(BackupUploadError, limit: Int)
+        case waitForWiFi(BackupUploadError)
         case halt(BackupUploadError)
     }
 
@@ -33,6 +34,7 @@ final class UploadQueue {
         let version: Int
         let targetId: String?
         let pending: [String]
+        let picked: [String]?
         let sent: Int
         let duplicates: Int
         let failed: Int
@@ -55,6 +57,9 @@ final class UploadQueue {
     private let fileURL: URL
 
     private var pending: [String] = []
+    private var picked: Set<String> = []
+    private var heldForWiFi: BackupUploadError?
+    private var repicked: Set<String> = []
     private var inFlight: [String: Slot] = [:]
     private var targetId: String?
     private var sent = 0
@@ -133,7 +138,7 @@ final class UploadQueue {
         persist()
     }
 
-    func enqueue(_ identifiers: [String], targetId: String) {
+    func enqueue(_ identifiers: [String], targetId: String, picked byHand: Bool) {
         if pending.isEmpty && !isPumpArmed {
             sent = 0
             duplicates = 0
@@ -141,9 +146,13 @@ final class UploadQueue {
             lastErrorText = nil
         }
 
-        var known = Set(pending)
-        for identifier in identifiers where known.insert(identifier).inserted {
-            pending.append(identifier)
+        if byHand {
+            putFirst(identifiers)
+        } else {
+            var known = Set(pending)
+            for identifier in identifiers where known.insert(identifier).inserted {
+                pending.append(identifier)
+            }
         }
 
         self.targetId = targetId
@@ -151,7 +160,24 @@ final class UploadQueue {
         stopReason = nil
         persist()
         notifyChanged()
-        run()
+        if isPumpArmed {
+            pump(token: runToken)
+        } else {
+            run()
+        }
+    }
+
+    private func putFirst(_ identifiers: [String]) {
+        let sentWithoutCellular = identifiers.filter { inFlight[$0] != nil && !picked.contains($0) }
+
+        var seen: Set<String> = []
+        let ahead = identifiers.filter { seen.insert($0).inserted && inFlight[$0] == nil }
+        let moved = Set(ahead)
+        pending = ahead + pending.filter { !moved.contains($0) }
+
+        picked.formUnion(identifiers)
+        repicked.formUnion(sentWithoutCellular)
+        client.cancelUploads(for: sentWithoutCellular)
     }
 
     func resume(target: UploadTarget) {
@@ -175,6 +201,9 @@ final class UploadQueue {
         lastErrorText = nil
         inFlight = [:]
         pending = []
+        picked = []
+        heldForWiFi = nil
+        repicked = []
         targetId = nil
         sent = 0
         duplicates = 0
@@ -194,6 +223,8 @@ final class UploadQueue {
         isPumpArmed = true
         isPaused = false
         stopReason = nil
+        heldForWiFi = nil
+        repicked = []
         runToken += 1
         notifyChanged()
     }
@@ -201,14 +232,34 @@ final class UploadQueue {
     private func pump(token: Int) {
         guard token == runToken, isPumpArmed, let targetId = targetId else { return }
 
-        while inFlight.count < UploadQueue.window {
-            guard let identifier = pending.first(where: { inFlight[$0] == nil }) else { break }
-            inFlight[identifier] = Slot(token: token, attempts: 0)
-            start(identifier, token: token, targetId: targetId)
+        while inFlight.keys.filter({ picked.contains($0) }).count < UploadQueue.window,
+              let identifier = nextStartable(picked: true) {
+            launch(identifier, token: token, targetId: targetId)
+        }
+        while inFlight.count < UploadQueue.window, let identifier = nextStartable(picked: false) {
+            launch(identifier, token: token, targetId: targetId)
         }
 
-        if inFlight.isEmpty && pending.isEmpty {
-            finish(reason: nil)
+        if inFlight.isEmpty {
+            finish(reason: pending.isEmpty ? nil : heldForWiFi)
+        }
+    }
+
+    private func nextStartable(picked wanted: Bool) -> String? {
+        guard wanted ? !picked.isEmpty : heldForWiFi == nil else { return nil }
+        return pending.first { inFlight[$0] == nil && picked.contains($0) == wanted }
+    }
+
+    private func launch(_ identifier: String, token: Int, targetId: String) {
+        inFlight[identifier] = Slot(token: token, attempts: 0)
+        start(identifier, token: token, targetId: targetId)
+    }
+
+    private func schedulePump() {
+        let token = runToken
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, token == self.runToken else { return }
+            self.pump(token: token)
         }
     }
 
@@ -229,7 +280,10 @@ final class UploadQueue {
             case .failure(let failure):
                 self.complete(UploadQueue.verdict(failure), identifier: identifier, token: token)
             case .success(let export):
-                guard self.client.send(export, targetId: targetId, identifier: identifier) else {
+                guard self.client.send(export,
+                                       targetId: targetId,
+                                       identifier: identifier,
+                                       allowsCellular: self.picked.contains(identifier)) else {
                     self.complete(.halt(.notReady), identifier: identifier, token: token)
                     return
                 }
@@ -265,16 +319,19 @@ final class UploadQueue {
         case .failItem(let error):
             failed += 1
             lastErrorText = error.text
-        case .retry, .halt:
+        case .retry, .waitForWiFi, .halt:
             return
         }
         pending.remove(at: index)
+        picked.remove(identifier)
         persist()
         notifyChanged()
     }
 
     private func uploadCancelled(_ identifier: String) {
         exporter.discardStaged(for: identifier)
+        guard repicked.remove(identifier) != nil, inFlight.removeValue(forKey: identifier) != nil else { return }
+        schedulePump()
     }
 
     private func complete(_ outcome: Outcome, identifier: String, token: Int) {
@@ -303,6 +360,15 @@ final class UploadQueue {
                 guard let self = self, token == self.runToken, let targetId = self.targetId else { return }
                 self.start(identifier, token: token, targetId: targetId)
             }
+        case .waitForWiFi(let error):
+            let wasSentWithoutCellular = repicked.remove(identifier) != nil || !picked.contains(identifier)
+            guard wasSentWithoutCellular else {
+                finish(reason: error)
+                return
+            }
+            inFlight.removeValue(forKey: identifier)
+            heldForWiFi = error
+            schedulePump()
         case .halt(let error):
             finish(reason: error)
         }
@@ -313,17 +379,14 @@ final class UploadQueue {
         if let index = pending.firstIndex(of: identifier) {
             pending.remove(at: index)
         }
+        picked.remove(identifier)
+        repicked.remove(identifier)
         sincePersist += 1
         if sincePersist >= UploadQueue.persistEvery {
             persist()
         }
         notifyChanged()
-
-        let token = runToken
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, token == self.runToken else { return }
-            self.pump(token: token)
-        }
+        schedulePump()
     }
 
     private func finish(reason: BackupUploadError?) {
@@ -352,8 +415,10 @@ final class UploadQueue {
     private static func verdict(_ failure: UploadFailure) -> Outcome {
         let error = BackupUploadError.from(failure)
         switch failure {
-        case .unauthorized, .stopQueue, .offline:
+        case .unauthorized, .stopQueue:
             return .halt(error)
+        case .offline:
+            return .waitForWiFi(error)
         case .rejected(let code):
             return code == "HASH_MISMATCH" ? .retry(error, limit: 1) : .failItem(error)
         case .transient:
@@ -374,6 +439,7 @@ final class UploadQueue {
               let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
               snapshot.version == UploadQueue.version else { return }
         pending = snapshot.pending
+        picked = Set(snapshot.picked ?? []).intersection(pending)
         targetId = snapshot.targetId
         sent = snapshot.sent
         duplicates = snapshot.duplicates
@@ -393,6 +459,7 @@ final class UploadQueue {
         let snapshot = Snapshot(version: UploadQueue.version,
                                 targetId: targetId,
                                 pending: pending,
+                                picked: Array(picked),
                                 sent: sent,
                                 duplicates: duplicates,
                                 failed: failed,

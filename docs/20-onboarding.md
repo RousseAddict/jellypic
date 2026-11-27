@@ -253,7 +253,7 @@ Short, and only where they apply:
 
 | Concept | Where |
 |---|---|
-| uploads go on Wi-Fi only (`allowsCellularAccess = false`) | the Automatic row's description, *New photos · Wi-Fi only*, readable before choosing |
+| Automatic uploads go on Wi-Fi only (per request since doc 12 §16; picked photos may use cellular) | the Automatic row's description, *New photos · Wi-Fi only*, readable before choosing |
 | photos only — videos stay on the iPhone, though the grid shows the server's videos | footer, Manual and Automatic |
 | one-way: deleting a photo on the iPhone keeps the server copy | footer, Manual and Automatic |
 | everyone who can open *this library* on the server sees what you send | footer, Manual and Automatic |
@@ -274,10 +274,10 @@ otherwise.
   `onUploadCancelled` without reading it. A separate change, not part of onboarding.
 - **iCloud-only photos are skipped** and **a sent photo appears after about a minute**: true,
   but they belong where they happen (the queue banner already says the second).
-- **A cellular option** is a later discussion. Not a flag flip: the background session's
-  configuration is copied when the session is built and cannot change after (the trap that
-  reversed `isDiscretionary` in W5). The likely shape is cellular allowed on the session and
-  decided per upload request — to verify before promising it.
+- ~~**A cellular option** is a later discussion.~~ **Settled 2026-11-26, doc 12 §16:**
+  photos picked with `+` may always use cellular, with no setting; Automatic stays on Wi-Fi.
+  Cellular is allowed on the session and decided per upload request, as foreseen here. The
+  Automatic row's *Wi-Fi only* stays true and the card needs no change.
 
 ## 5. Screens (ratified 2026-11-24)
 
@@ -411,7 +411,7 @@ Settled 2026-11-24:
 3. Step 2 is shown with Manual and Automatic disabled when the upload plugin is not ready
    (2c); the deep links are verified (§3); the copy is the canvas's, to re-measure on the 5s.
 
-Later, separately: the force-quit banner (§4), a cellular option (§4), one combined plugin
+Later, separately: the force-quit banner (§4), one combined plugin
 repository (saves the admin a *Copy* and a paste).
 
 ## 8. Device tests

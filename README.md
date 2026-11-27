@@ -41,7 +41,8 @@
 - Originals are sent byte for byte: a HEIC stays a HEIC, and an edited photo is sent as you
   see it in Photos. Each photo is identified by the SHA-256 of its bytes, so nothing is sent
   twice.
-- Wi-Fi only. Videos are not backed up yet.
+- Automatic backup waits for Wi-Fi; the photos you pick are sent on cellular too. Videos are
+  not backed up yet.
 
 ## Requirements
 

@@ -323,7 +323,7 @@ final class JellyfinUploadService: UploadService {
 
     func enqueue(_ assets: [PHAsset]) -> Bool {
         guard case .ready(let target) = availability else { return false }
-        queue.enqueue(assets.map { $0.localIdentifier }, targetId: target.id)
+        queue.enqueue(assets.map { $0.localIdentifier }, targetId: target.id, picked: true)
         return true
     }
 
@@ -428,7 +428,7 @@ final class JellyfinUploadService: UploadService {
 
         guard let last = identifiers.last else { return 0 }
 
-        queue.enqueue(identifiers, targetId: target.id)
+        queue.enqueue(identifiers, targetId: target.id, picked: false)
         if let lastDate = lastDate {
             defaults.set(lastDate, forKey: Key.watermark)
         }
